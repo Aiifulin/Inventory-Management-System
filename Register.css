@@ -1,0 +1,156 @@
+body {
+       margin: 0;
+            background: #f7f7fb;
+            font-family: "Segoe UI", sans-serif;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            padding: 20px;
+    }
+
+    .top-icon {
+      width: 70px;
+      height: 70px;
+      background: #0c0c1d;
+      border-radius: 20px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .top-icon img {
+      width: 34px;
+      height: 34px;
+    }
+
+    h1 {
+      text-align: center;
+      font-size: 26px;
+      margin-bottom: 6px;
+    }
+
+    .subtitle {
+      text-align: center;
+      color: #6c6c6c;
+      margin-bottom: 30px;
+      font-size: 15px;
+    }
+
+    .card {
+      width: 100%;
+      max-width: 600px;
+      background: #fff;
+      padding: 32px;
+      border-radius: 16px;
+      box-shadow: 0px 8px 20px rgba(0,0,0,0.08);
+    }
+
+    .back-btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: #111;
+      font-size: 15px;
+      margin-bottom: 20px;
+    }
+
+    label {
+      display: block;
+      font-size: 14px;
+      margin-bottom: 6px;
+      font-weight: bold;
+    }
+
+    input {
+      width: 100%;
+      padding: 14px;
+      border-radius: 10px;
+      border: 1px solid #ddd;
+      background: #f3f3f5;
+      font-size: 15px;
+      margin-bottom: 18px;
+      outline: none;
+    }
+
+    input:focus {
+      border-color: #bbb;
+    }
+
+    .password-wrapper {
+      position: relative;
+    }
+
+    .toggle-eye {
+      position: absolute;
+      right: 1px;
+      top: 35%;
+      transform: translateY(-50%);
+      cursor: pointer;
+      color: #555;
+    }
+
+    .error {
+      background: #ffe6e6;
+      border-left: 4px solid #ff4a4a;
+      padding: 12px;
+      color: #a10000;
+      border-radius: 6px;
+      margin-bottom: 20px;
+      font-size: 14px;
+    }
+
+    .submit-btn {
+      width: 100%;
+      padding: 14px;
+      background: #0c0c1d;
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      font-size: 16px;
+      margin-top: 10px;
+    }
+
+    .submit-btn:hover {
+      background: #000;
+    }
+
+    .bottom-link {
+      text-align: center;
+      margin-top: 20px;
+      font-size: 14px;
+    }
+
+    .bottom-link button {
+      background: none;
+      border: none;
+      color: #0c0c1d;
+      cursor: pointer;
+      font-weight: bold;
+    }
+
+.auth-container {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .logo {
+            width: 60px;
+            height: 60px;
+            background: black;
+            border-radius: 12px;
+            margin: 0 auto 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-weight: bold;
+            font-size: 22px;
+        }
+

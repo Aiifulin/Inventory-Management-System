@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Inventory Login</title>
+
+    <link rel="stylesheet" href="Login.css"> 
+</head>
+
+<body>
+
+<div>
+    <div class="auth-container">
+        <div class="logo">■</div>
+        <div class="title">Inventory Management</div>
+        <div class="subtitle">Sign in to manage your inventory</div>
+    </div>
+
+    <div class="card">
+        <div id="errorMessage" class="error"></div>
+
+        <label>Email</label>
+        <input type="email" id="email" placeholder="admin@inventory.com" required>
+
+        <label>Password</label>
+        <div class="password-wrapper">
+            <input type="password" id="password" placeholder="Enter your password" required>
+            <span class="toggle-btn" onclick="togglePassword('password')">👁</span>
+        </div>
+
+        <button class="login-btn" onclick="login()">Sign In</button>
+
+        <div class="links">
+            <a href="Register.html">Create an account</a>
+            <a href="#">Forgot password?</a>
+        </div>
+    </div>
+</div>
+
+<!-- logic firebase tas iba pa -->
+<script type="module" src="Login.js"></script>
+
+</body>
+</html>

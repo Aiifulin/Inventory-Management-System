@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Create Account</title>
+    <link rel="stylesheet" href="Register.css" />
+</head>
+<body>
+  <div class="auth-container">
+        <div class="logo">■</div>
+        <div class="title">Inventory Management</div>
+        <div class="subtitle">Create Account to manage your inventory</div>
+    </div>
+
+  <div class="card">
+    <button class="back-btn" onclick="goToLogin()">← Back to Login</button>
+
+    <div id="error-box" class="error" style="display:none"></div>
+
+    <form id="register-form">
+      <label>Full Name</label>
+      <input type="text" id="name" placeholder="John Doe" required />
+
+      <label>Email</label>
+      <input type="email" id="email" placeholder="you@example.com" required />
+
+      <label>Password</label>
+      <div class="password-wrapper">
+        <input type="password" id="password" placeholder="At least 6 characters" required />
+        <span class="toggle-eye" onclick="togglePassword('password')">👁</span>
+      </div>
+
+      <label>Confirm Password</label>
+      <div class="password-wrapper">
+        <input type="password" id="confirmPassword" placeholder="Repeat password" required />
+        <span class="toggle-eye" onclick="togglePassword('confirmPassword')">👁</span>
+      </div>
+
+      <button class="submit-btn" type="submit" onclick="goToLogin()">Create Account</button>
+    </form>
+
+    <div class="bottom-link">
+      Already have an account? <button onclick="goToLogin()">Sign in</button>
+    </div>
+  </div>
+
+  <script type="module" src="Register.js"></script>
+</body>
+</html>
