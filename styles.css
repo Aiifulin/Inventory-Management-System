@@ -1,0 +1,127 @@
+body {
+            margin: 0;
+            background: #f7f7fb;
+            font-family: "Segoe UI", sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            padding: 20px;
+        }
+
+        .auth-container {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .logo {
+            width: 60px;
+            height: 60px;
+            background: black;
+            border-radius: 12px;
+            margin: 0 auto 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-weight: bold;
+            font-size: 22px;
+        }
+
+        .title {
+            font-size: 22px;
+            font-weight: 600;
+        }
+
+        .subtitle {
+            font-size: 15px;
+            color: #6b6b6b;
+            margin-top: 5px;
+        }
+
+        .card {
+            width: 420px;
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 2px 15px rgba(0,0,0,0.08);
+            margin-top: 20px;
+        }
+
+        label {
+            display: block;
+            font-size: 14px;
+            margin-bottom: 6px;
+            margin-top: 18px;
+            text-align: left;
+            font-weight: 500;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+            font-size: 14px;
+            background: #f4f4f8;
+        }
+
+        .password-wrapper {
+            position: relative;
+        }
+
+        .toggle-btn {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            cursor: pointer;
+            font-size: 13px;
+            color: #666;
+        }
+
+        .error {
+            background: #ffe1e1;
+            border: 1px solid #ffb6b6;
+            color: #c60b00;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 6px;
+            font-size: 14px;
+            display: none;
+        }
+
+        .login-btn {
+            width: 100%;
+            background: #111;
+            border: none;
+            color: white;
+            font-size: 15px;
+            padding: 12px;
+            border-radius: 8px;
+            margin-top: 20px;
+            cursor: pointer;
+            font-weight: 500;
+        }
+
+        .links {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 12px;
+            font-size: 14px;
+        }
+
+        .links a {
+            color: #111;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .demo-box {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f4f4f8;
+            border-radius: 8px;
+            text-align: left;
+            font-size: 14px;
+        }
