@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Inventory Reset Password</title>
+
+    <link rel="stylesheet" href="components(css)/Reset.css"> 
+</head>
+
+<body>
+
+<div>
+    <div class="auth-container">
+        <div class="logo">■</div>
+        <div class="title">Reset Password</div>
+        <div class="subtitle">Enter your email to receive reset instrutions</div>
+    </div>
+
+    <div class="card">
+        <div id="errorMessage" class="error"></div>
+
+        <label>Email</label>
+        <input type="email" id="email" placeholder="admin@inventory.com" required>
+
+        <button class="reset-btn" onclick="login()">Send Reset Link</button>
+
+        <button class="login-btn" onclick="login()">Back to Sign In</button>
+        
+    </div>
+</div>
+
+<!-- logic firebase tas iba pa -->
+<script type="module" src="components(js)/styles.js"></script>
+
+</body>
+</html>
