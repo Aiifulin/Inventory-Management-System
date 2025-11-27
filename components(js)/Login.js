@@ -37,10 +37,21 @@ const db = getFirestore(app);
 /************************************************
  * PASSWORD TOGGLE
  ***********************************************/
-window.togglePassword = function (id) {
+window.togglePassword = function (id, el) {
     const input = document.getElementById(id);
-    input.type = input.type === "password" ? "text" : "password";
+    const icon = el.querySelector('i');
+
+    if(input.type === "password") {
+        input.type = "text";
+        icon.classList.remove('fa-eye');
+        icon.classList.add('fa-eye-slash');
+    } else {
+        input.type = "password";
+        icon.classList.remove('fa-eye-slash');
+        icon.classList.add('fa-eye');
+    }
 };
+
 
 /************************************************
  * NAVIGATION

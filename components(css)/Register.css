@@ -1,156 +1,176 @@
 body {
-       margin: 0;
-            background: #f7f7fb;
-            font-family: "Segoe UI", sans-serif;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            padding: 20px;
-    }
+    margin: 0;
+    background: #f7f7fb;
+    font-family: "Segoe UI", sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    padding: 20px;
+}
 
-    .top-icon {
-      width: 70px;
-      height: 70px;
-      background: #0c0c1d;
-      border-radius: 20px;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      margin-bottom: 20px;
-    }
-
-    .top-icon img {
-      width: 34px;
-      height: 34px;
-    }
-
-    h1 {
-      text-align: center;
-      font-size: 26px;
-      margin-bottom: 6px;
-    }
-
-    .subtitle {
-      text-align: center;
-      color: #6c6c6c;
-      margin-bottom: 30px;
-      font-size: 15px;
-    }
-
-    .card {
-      width: 100%;
-      max-width: 600px;
-      background: #fff;
-      padding: 32px;
-      border-radius: 16px;
-      box-shadow: 0px 8px 20px rgba(0,0,0,0.08);
-    }
-
-    .back-btn {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      background: none;
-      border: none;
-      cursor: pointer;
-      color: #111;
-      font-size: 15px;
-      margin-bottom: 20px;
-    }
-
-    label {
-      display: block;
-      font-size: 14px;
-      margin-bottom: 6px;
-      font-weight: bold;
-    }
-
-    input {
-      width: 100%;
-      padding: 14px;
-      border-radius: 10px;
-      border: 1px solid #ddd;
-      background: #f3f3f5;
-      font-size: 15px;
-      margin-bottom: 18px;
-      outline: none;
-    }
-
-    input:focus {
-      border-color: #bbb;
-    }
-
-    .password-wrapper {
-      position: relative;
-    }
-
-    .toggle-eye {
-      position: absolute;
-      right: 1px;
-      top: 35%;
-      transform: translateY(-50%);
-      cursor: pointer;
-      color: #555;
-    }
-
-    .error {
-      background: #ffe6e6;
-      border-left: 4px solid #ff4a4a;
-      padding: 12px;
-      color: #a10000;
-      border-radius: 6px;
-      margin-bottom: 20px;
-      font-size: 14px;
-    }
-
-    .submit-btn {
-      width: 100%;
-      padding: 14px;
-      background: #0c0c1d;
-      color: #fff;
-      border: none;
-      border-radius: 10px;
-      cursor: pointer;
-      font-size: 16px;
-      margin-top: 10px;
-    }
-
-    .submit-btn:hover {
-      background: #000;
-    }
-
-    .bottom-link {
-      text-align: center;
-      margin-top: 20px;
-      font-size: 14px;
-    }
-
-    .bottom-link button {
-      background: none;
-      border: none;
-      color: #0c0c1d;
-      cursor: pointer;
-      font-weight: bold;
-    }
-
+/* Top logo + title container */
 .auth-container {
-            text-align: center;
-            margin-bottom: 20px;
-        }
+    text-align: center;
+    margin-bottom: 20px;
+}
 
-        .logo {
-            width: 60px;
-            height: 60px;
-            background: black;
-            border-radius: 12px;
-            margin: 0 auto 20px;
+/* Black square logo (same as Login) */
+.logo {
+    width: 60px;
+    height: 60px;
+    background: black;
+    border-radius: 12px;
+    margin: 0 auto 20px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: white;
+    font-weight: bold;
+    font-size: 22px;
+}
+
+.title {
+    font-size: 22px;
+    font-weight: 600;
+}
+
+.subtitle {
+    font-size: 15px;
+    color: #6b6b6b;
+    margin-top: 5px;
+}
+
+/* Card box */
+.card {
+    width: 420px;
+    background: white;
+    border-radius: 12px;
+    padding: 30px;
+    box-shadow: 0 2px 15px rgba(0,0,0,0.08);
+    margin-top: 20px;
+}
+
+/* Labels */
+label {
+    display: block;
+    font-size: 14px;
+    margin-bottom: 6px;
+    margin-top: 18px;
+    text-align: left;
+    font-weight: 500;
+}
+
+/* Text inputs */
+input {
+    width: 100%;
+    padding: 12px;
+    border-radius: 8px;
+    border: 1px solid #ddd;
+    font-size: 14px;
+    background: #f4f4f8;
+}
+
+/* Password eye icon wrapper */
+.password-wrapper {
+    position: relative;
+}
+
+.toggle-eye,
+.toggle-btn {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    cursor: pointer;
+    font-size: 13px;
+    color: #666;
+}
+
+/* Error message box */
+.error {
+    background: #ffe1e1;
+    border: 1px solid #ffb6b6;
+    color: #c60b00;
+    padding: 10px;
+    margin-bottom: 10px;
+    border-radius: 6px;
+    font-size: 14px;
+    display: none;
+}
+
+/* Create Account button */
+.submit-btn,
+.login-btn {
+    width: 100%;
+    background: #111;
+    border: none;
+    color: white;
+    font-size: 15px;
+    padding: 12px;
+    border-radius: 8px;
+    margin-top: 20px;
+    cursor: pointer;
+    font-weight: 500;
+}
+
+.links {
             display: flex;
-            justify-content: center;
-            align-items: center;
-            color: white;
-            font-weight: bold;
-            font-size: 22px;
+            justify-content: space-between;
+            margin-top: 12px;
+            font-size: 14px;
         }
 
+        .links a {
+            color: #111;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+/* Success Popup Styles */
+.success-popup {
+    display: none; /* hidden by default */
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.5);
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.popup-content {
+    background: #fff;
+    padding: 30px;
+    border-radius: 12px;
+    text-align: center;
+    width: 300px;
+    box-shadow: 0 2px 15px rgba(0,0,0,0.2);
+}
+
+.popup-content h2 {
+    margin-bottom: 12px;
+    color: #111;
+}
+
+.popup-content p {
+    margin-bottom: 20px;
+    font-size: 14px;
+    color: #444;
+}
+
+.popup-content button {
+    padding: 12px 24px;
+    border: none;
+    background: #111;
+    color: #fff;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 500;
+}
+
+.popup-content button:hover {
+    background: #000;
+}
