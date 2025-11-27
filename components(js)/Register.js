@@ -1,3 +1,4 @@
+
     /************************************************
      * required for firebase
      ***********************************************/
@@ -35,74 +36,70 @@
      * Functionalities
      ***********************************************/
 
-    // Password Toggle
-    window.togglePassword = function (id) {
+    window.togglePassword = function(id, el) {
         const input = document.getElementById(id);
-        input.type = input.type === "password" ? "text" : "password";
+        const icon = el.querySelector('i');
+
+        if(input.type === "password") {
+            input.type = "text";
+            icon.classList.remove('fa-eye');
+            icon.classList.add('fa-eye-slash');
+        } else {
+            input.type = "password";
+            icon.classList.remove('fa-eye-slash');
+            icon.classList.add('fa-eye');
+        }
     };
 
-    // Navigation
-    window.goToLogin = function () {
-        window.location.href = "Login.html";
-    };
-
-    window.goToRegister = function () {
-        window.location.href = "Register.html";
-    };
-
-    // Show Error Message
     function showError(msg) {
-        const errorBox = document.getElementById("error-box");
+        const box = document.getElementById("errorMessage");
+        box.innerText = msg;
+        box.style.display = "block";
+    }
+    
+    window.register = async function () {
+    const name = document.getElementById("name").value.trim();
+    const email = document.getElementById("email").value.trim();
+    const pw = document.getElementById("password").value;
+    const cpw = document.getElementById("confirmPassword").value;
+
+    const errorBox = document.getElementById("errorMessage");
+
+    errorBox.style.display = "none";
+
+    // Validation
+    if (!name || !email || !pw || !cpw) {
+        errorBox.innerText = "Please fill out all fields.";
         errorBox.style.display = "block";
-        errorBox.textContent = msg;
+        return;
     }
 
-    /************************************************
-     * REGISTER
-     ***********************************************/
-    const registerForm = document.getElementById("register-form");
+    if (pw !== cpw) {
+        errorBox.innerText = "Passwords do not match.";
+        errorBox.style.display = "block";
+        return;
+    }
 
-    registerForm.addEventListener("submit", async (e) => {
-    e.preventDefault();
+    if (pw.length < 6) {
+        errorBox.innerText = "Password must be at least 6 characters.";
+        errorBox.style.display = "block";
+        return;
+    }
 
-        const name = document.getElementById("name").value.trim();
-        const email = document.getElementById("email").value.trim();
-        const password = document.getElementById("password").value;
-        const confirmPassword = document.getElementById("confirmPassword").value;
-        const errorBox = document.getElementById("error-box");
+    try {
+        const userCred = await createUserWithEmailAndPassword(auth, email, pw);
+        console.log("Account created:", userCred.user);
 
-        // RESET ERROR BOX
-        errorBox.style.display = "none";
-        errorBox.textContent = "";
+        const popup = document.getElementById("successPopup");
+        popup.style.display = "flex";
 
-        // VALIDATION
-        if (password !== confirmPassword) {
-            return showError("Passwords do not match");
-        }
+    } catch (err) {
+        errorBox.innerText = err.message;
+        errorBox.style.display = "block";
+        console.error(err);
+    }
+};
 
-        if (password.length < 6) {
-            return showError("Password must be at least 6 characters");
-        }
-
-        try {
-            // 1. CREATE USER IN FIREBASE AUTH
-            const userCred = await createUserWithEmailAndPassword(auth, email, password);
-            const user = userCred.user;
-
-            // 2. SAVE USER DATA TO FIRESTORE
-            await setDoc(doc(db, "users", user.uid), {
-                fullName: name,
-                email: email,
-                createdAt: new Date()
-            });
-
-        } catch (err) {
-            console.error(err);
-
-            if (err.code === "auth/email-already-in-use") {
-                showError("This email is already registered.");
-            } else {
-                showError(err.message);
-            }
-        }
-    });
+window.goToLogin = function() {
+    window.location.href = "Login.html";
+}

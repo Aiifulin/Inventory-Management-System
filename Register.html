@@ -1,50 +1,60 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Create Account</title>
-    <link rel="stylesheet" href="components(css)/Register.css" />
+    <meta charset="UTF-8">
+    <title>Create Account</title>
+    <link rel="stylesheet" href="components(css)/Register.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" />
 </head>
+
 <body>
-  <div class="auth-container">
+
+<div>
+    <div class="auth-container">
         <div class="logo">■</div>
         <div class="title">Inventory Management</div>
         <div class="subtitle">Create Account to manage your inventory</div>
     </div>
 
-  <div class="card">
-    <button class="back-btn" onclick="goToLogin()">← Back to Login</button>
+    <div class="card">
+        <div id="errorMessage" class="error"></div>
+        <label>Full Name</label>
+        <input type="text" id="name" placeholder="Juan Dela Cruz" required>
 
-    <div id="error-box" class="error" style="display:none"></div>
+        <label>Email</label>
+        <input type="email" id="email" placeholder="you@example.com" required>
 
-    <form id="register-form">
-      <label>Full Name</label>
-      <input type="text" id="name" placeholder="John Doe" required />
+        <label>Password</label>
+        <div class="password-wrapper">
+            <input type="password" id="password" placeholder="At least 6 characters" required>
+            <span class="toggle-btn" onclick="togglePassword('password', this)">
+              <i class="fa-solid fa-eye"></i></span>
+        </div>
 
-      <label>Email</label>
-      <input type="email" id="email" placeholder="you@example.com" required />
+        <label>Confirm Password</label>
+        <div class="password-wrapper">
+            <input type="password" id="confirmPassword" placeholder="Repeat password" required>
+            <span class="toggle-btn" onclick="togglePassword('password', this)">
+              <i class="fa-solid fa-eye"></i></span>  
+        </div>
 
-      <label>Password</label>
-      <div class="password-wrapper">
-        <input type="password" id="password" placeholder="At least 6 characters" required />
-        <span class="toggle-eye" onclick="togglePassword('password')">👁</span>
-      </div>
+        <button class="login-btn" onclick="register()">Create Account</button>
 
-      <label>Confirm Password</label>
-      <div class="password-wrapper">
-        <input type="password" id="confirmPassword" placeholder="Repeat password" required />
-        <span class="toggle-eye" onclick="togglePassword('confirmPassword')">👁</span>
-      </div>
+        <div class="links">
+            <a href="Login.html">Already have an account? Sign In</a>
+        </div>
 
-      <button class="submit-btn" type="submit" onclick="goToLogin()">Create Account</button>
-    </form>
-
-    <div class="bottom-link">
-      Already have an account? <button onclick="goToLogin()">Sign in</button>
+        <div id="successPopup" class="success-popup">
+            <div class="popup-content">
+                <h2>Account Created!</h2>
+                <p>Your account has been successfully created.</p>
+                <button onclick="goToLogin()">Go to Login</button>
+            </div>
+        </div>
     </div>
-  </div>
+</div>
 
-  <script type="module" src="components(js)/Register.js"></script>
+<script type="module" src="components(js)/Register.js"></script>
 </body>
 </html>
