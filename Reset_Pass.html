@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <title>Inventory Reset Password</title>
 
-    <link rel="stylesheet" href="components(css)/Reset.css"> 
+    <link rel="stylesheet" href="components(css)/styles.css"> 
 </head>
 
 <body>
@@ -13,19 +13,25 @@
     <div class="auth-container">
         <div class="logo">■</div>
         <div class="title">Reset Password</div>
-        <div class="subtitle">Enter your email to receive reset instrutions</div>
+        <div class="subtitle">Enter your email to receive reset instructions</div>
     </div>
 
     <div class="card">
-        <div id="errorMessage" class="error"></div>
+        <div id="error-box" class="error"></div>
+        <div id="success-box" class="success"></div>
 
-        <label>Email</label>
-        <input type="email" id="email" placeholder="admin@inventory.com" required>
+        <form id="password-reset-form">
+            <label>Email</label>
+            <input type="email" id="email" placeholder="admin@inventory.com" required>
 
         <button class="reset-btn" onclick="Login()">Send Reset Link</button>
 
         <button class="login-btn" onclick="goToLogin()">Back to Sign In</button>
         
+        <div class="links">
+            <a href="Register.html">Create an account</a>
+            <a href="Reset.html">Forgot password?</a>
+        </div>
     </div>
 </div>
 
