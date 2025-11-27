@@ -78,7 +78,6 @@ input {
   display: none;
 }
 
-/* Added success message styling */
 .success {
   background: #e1ffe1;
   border: 1px solid #b6ffb6;
@@ -90,7 +89,6 @@ input {
   display: none;
 }
 
-/* renamed from login-btn to reset-btn to match HTML button classes */
 .reset-btn {
   width: 100%;
   background: #111;
