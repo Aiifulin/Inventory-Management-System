@@ -74,6 +74,13 @@
         return;
     }
 
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/; //To prevent invalid email formats
+    if (!emailRegex.test(email)) {
+        errorBox.innerText = "Please enter a valid email address.";
+        errorBox.style.display = "block";
+        return;
+    }
+
     if (pw !== cpw) {
         errorBox.innerText = "Passwords do not match.";
         errorBox.style.display = "block";
