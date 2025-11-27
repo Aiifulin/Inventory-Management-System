@@ -64,6 +64,7 @@ input {
   border: 1px solid #ddd;
   font-size: 14px;
   background: #f4f4f8;
+  box-sizing: border-box;
 }
 
 .error {
@@ -77,24 +78,24 @@ input {
   display: none;
 }
 
+/* Added success message styling */
+.success {
+  background: #e1ffe1;
+  border: 1px solid #b6ffb6;
+  color: #0b8c00;
+  padding: 10px;
+  margin-bottom: 10px;
+  border-radius: 6px;
+  font-size: 14px;
+  display: none;
+}
+
+/* renamed from login-btn to reset-btn to match HTML button classes */
 .reset-btn {
   width: 100%;
   background: #111;
   border: none;
   color: white;
-  font-size: 15px;
-  padding: 12px;
-  border-radius: 8px;
-  margin-top: 20px;
-  cursor: pointer;
-  font-weight: 500;
-}
-
-.login-btn {
-  width: 100%;
-  background: #ffffff;
-  border: none;
-  color: rgb(0, 0, 0);
   font-size: 15px;
   padding: 12px;
   border-radius: 8px;
