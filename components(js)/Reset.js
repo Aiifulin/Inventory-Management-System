@@ -24,16 +24,12 @@
     /************************************************
      * Functionalities
      ***********************************************/
-
     // Navigation
-    window.goToLogin = () => {
-      window.location.href = "Login.html"
-    }
-
-    window.goToRegister = () => {
-      window.location.href = "Register.html"
-    }
-
+    window.goToLogin = function () {
+      window.location.href = "Login.html";
+  };
+  
+  
     // Show Error Message
     function showError(msg) {
       const errorBox = document.getElementById("error-box")
