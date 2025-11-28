@@ -44,7 +44,7 @@
             margin: 0 auto;
         }
 
-        /* Hamburger */
+        /* Hamburger for mobile view*/
         .hamburger {
             display: none;
             position: fixed;
@@ -186,7 +186,7 @@
             flex-direction: column;
             height: 100%;
             padding: 1rem;
-            overflow-y: auto; /* enable scrolling sa sidebar*/
+            overflow-y: auto; /* added to enable scrolling sa sidebar*/
         }
 
         .sidebar-nav {
@@ -204,7 +204,7 @@
         }
 
         .sidebar-footer .logout {
-            color: #e63946; /* soft red */
+            color: #e63946;
             font-weight: 500;
             display: flex;
             align-items: center;
