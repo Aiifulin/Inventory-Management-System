@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Dashboard</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="components(css)/Dashboard.css" />
+</head>
+
+<body>
+    <button class="hamburger" aria-label="Open menu" aria-expanded="false" aria-controls="sidebar">
+        <i class="fas fa-bars"></i>
+    </button>
+
+    <aside class="sidebar" id="sidebar">
+        <button class="close-btn"><i class="fas fa-times"></i></button>
+
+        <div class="sidebar-header">
+            <h2>Inventory Management System</h2>
+            <p>Admin User</p>
+        </div>
+
+        <a href="#dashboard" class="nav-link"><i class="fas fa-chart-line"></i>Dashboard</a>
+        <a href="Login.html" class="nav-link"><i class="fas fa-box"></i>Products</a>
+        <a href="#categories" class="nav-link"><i class="fas fa-list"></i>Categories</a>
+        <a href="#activity" class="nav-link"><i class="fas fa-history"></i>Activity Log</a>
+        <a href="#reports" class="nav-link"><i class="fas fa-file-alt"></i>Reports</a>
+        <a href="#archived" class="nav-link"><i class="fas fa-archive"></i>Archived</a>
+        <a href="#settings" class="nav-link"><i class="fas fa-gear"></i>Settings</a>
+    </aside>
+
+    <div class="overlay"></div>
+
+    <!-- DASHBOARD -->
+    <main class="main-content">
+        <h1 style="margin-top:0;">Dashboard</h1>
+        <p style="color:#6b7280; margin:6px 0 18px;">Welcome back! Here's your inventory overview.</p>
+
+        <!-- Stats(yung apat sa taas) -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-card-icon"><i class="fas fa-cube"></i></div>
+                <div><h4>Total Products</h4><p>0</p></div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-card-icon"><i class="fas fa-folder"></i></div>
+                <div><h4>Categories</h4><p>3</p></div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-card-icon" style="background:#ffecec;color:#d9534f;">
+                    <i class="fas fa-triangle-exclamation"></i>
+                </div>
+                <div><h4>Low Stock Alerts</h4><p>0</p></div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-card-icon" style="background:#fff7d6;color:#c29500;">
+                    <i class="fas fa-dollar-sign"></i>
+                </div>
+                <div><h4>Inventory Value</h4><p>$0.00</p></div>
+            </div>
+        </div>
+
+        <!-- Dashboard 2x2 grid -->
+        <div class="dashboard-grid">
+            <section class="dashboard-card">
+                <h3>Products by Category</h3>
+                <div class="chart-placeholder">Chart Placeholder</div>
+            </section>
+
+            <section class="dashboard-card">
+                <h3>Inventory Value Distribution</h3>
+                <div class="chart-placeholder">Chart Placeholder</div>
+            </section>
+
+            <section class="dashboard-card">
+                <h3>Recent Activity</h3>
+                <div class="chart-placeholder">Activity Placeholder</div>
+            </section>
+
+            <section class="dashboard-card">
+                <h3>Top Selling Products</h3>
+                <div class="chart-placeholder">Top Products Placeholder</div>
+            </section>
+        </div>
+    </main>
+
+    <script src="components(js)/Dashboard.js"></script>
+
+</body>
+</html>
