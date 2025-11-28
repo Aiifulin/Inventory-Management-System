@@ -174,3 +174,41 @@
         @media (max-width:768px){
             .dashboard-grid { grid-template-columns: 1fr; }
         }
+
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        .sidebar-content {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            padding: 1rem;
+            overflow-y: auto; /* enable scrolling sa sidebar*/
+        }
+
+        .sidebar-nav {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        
+            /* push logout to the bottom */
+            flex-grow: 1;
+        }
+
+        .sidebar-footer {
+            padding-top: 1rem;
+            border-top: 1px solid #eee;
+        }
+
+        .sidebar-footer .logout {
+            color: #e63946; /* soft red */
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        
