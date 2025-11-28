@@ -1,4 +1,3 @@
-
     /************************************************
      * required for firebase
      ***********************************************/
@@ -60,41 +59,41 @@
     window.register = async function () {
     const name = document.getElementById("name").value.trim();
     const email = document.getElementById("email").value.trim();
-    const pw = document.getElementById("password").value;
-    const cpw = document.getElementById("confirmPassword").value;
+    const password = document.getElementById("password").value;
+    const confirmPassword = document.getElementById("confirmPassword").value;
 
     const errorBox = document.getElementById("errorMessage");
 
     errorBox.style.display = "none";
 
     // Validation
-    if (!name || !email || !pw || !cpw) {
+    if (!name || !email || !password || !confirmPassword) {
         errorBox.innerText = "Please fill out all fields.";
         errorBox.style.display = "block";
         return;
     }
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/; //To prevent invalid email formats
-    if (!emailRegex.test(email)) {
+    const emailChecking = /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/; //To prevent invalid email formats
+    if (!emailChecking.test(email)) {
         errorBox.innerText = "Please enter a valid email address.";
         errorBox.style.display = "block";
         return;
     }
 
-    if (pw !== cpw) {
+    if (password !== confirmPassword) {
         errorBox.innerText = "Passwords do not match.";
         errorBox.style.display = "block";
         return;
     }
 
-    if (pw.length < 6) {
+    if (password.length < 6) {
         errorBox.innerText = "Password must be at least 6 characters.";
         errorBox.style.display = "block";
         return;
     }
 
     try {
-        const userCred = await createUserWithEmailAndPassword(auth, email, pw);
+        const userCred = await createUserWithEmailAndPassword(auth, email, password);
         console.log("Account created:", userCred.user);
 
         const popup = document.getElementById("successPopup");

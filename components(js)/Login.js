@@ -74,7 +74,7 @@ window.login = function () {
 
     signInWithEmailAndPassword(auth, email, pass)
         .then(() => {
-            window.location.href = "main.html";
+            window.location.href = "Dashboard.html";
         })
         .catch((err) => {
             errorBox.style.display = "block";

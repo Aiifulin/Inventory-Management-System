@@ -5,7 +5,7 @@ body {
   display: flex;
   justify-content: center;
   align-items: center;
-  height: 100vh;
+  min-height: 100vh;
   padding: 20px;
 }
 
@@ -113,4 +113,47 @@ input {
   color: #111;
   text-decoration: none;
   font-weight: 500;
+}
+
+/* Mobile View */
+@media (max-width: 480px) {
+  .card {
+    width: 100%;
+    padding: 20px;
+  }
+
+  .title {
+    font-size: 18px;
+  }
+
+  .subtitle {
+    font-size: 13px;
+  }
+
+  .logo {
+    width: 50px;
+    height: 50px;
+    font-size: 18px;
+  }
+
+  label {
+    font-size: 13px;
+    margin-top: 14px;
+  }
+
+  input {
+    padding: 10px;
+    font-size: 13px;
+  }
+
+  .reset-btn {
+    padding: 10px;
+    font-size: 14px;
+  }
+
+  .links {
+    flex-direction: column;
+    gap: 8px;
+    font-size: 13px;
+  }
 }

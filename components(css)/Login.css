@@ -129,6 +129,7 @@ input {
     font-size: 14px;
 }
 
+/* Mobile View */
 @media (max-width: 480px) {
     body {
         padding: 15px;
