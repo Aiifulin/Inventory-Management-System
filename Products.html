@@ -16,27 +16,30 @@
     <div class="overlay" id="overlay"></div>
 
     <aside class="sidebar" id="sidebar">
-        <div class="sidebar-header">
-            <h2>Inventory MS</h2>
-            <span class="user-role">Admin User</span>
-            <button class="close-btn" id="closeBtn"><i class="fas fa-times"></i></button>
-        </div>
-        <nav class="sidebar-nav">
-            <a href="Dashboard.html" class="nav-link"><i class="fas fa-chart-line"></i> Dashboard</a>
-            <a href="Products.html" class="nav-link active"><i class="fas fa-box"></i> Products</a>
-            <a href="Categories.html" class="nav-link"><i class="fas fa-tags"></i> Categories</a>
-            <a href="Activity.html" class="nav-link"><i class="fas fa-history"></i> Activity Log</a>
-            <a href="Reports.html" class="nav-link"><i class="fas fa-file-alt"></i> Reports</a>
-            <a href="#" class="nav-link"><i class="fas fa-archive"></i> Archived</a>
-            <a href="Settings.html" class="nav-link"><i class="fas fa-gear"></i> Settings</a>
-        </nav>
-        <div class="sidebar-footer">
-            <a href="Login.html" class="logout nav-link"><i class="fas fa-arrow-right-from-bracket"></i> Logout</a>
+        <div class="sidebar-content">
+            <div class="sidebar-header">
+                <h2>Inventory MS</h2>
+                <span class="user-role">Admin User</span>
+                <button class="close-btn" id="closeBtn"><i class="fas fa-times"></i></button>
+            </div>
+
+            <nav class="sidebar-nav">
+                <a href="Dashboard.html" class="nav-link"><i class="fas fa-chart-line"></i> Dashboard</a>
+                <a href="Products.html" class="nav-link active"><i class="fas fa-box"></i> Products</a>
+                <a href="Categories.html" class="nav-link"><i class="fas fa-tags"></i> Categories</a>
+                <a href="Activity.html" class="nav-link"><i class="fas fa-history"></i> Activity Log</a>
+                <a href="Reports.html" class="nav-link"><i class="fas fa-file-alt"></i> Reports</a>
+                <a href="#" class="nav-link"><i class="fas fa-archive"></i> Archived</a>
+                <a href="Settings.html" class="nav-link"><i class="fas fa-gear"></i> Settings</a>
+            </nav>
+
+            <div class="sidebar-footer">
+                <a href="Login.html" class="logout nav-link"><i class="fas fa-arrow-right-from-bracket"></i> Logout</a>
+            </div>
         </div>
     </aside>
 
     <main class="main-content">
-
         <div class="page-header">
             <div class="header-text">
                 <h1>Products</h1>
@@ -57,7 +60,6 @@
         </div>
 
         <div class="content-wrapper">
-            
             <div class="filters-container">
                 <div class="search-wrapper">
                     <i class="fas fa-search"></i>
@@ -70,12 +72,10 @@
                         <option>Kitchenware</option>
                         <option>Electronics</option>
                     </select>
-
                     <select id="filterSort" class="control-input">
                         <option value="name">Name</option>
                         <option value="price">Price</option>
                     </select>
-
                     <button class="btn-sort control-input">
                         ↑ Ascending
                     </button>
@@ -102,14 +102,11 @@
 
             <div class="mobile-grid mobile-only" id="mobileProductList">
                 </div>
-
         </div>
-
     </main>
 
     <script src="components(js)/Products.js"></script>
     <script>
-        // Sidebar Toggle Logic
         const hamburger = document.getElementById('hamburgerBtn');
         const sidebar = document.getElementById('sidebar');
         const overlay = document.getElementById('overlay');
