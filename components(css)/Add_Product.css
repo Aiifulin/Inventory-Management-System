@@ -1,0 +1,232 @@
+/* --- RESET & BASICS (Shared with Dashboard) --- */
+        :root { 
+            --sidebar-width: 250px; 
+            --bg-body: #f9fafb;
+            --text-main: #111827;
+            --text-secondary: #6b7280;
+            --border-color: #e5e7eb;
+            --input-bg: #f3f4f6;
+        }
+
+        html, body { height: 100%; margin: 0; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            min-height: 100vh;
+            overflow-x: hidden;
+            background-color: var(--bg-body);
+            color: var(--text-main);
+        }
+
+        /* --- SIDEBAR (Same as Dashboard) --- */
+        .sidebar {
+            width: var(--sidebar-width);
+            background-color: #fff;
+            padding: 20px 0;
+            height: 100vh;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.05);
+            flex-shrink: 0;
+            position: relative;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .sidebar-header { padding: 0 20px 20px; border-bottom: 1px solid #f3f4f6; margin-bottom: 20px; }
+        .sidebar-header h2 { margin: 0 0 5px 0; font-size: 18px; color: #333; font-weight: 700; }
+        .sidebar-header .user-role { font-size: 13px; color: #666; }
+
+        .sidebar-content { display: flex; flex-direction: column; height: 100%; overflow-y: auto; }
+        .sidebar-nav { display: flex; flex-direction: column; gap: 5px; flex-grow: 1; padding: 0 10px; }
+        .sidebar a {
+            display: flex; align-items: center; padding: 12px 15px; color: #4b5563;
+            text-decoration: none; transition: all 0.2s; border-radius: 6px; font-size: 14px; font-weight: 500;
+        }
+        .sidebar a i { margin-right: 12px; width: 20px; text-align: center; }
+        .sidebar a:hover { background-color: #f3f4f6; color: #111827; }
+
+        .sidebar-footer { padding: 15px 20px; border-top: 1px solid #f3f4f6; }
+        .sidebar-footer .logout { color: #ef4444; font-weight: 500; }
+        .sidebar-footer .logout:hover { background-color: #fef2f2; color: #dc2626; }
+
+        /* --- MAIN CONTENT AREA --- */
+        .main-content {
+            flex: 1;
+            padding: 30px;
+            width: 100%;
+            box-sizing: border-box;
+            /* Changed alignment to left by removing auto margin and setting fixed max-width aligned left */
+            margin-left: 0; 
+            max-width: 1100px; 
+        }
+
+        /* --- HEADER --- */
+        .page-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+        .back-btn {
+            color: var(--text-main);
+            font-size: 18px;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .header-title h1 { margin: 0; font-size: 22px; font-weight: 700; }
+        .header-title p { margin: 4px 0 0; color: var(--text-secondary); font-size: 14px; }
+
+        /* --- FORM LAYOUT --- */
+        .form-section {
+            background: #fff;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            border: 1px solid var(--border-color);
+            margin-bottom: 20px;
+        }
+
+        .section-title {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text-main);
+            margin-bottom: 20px;
+        }
+
+        /* Grid for Basic Info */
+        .basic-info-grid {
+            display: grid;
+            grid-template-columns: 150px 1fr;
+            gap: 24px;
+        }
+
+        /* Image Upload Box */
+        .image-upload-box {
+            width: 100%;
+            height: 150px;
+            border: 2px dashed #d1d5db;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            color: var(--text-secondary);
+            background: #fafafa;
+            transition: border-color 0.2s;
+        }
+        .image-upload-box:hover { border-color: #9ca3af; }
+        .image-upload-box i { font-size: 24px; margin-bottom: 8px; }
+        .image-upload-box span { font-size: 13px; font-weight: 500; }
+        .label-text { display: block; margin-bottom: 8px; font-size: 13px; font-weight: 600; color: #374151; }
+
+        /* Inputs */
+        .input-group { margin-bottom: 16px; width: 100%; }
+        .input-group label { display: block; margin-bottom: 6px; font-size: 13px; font-weight: 600; color: #374151; }
+        
+        input[type="text"], 
+        input[type="number"], 
+        textarea, 
+        select {
+            width: 100%;
+            padding: 10px 12px;
+            background-color: var(--input-bg);
+            border: 1px solid transparent;
+            border-radius: 6px;
+            font-size: 14px;
+            color: var(--text-main);
+            box-sizing: border-box;
+            transition: border 0.2s, background 0.2s;
+            height: 42px; /* Fixed height for alignment */
+        }
+        
+        input:focus, textarea:focus, select:focus {
+            outline: none;
+            background-color: #fff;
+            border-color: #d1d5db;
+        }
+
+        textarea { resize: vertical; height: 80px; font-family: inherit; }
+
+        /* Pricing Grid */
+        .pricing-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 20px;
+        }
+
+        /* Variations Grid */
+        .variations-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr 42px; /* Fixed width for button matching height */
+            gap: 15px;
+            /* Align items to flex-end ensures button aligns with input box, not label */
+            align-items: flex-end; 
+        }
+        
+        .btn-plus {
+            height: 42px; /* Matches input height */
+            width: 42px;
+            background-color: #111827;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            /* Remove margin so align-items handles it */
+            margin: 0; 
+            /* Ensure it doesn't push down oddly */
+            margin-bottom: 16px; /* Matches .input-group margin-bottom */
+        }
+        .btn-plus:hover { opacity: 0.9; }
+
+        /* Footer Actions */
+        .form-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            margin-top: 10px;
+            margin-bottom: 40px;
+        }
+
+        .btn-cancel {
+            background: #fff;
+            border: 1px solid var(--border-color);
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            color: #374151;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+        }
+        
+        .btn-submit {
+            background: #111827;
+            border: none;
+            padding: 10px 24px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            color: #fff;
+            cursor: pointer;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .sidebar { display: none; }
+            .basic-info-grid { grid-template-columns: 1fr; }
+            .pricing-grid { grid-template-columns: 1fr; }
+            .variations-row { grid-template-columns: 1fr; }
+            .btn-plus { width: 100%; margin-top: 0; }
+        }
+/* Mobile View Adjustments */
+        @media (max-width: 480px) {
+            .main-content {
+                padding: 15px;
+            }
+        }

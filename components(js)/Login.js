@@ -1,25 +1,24 @@
 /************************************************
  * required for firebase
  ***********************************************/
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
-
+import { initializeApp } from 'firebase/app';
 import { 
     getAuth,
     createUserWithEmailAndPassword,
     signInWithEmailAndPassword,
     onAuthStateChanged
-} from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+} from "firebase/auth";
 
 import {
     getFirestore,
     doc,
     setDoc
-} from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+} from "firebase/firestore";
 
 /************************************************
  * WAG GALAWIN
  ***********************************************/
-const firebaseConfig = {
+export const firebaseConfig = {
   apiKey: "AIzaSyBeaF2VKovHASuzhvZHzOoE0yB7QnBDej0",
   authDomain: "inventory-management-sys-baccc.firebaseapp.com",
   projectId: "inventory-management-sys-baccc",
@@ -34,40 +33,12 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-/************************************************
- * PASSWORD TOGGLE
- ***********************************************/
-window.togglePassword = function (id, el) {
-    const input = document.getElementById(id);
-    const icon = el.querySelector('i');
-
-    if(input.type === "password") {
-        input.type = "text";
-        icon.classList.remove('fa-eye');
-        icon.classList.add('fa-eye-slash');
-    } else {
-        input.type = "password";
-        icon.classList.remove('fa-eye-slash');
-        icon.classList.add('fa-eye');
-    }
-};
-
-
-/************************************************
- * NAVIGATION
- ***********************************************/
-window.goToLogin = function () {
-    window.location.href = "Login.html";
-};
-
-window.goToRegister = function () {
-    window.location.href = "Register.html";
-};
 
 /************************************************
  * LOGIN    
  ***********************************************/
-window.login = function () {
+const login = function () {
+    window.location.href = "Login.html";
     const email = document.getElementById("email").value.trim();
     const pass = document.getElementById("password").value.trim();
     const errorBox = document.getElementById("errorMessage");
@@ -80,7 +51,51 @@ window.login = function () {
             errorBox.style.display = "block";
             errorBox.textContent = err.message;
         });
+
+
 };
+
+/************************************************
+ * PASSWORD TOGGLE
+ ***********************************************/
+const togglePassword = function (id, el) {
+    window.location.href = "Login.html";
+    const input = document.getElementById(id);
+    const icon = el.querySelector('i');
+
+        if(input.type === "password") {
+            input.type = "text";
+            icon.classList.remove('fa-eye');
+            icon.classList.add('fa-eye-slash');
+        } else {
+            input.type = "password";
+            icon.classList.remove('fa-eye-slash');
+            icon.classList.add('fa-eye');
+        }
+};
+
+
+/************************************************
+ * NAVIGATION
+ ***********************************************/
+const goToLogin = function () {
+    window.location.href = "Login.html";
+};
+
+const goToRegister = function () {
+    window.location.href = "Register.html";
+};
+
+if (typeof window !== "undefined") {
+    window.goToLogin = goToLogin;
+    window.goToRegister = goToRegister;
+    window.login = login;
+}
+
+export { goToLogin, goToRegister, login, togglePassword };
+
+
+
 
 
 /************************************************

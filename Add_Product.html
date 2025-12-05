@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Add New Product</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="components(css)/Add_Product.css" />
+</head>
+<body>
+
+    <aside class="sidebar">
+        <div class="sidebar-content">
+            <div class="sidebar-header">
+                <h2>Inventory MS</h2>
+                <span class="user-role">Admin User</span>
+            </div>
+
+            <nav class="sidebar-nav">
+                <a href="Dashboard.html" class="nav-link"><i class="fas fa-chart-line"></i>Dashboard</a>
+                <a href="#" class="nav-link active"><i class="fas fa-box"></i>Products</a>
+                <a href="#Placeholder" class="nav-link"><i class="fas fa-list"></i>Categories</a>
+                <a href="#Placeholder" class="nav-link"><i class="fas fa-history"></i>Activity Log</a>
+                <a href="#Placeholder" class="nav-link"><i class="fas fa-file-alt"></i>Reports</a>
+                <a href="#Placeholder" class="nav-link"><i class="fas fa-archive"></i>Archived</a>
+                <a href="#Placeholder" class="nav-link"><i class="fas fa-gear"></i>Settings</a>
+            </nav>
+
+            <div class="sidebar-footer">
+                <a href="Login.html" class="logout"><i class="fas fa-arrow-right-from-bracket"></i>Logout</a>
+            </div>
+        </div>
+    </aside>
+
+    <main class="main-content">
+        
+        <!-- Header -->
+        <div class="page-header">
+            <a href="Dashboard.html" class="back-btn"><i class="fas fa-arrow-left"></i></a>
+            <div class="header-title">
+                <h1>Add New Product</h1>
+                <p>Fill in the details to add a new product</p>
+            </div>
+        </div>
+
+        <form action="#" method="POST">
+            
+            <!-- Section 1: Basic Information -->
+            <div class="form-section">
+                <h3 class="section-title">Basic Information</h3>
+                
+                <div class="basic-info-grid">
+                    <!-- Left: Image Upload -->
+                    <div>
+                        <span class="label-text">Product Image</span>
+                        <div class="image-upload-box">
+                            <i class="far fa-image"></i>
+                            <span>Upload Image</span>
+                        </div>
+                    </div>
+
+                    <!-- Right: Inputs -->
+                    <div class="basic-inputs">
+                        <div class="input-group">
+                            <label>Product Name *</label>
+                            <input type="text" placeholder="Enter product name" required>
+                        </div>
+                        
+                        <!-- SKU Removed as requested -->
+
+                        <div class="input-group">
+                            <label>Description</label>
+                            <textarea placeholder="Enter product description"></textarea>
+                        </div>
+
+                        <div class="input-group">
+                            <label>Category *</label>
+                            <select>
+                                <option value="" disabled selected>Select a category</option>
+                                <option value="electronics">Electronics</option>
+                                <option value="kitchenware">Kitchenware</option>
+                                <option value="furniture">Furniture</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section 2: Pricing & Stock -->
+            <div class="form-section">
+                <h3 class="section-title">Pricing & Stock</h3>
+                <div class="pricing-grid">
+                    <div class="input-group">
+                        <label>Price *</label>
+                        <input type="number" placeholder="0.00" step="0.01">
+                    </div>
+                    <div class="input-group">
+                        <label>Stock Quantity *</label>
+                        <input type="number" placeholder="0">
+                    </div>
+                    <div class="input-group">
+                        <label>Low Stock Threshold *</label>
+                        <input type="number" placeholder="10">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section 3: Product Variations -->
+            <div class="form-section">
+                <h3 class="section-title">Product Variations</h3>
+                <div class="variations-row">
+                    <div class="input-group">
+                        <label>Attribute (e.g., Size, Color)</label>
+                        <input type="text" placeholder="Size">
+                    </div>
+                    <div class="input-group">
+                        <label>Value</label>
+                        <input type="text" placeholder="Large">
+                    </div>
+                    <button type="button" class="btn-plus"><i class="fas fa-plus"></i></button>
+                </div>
+            </div>
+
+            <!-- Footer Actions -->
+            <div class="form-actions">
+                <a href="Dashboard.html" class="btn-cancel">Cancel</a>
+                <button type="submit" class="btn-submit">Add Product</button>
+            </div>
+
+        </form>
+
+    </main>
+
+</body>
+</html>

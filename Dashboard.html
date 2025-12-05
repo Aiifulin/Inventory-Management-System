@@ -9,28 +9,30 @@
 </head>
 
 <body>
-    <button class="hamburger" aria-label="Open menu" aria-expanded="false" aria-controls="sidebar">
+
+    <!-- Hamburger & Overlay -->
+    <button class="hamburger" id="hamburgerBtn">
         <i class="fas fa-bars"></i>
     </button>
+    <div class="overlay" id="overlay"></div>
 
-    <aside class="sidebar">
-        <button class="close-btn">
-            <i class="fas fa-times"></i>
-        </button>
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
         <div class="sidebar-content">
             <div class="sidebar-header">
                 <h2>Inventory MS</h2>
                 <span class="user-role">Admin User</span>
+                <button class="close-btn" id="closeBtn"><i class="fas fa-times"></i></button>
             </div>
 
             <nav class="sidebar-nav">
-                <a href="#dashboard" class="nav-link"><i class="fas fa-chart-line"></i>Dashboard</a>
-                <a href="Login.html" class="nav-link"><i class="fas fa-box"></i>Products</a>
-                <a href="#categories" class="nav-link"><i class="fas fa-list"></i>Categories</a>
-                <a href="#activity" class="nav-link"><i class="fas fa-history"></i>Activity Log</a>
-                <a href="#reports" class="nav-link"><i class="fas fa-file-alt"></i>Reports</a>
-                <a href="#archived" class="nav-link"><i class="fas fa-archive"></i>Archived</a>
-                <a href="#settings" class="nav-link"><i class="fas fa-gear"></i>Settings</a>
+                <a href="Dashboard.html" class="nav-link active"><i class="fas fa-chart-line"></i>Dashboard</a>
+                <a href="Products.html" class="nav-link"><i class="fas fa-box"></i>Products</a>
+                <a href="#Placeholder" class="nav-link"><i class="fas fa-list"></i>Categories</a>
+                <a href="#Placeholder" class="nav-link"><i class="fas fa-history"></i>Activity Log</a>
+                <a href="#Placeholder" class="nav-link"><i class="fas fa-file-alt"></i>Reports</a>
+                <a href="#Placeholder" class="nav-link"><i class="fas fa-archive"></i>Archived</a>
+                <a href="#Placeholder" class="nav-link"><i class="fas fa-gear"></i>Settings</a>
             </nav>
 
             <div class="sidebar-footer">
@@ -39,64 +41,69 @@
         </div>
     </aside>
 
-
-    <div class="overlay"></div>
-
-    <!-- DASHBOARD -->
+    <!-- Main Content -->
     <main class="main-content">
-        <h1 style="margin-top:0;">Dashboard</h1>
-        <p style="color:#6b7280; margin:6px 0 18px;">Welcome back! Here's your inventory overview.</p>
+        <div class="header-flex">
+            <div class="header-text">
+                <h1>Dashboard</h1>
+                <p>Welcome back! Here's your inventory overview.</p>
+            </div>
+            <a href="Add_Product.html" class="btn-add">Add Product</a>
+        </div>
 
-        <!-- Stats(yung apat sa taas) -->
         <div class="stats-grid">
             <div class="stat-card">
-                <div class="stat-card-icon"><i class="fas fa-cube"></i></div>
-                <div><h4>Total Products</h4><p>0</p></div>
-            </div>
-
-            <div class="stat-card">
-                <div class="stat-card-icon"><i class="fas fa-folder"></i></div>
-                <div><h4>Categories</h4><p>3</p></div>
-            </div>
-
-            <div class="stat-card">
-                <div class="stat-card-icon" style="background:#ffecec;color:#d9534f;">
-                    <i class="fas fa-triangle-exclamation"></i>
+                <div class="stat-info">
+                    <h4>Total Products</h4>
+                    <p>0</p>
                 </div>
-                <div><h4>Low Stock Alerts</h4><p>0</p></div>
+                <div class="stat-icon icon-gray"><i class="fas fa-cube"></i></div>
             </div>
 
             <div class="stat-card">
-                <div class="stat-card-icon" style="background:#fff7d6;color:#c29500;">
-                    <i class="fas fa-dollar-sign"></i>
+                <div class="stat-info">
+                    <h4>Categories</h4>
+                    <p>3</p>
                 </div>
-                <div><h4>Inventory Value</h4><p>₱9999999.00</p></div>
+                <div class="stat-icon iconS-teal"><i class="fas fa-folder"></i></div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-info">
+                    <h4>Low Stock Alerts</h4>
+                    <p>0</p>
+                </div>
+                <div class="stat-icon icon-red"><i class="fas fa-triangle-exclamation"></i></div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-info">
+                    <h4>Inventory Value</h4>
+                    <p>$0.00</p>
+                </div>
+                <div class="stat-icon icon-gold"><i class="fas fa-dollar-sign"></i></div>
             </div>
         </div>
 
-        <!-- Dashboard 2x2 grid -->
-        <div class="dashboard-grid">
-            <section class="dashboard-card">
-                <h3>Products by Category</h3>
-                <div class="chart-placeholder">Bar Graph Chart Placeholder</div>
+        <div class="charts-grid">
+            <section class="card-container">
+                <div class="card-header"><h3>Products by Category</h3></div>
+                <div class="chart-placeholder">Bar Chart Placeholder</div>
             </section>
 
-            <section class="dashboard-card">
-                <h3>Inventory Value Distribution</h3>
+            <section class="card-container">
+                <div class="card-header"><h3>Inventory Value Distribution</h3></div>
                 <div class="chart-placeholder">Pie Chart Placeholder</div>
             </section>
-
-            <!--Possible Change ng Layout instead ng Original?-->
-            <section class="dashboard-card">
-                <h3>Low Stock Alerts</h3>
-                <div class="chart-placeholder">Alerts Placeholder</div>
-            </section>
-
-            <section class="dashboard-card">
-                <h3>Recent Activities</h3>
-                <div class="chart-placeholder">Recent Activities Placeholder</div>
-            </section>
         </div>
+
+        <section class="full-width-card">
+            <div class="card-header">
+                <h3>Recent Activities</h3>
+                <a href="#" class="view-all-link">View All</a>
+            </div>
+            <div class="activity-content">No recent activities</div>
+        </section>
     </main>
 
     <script src="components(js)/Dashboard.js"></script>

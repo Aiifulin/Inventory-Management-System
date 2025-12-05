@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Products - Inventory MS</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="components(css)/Products.css">
+</head>
+
+<body>
+
+    <button class="hamburger" id="hamburgerBtn">
+        <i class="fas fa-bars"></i>
+    </button>
+    <div class="overlay" id="overlay"></div>
+
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <h2>Inventory MS</h2>
+            <span class="user-role">Admin User</span>
+            <button class="close-btn" id="closeBtn"><i class="fas fa-times"></i></button>
+        </div>
+        <nav class="sidebar-nav">
+            <a href="Dashboard.html" class="nav-link"><i class="fas fa-chart-line"></i> Dashboard</a>
+            <a href="Products.html" class="nav-link active"><i class="fas fa-box"></i> Products</a>
+            <a href="Categories.html" class="nav-link"><i class="fas fa-tags"></i> Categories</a>
+            <a href="Activity.html" class="nav-link"><i class="fas fa-history"></i> Activity Log</a>
+            <a href="Reports.html" class="nav-link"><i class="fas fa-file-alt"></i> Reports</a>
+            <a href="#" class="nav-link"><i class="fas fa-archive"></i> Archived</a>
+            <a href="Settings.html" class="nav-link"><i class="fas fa-gear"></i> Settings</a>
+        </nav>
+        <div class="sidebar-footer">
+            <a href="Login.html" class="logout nav-link"><i class="fas fa-arrow-right-from-bracket"></i> Logout</a>
+        </div>
+    </aside>
+
+    <main class="main-content">
+
+        <div class="page-header">
+            <div class="header-text">
+                <h1>Products</h1>
+                <p>Manage your inventory products</p>
+            </div>
+            
+            <div class="header-actions">
+                <button class="btn-outline">
+                    <i class="fas fa-download"></i> Export
+                </button>
+                <button class="btn-outline">
+                    <i class="fas fa-upload"></i> Bulk Upload
+                </button>
+                <button class="btn-primary">
+                    <i class="fas fa-plus"></i> Add Product
+                </button>
+            </div>
+        </div>
+
+        <div class="content-wrapper">
+            
+            <div class="filters-container">
+                <div class="search-wrapper">
+                    <i class="fas fa-search"></i>
+                    <input type="text" id="searchInput" placeholder="Search products by name, SKU, or variation...">
+                </div>
+
+                <div class="filter-controls">
+                    <select id="filterCategory" class="control-input">
+                        <option value="">All Categories</option>
+                        <option>Kitchenware</option>
+                        <option>Electronics</option>
+                    </select>
+
+                    <select id="filterSort" class="control-input">
+                        <option value="name">Name</option>
+                        <option value="price">Price</option>
+                    </select>
+
+                    <button class="btn-sort control-input">
+                        ↑ Ascending
+                    </button>
+                </div>
+            </div>
+
+            <div class="table-container desktop-only">
+                <table class="products-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 35%;">Product</th>
+                            <th>Category</th>
+                            <th>Price</th>
+                            <th>Stock</th>
+                            <th>Status</th>
+                            <th>Added</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="productTableBody">
+                        </tbody>
+                </table>
+            </div>
+
+            <div class="mobile-grid mobile-only" id="mobileProductList">
+                </div>
+
+        </div>
+
+    </main>
+
+    <script src="components(js)/Products.js"></script>
+    <script>
+        // Sidebar Toggle Logic
+        const hamburger = document.getElementById('hamburgerBtn');
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('overlay');
+        const closeBtn = document.getElementById('closeBtn');
+
+        function toggleSidebar() {
+            sidebar.classList.toggle('open');
+            overlay.classList.toggle('show');
+        }
+
+        hamburger.addEventListener('click', toggleSidebar);
+        closeBtn.addEventListener('click', toggleSidebar);
+        overlay.addEventListener('click', toggleSidebar);
+    </script>
+</body>
+</html>

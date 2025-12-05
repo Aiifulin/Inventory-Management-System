@@ -1,10 +1,11 @@
-        const hamburger = document.querySelector('.hamburger');
-        const sidebar = document.querySelector('.sidebar');
-        const overlay = document.querySelector('.overlay');
+        const hamburger = document.getElementById('hamburgerBtn');
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('overlay');
         const navLinks = document.querySelectorAll('.nav-link');
         const bodyEl = document.body;
-        const closeBtn = document.querySelector('.close-btn');
+        const closeBtn = document.getElementById('closeBtn');
         const isMobile = () => window.matchMedia('(max-width: 768px)').matches; // this returns true if viewport is 768px or less for mobile
+
 
 
         /**It opens the sidebar navigation menu,
@@ -13,8 +14,8 @@
         function openSidebar() {
             sidebar.classList.add('open');
             overlay.classList.add('show');
-            bodyEl.classList.add('no-scroll');
-            hamburger.classList.add('hidden');
+            bodyEl.style.overflow = "hidden";  // prevent scroll on mobile
+            hamburger.style.display = "none";  // hide hamburger
             closeBtn.focus();
         }
 
@@ -24,15 +25,17 @@
         function closeSidebar() {
             sidebar.classList.remove('open');
             overlay.classList.remove('show');
-            bodyEl.classList.remove('no-scroll');
-            hamburger.classList.remove('hidden');
+            bodyEl.style.overflow = ""; // restore scroll
+            hamburger.style.display = "block";
             hamburger.focus();
         }
 
         /* --- Event Listeners for Interaction --- */
 
         // This makes sure the sidebar opens only on mobile devices
-        hamburger.addEventListener('click', () => { if (isMobile()) openSidebar(); });
+        hamburger.addEventListener('click', () => { 
+            if (isMobile()) openSidebar(); 
+        });
 
         closeBtn.addEventListener('click', closeSidebar);
         overlay.addEventListener('click', closeSidebar);
@@ -58,15 +61,15 @@
                 // Ensure sidebar is closed and hamburger is hidden on larger screens(desktop)
                 sidebar.classList.remove('open');
                 overlay.classList.remove('show');
-                bodyEl.classList.remove('no-scroll');
-                hamburger.classList.add('hidden');
+                bodyEl.style.overflow = "";
+                hamburger.style.display = "none";
             } else {
                 // Show hamburger on mobile screens
-                hamburger.classList.remove('hidden');
+                hamburger.style.display = "block";
             }
         });
 
         // It hides the hamburger icon on initial load if not on mobile
         (function init() {
-            if (!isMobile()) hamburger.classList.add('hidden');
+            if (!isMobile()) hamburger.style.display = "none";
         })();
