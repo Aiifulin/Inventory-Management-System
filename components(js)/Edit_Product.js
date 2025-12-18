@@ -1,6 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
 import { getFirestore, doc, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js"; // FIXED: Added Auth Imports
+import { signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 
 const firebaseConfig = {
     apiKey: "AIzaSyBeaF2VKovHASuzhvZHzOoE0yB7QnBDej0",
@@ -228,3 +229,20 @@ function setupDynamicRows() {
         }
     });
 }
+
+// --- LOGOUT FUNCTION (MUST BE AT BOTTOM) ---
+window.logout = function() {
+    // 1. CLEAR SESSION
+    sessionStorage.removeItem("user_session");
+    sessionStorage.removeItem("user_uid");
+    sessionStorage.removeItem("user_role");
+
+    // 2. FIREBASE SIGNOUT
+    signOut(auth).then(() => {
+        // 3. REDIRECT
+        window.location.replace("Login.html");
+    }).catch((error) => {
+        console.error("Logout Error:", error);
+        window.location.replace("Login.html");
+    });
+};

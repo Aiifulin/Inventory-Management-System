@@ -2,6 +2,11 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8" />
+    <script>
+        if (!sessionStorage.getItem("user_session")) {
+            window.location.replace("Login.html");
+        }
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>Add New Product</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -77,7 +82,9 @@
             </nav>
 
             <div class="sidebar-footer">
-                <a href="Login.html" class="logout"><i class="fas fa-arrow-right-from-bracket"></i>Logout</a>
+                <a href="#" onclick="logout()" class="logout" id="logoutBtn">
+                    <i class="fas fa-arrow-right-from-bracket"></i>Logout
+                </a>
             </div>
         </div>
     </aside>
