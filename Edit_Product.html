@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Product - Inventory MS</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="components(css)/Add_Product.css">
+</head>
+<body>
+    
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-content">
+            <div class="sidebar-header">
+                <h2>Inventory MS</h2>
+                <span class="user-role">Admin User</span>
+            </div>
+            <nav class="sidebar-nav">
+                <a href="Dashboard.html" class="nav-link"><i class="fas fa-chart-line"></i> Dashboard</a>
+                <a href="Products.html" class="nav-link active"><i class="fas fa-box"></i> Products</a>
+                <a href="Categories.html" class="nav-link"><i class="fas fa-tags"></i> Categories</a>
+                <a href="Activity.html" class="nav-link"><i class="fas fa-history"></i> Activity Log</a>
+                <a href="Reports.html" class="nav-link"><i class="fas fa-file-alt"></i> Reports</a>
+                <a href="Settings.html" class="nav-link"><i class="fas fa-gear"></i> Settings</a>
+            </nav>
+            <div class="sidebar-footer">
+                <a href="Login.html" class="logout"><i class="fas fa-arrow-right-from-bracket"></i> Logout</a>
+            </div>
+        </div>
+    </aside>
+
+    <main class="main-content">
+        <div class="page-header">
+            <a href="Products.html" class="back-btn"><i class="fas fa-arrow-left"></i></a>
+            <div class="header-title">
+                <h1>Edit Product</h1>
+                <p>Update product details and stock</p>
+            </div>
+        </div>
+
+        <form id="editProductForm">
+            
+            <div class="form-section">
+                <h3 class="section-title">Basic Information</h3>
+                <div class="basic-info-grid">
+                    <div class="image-upload-box" onclick="document.getElementById('fileInput').click()">
+                        <input type="file" id="fileInput" accept="image/*" style="display: none;">
+                        
+                        <div id="uploadPlaceholder" style="text-align: center;">
+                            <i class="fas fa-cloud-upload-alt" style="font-size: 24px; margin-bottom: 8px; color: #6b7280;"></i>
+                            <span style="display: block; font-size: 13px; font-weight: 500; color: #374151;">Click to Upload Image</span>
+                        </div>
+                    
+                        <img id="imagePreview" src="" alt="Preview" style="display: none; width: 100%; height: 100%; object-fit: contain; border-radius: 6px;">
+                    </div>
+
+                    <div class="fields-column">
+                        <div class="input-group">
+                            <label>Product Name</label>
+                            <input type="text" id="inpName" placeholder="e.g. Wireless Headphones" required>
+                        </div>
+                        <div class="input-group">
+                            <label>Description</label>
+                            <textarea id="inpDesc" placeholder="Product details..."></textarea>
+                        </div>
+                        <div class="input-group">
+                            <label>Category</label>
+                            <select id="inpCategory" required>
+                                <option value="" disabled>Select Category</option>
+                                <option value="Kitchenware">Kitchenware</option>
+                                <option value="Electronics">Electronics</option>
+                                <option value="Furniture">Furniture</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h3 class="section-title">Pricing & Inventory</h3>
+                <div class="pricing-grid">
+                    <div class="input-group">
+                        <label>Price ($)</label>
+                        <input type="number" step="0.01" id="inpPrice" placeholder="0.00" required>
+                    </div>
+                    <div class="input-group">
+                        <label>Current Stock</label>
+                        <input type="number" id="inpStock" placeholder="0" required>
+                    </div>
+                    <div class="input-group">
+                        <label>Low Stock Alert</label>
+                        <input type="number" id="inpLowStock" placeholder="10">
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h3 class="section-title">Variations</h3>
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 42px; gap: 15px; margin-bottom: 5px; font-size: 13px; font-weight: 600; color: #374151;">
+                    <span>Size</span>
+                    <span>Color</span>
+                    <span>Custom</span>
+                    <span></span>
+                </div>
+                
+                <div id="variation-container">
+                    </div>
+
+                <button type="button" class="btn-finaladd" id="add-main-variation-btn">+ Add Variant</button>
+            </div>
+
+            <div class="form-section">
+                <h3 class="section-title">Custom Attributes</h3>
+                <div id="custom-attributes-container">
+                    </div>
+                <button type="button" class="btn-finaladd" id="add-custom-attr-main-btn">+ Add Attribute</button>
+            </div>
+
+            <div class="form-actions">
+                <a href="Products.html" class="btn-cancel">Cancel</a>
+                <button type="submit" class="btn-submit">Update Product</button>
+            </div>
+        </form>
+    </main>
+
+    <script type="module" src="components(js)/Edit_Product.js"></script>
+</body>
+</html>

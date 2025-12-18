@@ -1,24 +1,14 @@
 /************************************************
- * required for firebase
+ * IMPORTS (Using CDN)
  ***********************************************/
-import { initializeApp } from 'firebase/app';
-import { 
-    getAuth,
-    createUserWithEmailAndPassword,
-    signInWithEmailAndPassword,
-    onAuthStateChanged
-} from "firebase/auth";
-
-import {
-    getFirestore,
-    doc,
-    setDoc
-} from "firebase/firestore";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+import { getAuth, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+import { getFirestore } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
 /************************************************
- * WAG GALAWIN
+ * FIREBASE CONFIGURATION
  ***********************************************/
-export const firebaseConfig = {
+const firebaseConfig = {
   apiKey: "AIzaSyBeaF2VKovHASuzhvZHzOoE0yB7QnBDej0",
   authDomain: "inventory-management-sys-baccc.firebaseapp.com",
   projectId: "inventory-management-sys-baccc",
@@ -33,78 +23,70 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-
 /************************************************
- * LOGIN    
+ * LOGIN FUNCTION
  ***********************************************/
 const login = function () {
-    window.location.href = "Login.html";
     const email = document.getElementById("email").value.trim();
     const pass = document.getElementById("password").value.trim();
     const errorBox = document.getElementById("errorMessage");
 
+    // Clear previous errors
+    if(errorBox) errorBox.style.display = "none";
+
     signInWithEmailAndPassword(auth, email, pass)
-        .then(() => {
+        .then((userCredential) => {
+            // --- CRITICAL FIX: SAVE THE SESSION ---
+            // Without this, the Dashboard will kick you out immediately.
+            sessionStorage.setItem("user_session", "true");
+            sessionStorage.setItem("user_uid", userCredential.user.uid);
+
+            console.log("Logged in:", userCredential.user);
             window.location.href = "Dashboard.html";
         })
         .catch((err) => {
-            errorBox.style.display = "block";
-            errorBox.textContent = err.message;
+            // Login Failed
+            console.error(err.code, err.message);
+            if (errorBox) {
+                errorBox.style.display = "block";
+                
+                if (err.code === "auth/invalid-credential" || err.code === "auth/user-not-found" || err.code === "auth/wrong-password") {
+                    errorBox.textContent = "Invalid Email or Password";
+                } else {
+                    errorBox.textContent = err.message;
+                }
+            } else {
+                alert(err.message);
+            }
         });
-
-
 };
 
 /************************************************
  * PASSWORD TOGGLE
  ***********************************************/
 const togglePassword = function (id, el) {
-    window.location.href = "Login.html";
     const input = document.getElementById(id);
     const icon = el.querySelector('i');
 
-        if(input.type === "password") {
-            input.type = "text";
-            icon.classList.remove('fa-eye');
-            icon.classList.add('fa-eye-slash');
-        } else {
-            input.type = "password";
-            icon.classList.remove('fa-eye-slash');
-            icon.classList.add('fa-eye');
-        }
+    if (input.type === "password") {
+        input.type = "text";
+        icon.classList.remove('fa-eye');
+        icon.classList.add('fa-eye-slash');
+    } else {
+        input.type = "password";
+        icon.classList.remove('fa-eye-slash');
+        icon.classList.add('fa-eye');
+    }
 };
-
 
 /************************************************
  * NAVIGATION
  ***********************************************/
-const goToLogin = function () {
-    window.location.href = "Login.html";
-};
-
 const goToRegister = function () {
     window.location.href = "Register.html";
 };
 
-if (typeof window !== "undefined") {
-    window.goToLogin = goToLogin;
-    window.goToRegister = goToRegister;
-    window.login = login;
-}
-
-export { goToLogin, goToRegister, login, togglePassword };
-
-
-
-
-
-/************************************************
- * SHOW ERROR MESSAGE
- ***********************************************/
-function showError(msg) {
-    const errorBox = document.getElementById("error-box");
-    errorBox.style.display = "block";
-    errorBox.textContent = msg;
-}
-
-
+// EXPOSE FUNCTIONS TO WINDOW
+window.login = login;
+window.togglePassword = togglePassword;
+window.goToRegister = goToRegister;

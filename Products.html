@@ -2,6 +2,11 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <script>
+        if (!sessionStorage.getItem("user_session")) {
+            window.location.replace("Login.html");
+        }
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Products - Inventory MS</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -13,6 +18,7 @@
     <button class="hamburger" id="hamburgerBtn">
         <i class="fas fa-bars"></i>
     </button>
+    
     <div class="overlay" id="overlay"></div>
 
     <aside class="sidebar" id="sidebar">
@@ -34,7 +40,9 @@
             </nav>
 
             <div class="sidebar-footer">
-                <a href="Login.html" class="logout nav-link"><i class="fas fa-arrow-right-from-bracket"></i> Logout</a>
+                <a href="#" onclick="logout()" class="logout" id="logoutBtn">
+                    <i class="fas fa-arrow-right-from-bracket"></i>Logout
+                </a>
             </div>
         </div>
     </aside>
@@ -48,13 +56,13 @@
             
             <div class="header-actions">
                 <button class="btn-outline">
-                    <i class="fas fa-download"></i> Export
+                    <i class="fas fa-download"></i> <span class="btn-text">Export</span>
                 </button>
                 <button class="btn-outline">
-                    <i class="fas fa-upload"></i> Bulk Upload
+                    <i class="fas fa-upload"></i> <span class="btn-text">Bulk Upload</span>
                 </button>
-                <button class="btn-primary">
-                    <i class="fas fa-plus"></i> Add Product
+                <button class="btn-primary" onclick="location.href='Add_Product.html'">
+                    <i class="fas fa-plus"></i> <span class="btn-text">Add Product</span>
                 </button>
             </div>
         </div>
@@ -63,21 +71,33 @@
             <div class="filters-container">
                 <div class="search-wrapper">
                     <i class="fas fa-search"></i>
-                    <input type="text" id="searchInput" placeholder="Search products by name, SKU, or variation...">
+                    <input type="text" id="searchInput" placeholder="Search products...">
                 </div>
-
-                <div class="filter-controls">
+            
+                <div class="filter-controls">   
                     <select id="filterCategory" class="control-input">
                         <option value="">All Categories</option>
-                        <option>Kitchenware</option>
-                        <option>Electronics</option>
+                        <option value="Kitchenware">Kitchenware</option>
+                        <option value="Electronics">Electronics</option>
+                        <option value="Furniture">Furniture</option>
                     </select>
+                
+                    <select id="filterStatus" class="control-input">
+                        <option value="">All Statuses</option>
+                        <option value="in-stock">In Stock (Healthy)</option>
+                        <option value="low-stock">Low Stock</option>
+                        <option value="out-of-stock">Out of Stock</option>
+                    </select>
+                
                     <select id="filterSort" class="control-input">
                         <option value="name">Name</option>
                         <option value="price">Price</option>
+                        <option value="date">Date Added</option>
+                        <option value="stock">Stock Count</option>
                     </select>
-                    <button class="btn-sort control-input">
-                        ↑ Ascending
+                
+                    <button id="sortDirBtn" class="btn-sort control-input">
+                        <span id="sortDirIcon">↑</span> <span id="sortDirText">Ascending</span>
                     </button>
                 </div>
             </div>
@@ -105,7 +125,8 @@
         </div>
     </main>
 
-    <script src="components(js)/Products.js"></script>
+    <script type="module" src="components(js)/Products.js"></script>
+
     <script>
         const hamburger = document.getElementById('hamburgerBtn');
         const sidebar = document.getElementById('sidebar');
@@ -117,9 +138,9 @@
             overlay.classList.toggle('show');
         }
 
-        hamburger.addEventListener('click', toggleSidebar);
-        closeBtn.addEventListener('click', toggleSidebar);
-        overlay.addEventListener('click', toggleSidebar);
+        if(hamburger) hamburger.addEventListener('click', toggleSidebar);
+        if(closeBtn) closeBtn.addEventListener('click', toggleSidebar);
+        if(overlay) overlay.addEventListener('click', toggleSidebar);
     </script>
 </body>
 </html>

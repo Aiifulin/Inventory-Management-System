@@ -6,6 +6,56 @@
     <title>Add New Product</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="components(css)/Add_Product.css" />
+    <script type="module" src="components(js)/Route_Guard.js"></script> <!--To prevent the user from accessing the dashboard without logging in -->
+    <style>
+        /* --- FIXED ROW STYLING --- */
+
+/* 1. Ensure the rows use Flexbox and align everything to the top or center */
+.variations-row, 
+.custom-attr-row {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 10px;
+    align-items: start; /* Aligns inputs and button to the top */
+}
+
+/* 2. Remove the bottom spacing from inputs specifically inside these rows 
+      so they don't push the alignment off */
+.variations-row .input-group, 
+.custom-attr-row .input-group {
+    margin-bottom: 0;
+    flex: 1; /* Makes the inputs stretch to fill space */
+}
+
+/* 3. Fix the Delete Button Alignment */
+.btn-delete {
+    background: #fee2e2;
+    color: #ef4444;
+    border: 1px solid #fecaca;
+    
+    /* FIX: Match the EXACT height of your inputs (42px) */
+    width: 42px;
+    height: 42px; 
+    
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    
+    /* FIX: Remove the old margin-top that was pushing it down */
+    margin-top: 0; 
+    
+    /* Optional: If inputs have labels inside the row, use this to push button down. 
+       Since your labels are at the top, keep this at 0. */
+}
+
+.btn-delete:hover {
+    background: #fecaca;
+    color: #dc2626;
+}
+    </style>
 </head>
 <body>
 
@@ -34,7 +84,6 @@
 
     <main class="main-content">
         
-        <!-- Header -->
         <div class="page-header">
             <a href="Dashboard.html" class="back-btn"><i class="fas fa-arrow-left"></i></a>
             <div class="header-title">
@@ -45,29 +94,27 @@
 
         <form action="#" method="POST">
             
-            <!-- Section 1: Basic Information -->
             <div class="form-section">
                 <h3 class="section-title">Basic Information</h3>
                 
                 <div class="basic-info-grid">
-                    <!-- Left: Image Upload -->
-                    <div>
-                        <span class="label-text">Product Image</span>
-                        <div class="image-upload-box">
-                            <i class="far fa-image"></i>
-                            <span>Upload Image</span>
+                    <div class="image-upload-box" onclick="document.getElementById('fileInput').click()">
+                        <input type="file" id="fileInput" accept="image/*" style="display: none;">
+                                        
+                        <div id="uploadPlaceholder" style="text-align: center;">
+                            <i class="fas fa-cloud-upload-alt" style="font-size: 24px; margin-bottom: 8px; color: #6b7280;"></i>
+                            <span style="display: block; font-size: 13px; font-weight: 500; color: #374151;">Click to Upload Image</span>
                         </div>
+                    
+                        <img id="imagePreview" src="" alt="Preview" style="display: none; width: 100%; height: 100%; object-fit: contain; border-radius: 6px;">
                     </div>
 
-                    <!-- Right: Inputs -->
                     <div class="basic-inputs">
                         <div class="input-group">
                             <label>Product Name *</label>
                             <input type="text" placeholder="Enter product name" required>
                         </div>
                         
-                        <!-- SKU Removed as requested -->
-
                         <div class="input-group">
                             <label>Description</label>
                             <textarea placeholder="Enter product description"></textarea>
@@ -75,53 +122,95 @@
 
                         <div class="input-group">
                             <label>Category *</label>
-                            <select>
+                            <select required>
                                 <option value="" disabled selected>Select a category</option>
-                                <option value="electronics">Electronics</option>
-                                <option value="kitchenware">Kitchenware</option>
-                                <option value="furniture">Furniture</option>
+                                <option value="Kitchenware">Kitchenware</option>
+                                <option value="Electronics">Electronics</option>
+                                <option value="Furniture">Furniture</option>
                             </select>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Section 2: Pricing & Stock -->
             <div class="form-section">
                 <h3 class="section-title">Pricing & Stock</h3>
                 <div class="pricing-grid">
                     <div class="input-group">
                         <label>Price *</label>
-                        <input type="number" placeholder="0.00" step="0.01">
+                        <input type="number" placeholder="0.00" step="0.01" required>
                     </div>
+                    
                     <div class="input-group">
                         <label>Stock Quantity *</label>
-                        <input type="number" placeholder="0">
+                        <input type="number" placeholder="0" required>
                     </div>
+                
                     <div class="input-group">
                         <label>Low Stock Threshold *</label>
-                        <input type="number" placeholder="10">
+                        <input type="number" placeholder="10" required>
                     </div>
                 </div>
             </div>
 
-            <!-- Section 3: Product Variations -->
             <div class="form-section">
                 <h3 class="section-title">Product Variations</h3>
-                <div class="variations-row">
-                    <div class="input-group">
-                        <label>Attribute (e.g., Size, Color)</label>
-                        <input type="text" placeholder="Size">
-                    </div>
-                    <div class="input-group">
-                        <label>Value</label>
-                        <input type="text" placeholder="Large">
-                    </div>
-                    <button type="button" class="btn-plus"><i class="fas fa-plus"></i></button>
+            
+                <div class="grid-headers" style="display: flex; gap: 15px; margin-bottom: 5px; padding-right: 42px;">
+                    <label style="flex: 1; font-size: 13px; font-weight: 600; color: #374151;">Size *</label>
+                    <label style="flex: 1; font-size: 13px; font-weight: 600; color: #374151;">Color *</label>
+                    <label style="flex: 1; font-size: 13px; font-weight: 600; color: #374151;">Custom</label>
                 </div>
+
+                <div id="variation-container">
+                    <div class="variations-row">
+                        <div class="input-group">
+                            <input type="text" class="var-size" placeholder="Ex: Large" required>
+                        </div>
+                        <div class="input-group">
+                            <input type="text" class="var-color" placeholder="Ex: Red" required>
+                        </div>
+                        <div class="input-group">
+                            <input type="text" class="var-custom" placeholder="Optional">
+                        </div>
+                        <button type="button" class="btn-delete remove-row-btn" title="Remove">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <button type="button" class="btn-finaladd" id="add-main-variation-btn">
+                    <i class="fas fa-plus"></i> Add Another Variation
+                </button>
             </div>
 
-            <!-- Footer Actions -->
+            <div class="form-section">
+                <h3 class="section-title">Custom Attributes</h3>
+            
+                <div style="display: flex; gap: 15px; margin-bottom: 5px;">
+                    <label style="flex: 1; font-size: 13px; font-weight: 600; color: #374151;">Attribute Name</label>
+                    <label style="flex: 1; font-size: 13px; font-weight: 600; color: #374151;">Value</label>
+                    <div style="width: 42px;"></div> </div>
+
+                <div id="custom-attributes-container">
+                    <div class="custom-attr-row">
+                        <div class="input-group">
+                            <input type="text" class="attr-name" placeholder="Ex: Material">
+                        </div>
+                        <div class="input-group">
+                            <input type="text" class="attr-value" placeholder="Ex: Cotton">
+                        </div>
+                        <button type="button" class="btn-delete remove-attr-btn" title="Remove">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            
+                <button type="button" class="btn-finaladd" id="add-custom-attr-main-btn">
+                    <i class="fas fa-plus"></i> Add Custom Attribute
+                </button>
+            </div>
+
             <div class="form-actions">
                 <a href="Dashboard.html" class="btn-cancel">Cancel</a>
                 <button type="submit" class="btn-submit">Add Product</button>
@@ -130,6 +219,8 @@
         </form>
 
     </main>
+
+    <script type="module" src="components(js)/Add_Product.js"></script>
 
 </body>
 </html>

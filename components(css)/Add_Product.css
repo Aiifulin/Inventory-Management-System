@@ -155,17 +155,18 @@
             gap: 20px;
         }
 
-        /* Variations Grid */
+        /* Variations Grid (3 inputs + button) */
         .variations-row {
             display: grid;
-            grid-template-columns: 1fr 1fr 42px; /* Fixed width for button matching height */
+            grid-template-columns: 1fr 1fr 1fr 42px;  /* three equal inputs + fixed button */
             gap: 15px;
-            /* Align items to flex-end ensures button aligns with input box, not label */
-            align-items: flex-end; 
+            align-items: flex-end; /* aligns button with input boxes */
+            margin-bottom: 16px;
         }
-        
+
+        /* Plus Button Styling */
         .btn-plus {
-            height: 42px; /* Matches input height */
+            height: 42px; /* matches input height */
             width: 42px;
             background-color: #111827;
             color: white;
@@ -176,12 +177,16 @@
             align-items: center;
             justify-content: center;
             font-size: 16px;
-            /* Remove margin so align-items handles it */
-            margin: 0; 
-            /* Ensure it doesn't push down oddly */
-            margin-bottom: 16px; /* Matches .input-group margin-bottom */
         }
-        .btn-plus:hover { opacity: 0.9; }
+
+        .btn-plus:hover {
+            opacity: 0.9;
+        }
+
+        .variations-row .btn-plus {
+            align-self: end;     /* sticks to bottom to match input-group */
+            margin-bottom: 16px; /* same as input-group’s bottom spacing */
+        }
 
         /* Footer Actions */
         .form-actions {
@@ -216,13 +221,39 @@
             cursor: pointer;
         }
 
+        .btn-finaladd {
+            margin-top: 10px;
+            background-color: #111827;
+            color: white;
+            padding: 8px 14px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        .btn-finaladd:hover {
+            opacity: 0.9;
+        }
+
+        .custom-attr-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr 42px;
+            gap: 15px;
+            margin-bottom: 16px;
+        }
+        
         /* Responsive */
         @media (max-width: 768px) {
             .sidebar { display: none; }
             .basic-info-grid { grid-template-columns: 1fr; }
             .pricing-grid { grid-template-columns: 1fr; }
-            .variations-row { grid-template-columns: 1fr; }
-            .btn-plus { width: 100%; margin-top: 0; }
+            .variations-row {
+                grid-template-columns: 1fr; /* stack vertically */
+            }
+            .btn-plus {
+                width: 100%;
+                height: 42px;
+            }
         }
 /* Mobile View Adjustments */
         @media (max-width: 480px) {

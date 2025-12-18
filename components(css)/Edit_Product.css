@@ -1,0 +1,294 @@
+/* =========================================
+   1. VARIABLES & RESET
+   ========================================= */
+:root { 
+    --sidebar-width: 250px; 
+    --bg-body: #f9fafb;
+    --text-main: #111827;
+    --text-secondary: #6b7280;
+    --border-color: #e5e7eb;
+    --input-bg: #f3f4f6;
+    --primary-color: #0f172a;
+    --danger-color: #ef4444;
+    --danger-bg: #fee2e2;
+}
+
+html, body { height: 100%; margin: 0; }
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    display: flex;
+    min-height: 100vh;
+    overflow-x: hidden;
+    background-color: var(--bg-body);
+    color: var(--text-main);
+}
+
+/* =========================================
+   2. SIDEBAR (With Mobile Drawer Logic)
+   ========================================= */
+.sidebar {
+    width: var(--sidebar-width);
+    background-color: #fff;
+    padding: 20px 0;
+    height: 100vh;
+    box-shadow: 2px 0 5px rgba(0,0,0,0.05);
+    flex-shrink: 0;
+    position: relative;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    transition: transform 0.3s ease;
+}
+
+.sidebar-header { padding: 0 20px 20px; border-bottom: 1px solid #f3f4f6; margin-bottom: 20px; }
+.sidebar-header h2 { margin: 0 0 5px 0; font-size: 18px; color: #333; font-weight: 700; }
+.sidebar-header .user-role { font-size: 13px; color: #666; }
+
+.sidebar-content { display: flex; flex-direction: column; height: 100%; overflow-y: auto; }
+.sidebar-nav { display: flex; flex-direction: column; gap: 5px; flex-grow: 1; padding: 0 10px; }
+
+/* Navigation Links */
+.nav-link {
+    display: flex; align-items: center; padding: 12px 15px; color: #4b5563;
+    text-decoration: none; transition: all 0.2s; border-radius: 6px; font-size: 14px; font-weight: 500;
+}
+.nav-link i { margin-right: 12px; width: 20px; text-align: center; }
+.nav-link:hover, .nav-link.active { background-color: #f3f4f6; color: #111827; }
+
+/* Logout */
+.sidebar-footer { padding: 15px 20px; border-top: 1px solid #f3f4f6; }
+.logout { color: var(--danger-color); font-weight: 500; display: flex; align-items: center; padding: 10px; border-radius: 6px; text-decoration: none; }
+.logout i { margin-right: 10px; }
+.logout:hover { background-color: var(--danger-bg); color: #dc2626; }
+
+/* =========================================
+   3. MAIN CONTENT AREA
+   ========================================= */
+.main-content {
+    flex: 1;
+    padding: 30px;
+    width: 100%;
+    box-sizing: border-box;
+    margin-left: 0;
+    max-width: 1100px; /* Aligns form to the left but limits width */
+}
+
+/* Header */
+.page-header {
+    display: flex;
+    flex-direction: column; /* Stacked for back link + title */
+    gap: 5px;
+    margin-bottom: 25px;
+}
+.back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-size: 14px;
+    margin-bottom: 10px;
+    cursor: pointer;
+}
+.back-link:hover { color: var(--primary-color); }
+.header-text h1 { margin: 0; font-size: 24px; font-weight: 700; }
+
+/* =========================================
+   4. FORM LAYOUT & STYLES
+   ========================================= */
+.form-section {
+    background: #fff;
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    border: 1px solid var(--border-color);
+    margin-bottom: 20px;
+}
+
+.form-section h3 {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-main);
+    margin: 0 0 20px 0;
+}
+
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+/* Grid System for Inputs */
+.form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr; /* 2 Columns by default */
+    gap: 20px;
+}
+.form-group.full-width {
+    grid-column: span 2;
+}
+
+/* Inputs & Labels */
+.form-group label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #374151;
+}
+
+.form-input {
+    width: 100%;
+    padding: 10px 12px;
+    background-color: var(--input-bg);
+    border: 1px solid transparent;
+    border-radius: 6px;
+    font-size: 14px;
+    color: var(--text-main);
+    box-sizing: border-box;
+    transition: border 0.2s, background 0.2s;
+    height: 42px;
+}
+
+.form-input:focus {
+    outline: none;
+    background-color: #fff;
+    border-color: #d1d5db;
+}
+
+textarea.form-input {
+    resize: vertical;
+    height: 80px;
+    font-family: inherit;
+}
+
+/* =========================================
+   5. DYNAMIC ROWS (Variations & Attributes)
+   ========================================= */
+.variations-row, .custom-attr-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 42px; /* 3 inputs + delete button */
+    gap: 15px;
+    align-items: flex-end;
+    margin-bottom: 16px;
+}
+
+.custom-attr-row {
+    grid-template-columns: 1fr 1fr 42px; /* 2 inputs + delete button */
+}
+
+/* Add Row Button (Secondary) */
+.btn-secondary {
+    background: #f3f4f6;
+    border: 1px solid #e5e7eb;
+    padding: 8px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--text-main);
+    font-weight: 500;
+}
+.btn-secondary:hover { background: #e5e7eb; }
+
+/* Delete Row Button */
+.btn-delete {
+    height: 42px;
+    width: 100%; /* Fills the 42px column */
+    background-color: var(--danger-bg);
+    color: var(--danger-color);
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+}
+.btn-delete:hover { background-color: #fecaca; }
+
+/* Input groups inside rows */
+.input-group { width: 100%; }
+.input-group input {
+    width: 100%;
+    padding: 10px 12px;
+    background-color: var(--input-bg);
+    border: 1px solid transparent;
+    border-radius: 6px;
+    height: 42px;
+    box-sizing: border-box;
+}
+.input-group input:focus {
+    background-color: #fff;
+    border-color: #d1d5db;
+    outline: none;
+}
+
+/* =========================================
+   6. FOOTER ACTIONS
+   ========================================= */
+.form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-top: 20px;
+    margin-bottom: 40px;
+}
+
+.btn-outline {
+    background: #fff;
+    border: 1px solid var(--border-color);
+    padding: 10px 20px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #374151;
+    cursor: pointer;
+}
+.btn-outline:hover { background: #f9fafb; }
+
+.btn-submit {
+    background: var(--primary-color);
+    border: none;
+    padding: 10px 24px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #fff;
+    cursor: pointer;
+}
+.btn-submit:hover { opacity: 0.9; }
+
+/* =========================================
+   7. RESPONSIVE (Mobile)
+   ========================================= */
+@media (max-width: 768px) {
+    /* Sidebar Drawer Logic */
+    .sidebar { 
+        position: fixed; left: 0; top: 0; bottom: 0; 
+        transform: translateX(-100%); 
+        z-index: 2000;
+    }
+    .sidebar.open { transform: translateX(0); }
+
+    .main-content {
+        padding: 80px 15px 30px; /* Top padding for hamburger */
+    }
+
+    /* Stack Form Fields */
+    .form-grid { grid-template-columns: 1fr; }
+    .form-group.full-width { grid-column: span 1; }
+
+    /* Stack Dynamic Rows */
+    .variations-row, .custom-attr-row {
+        grid-template-columns: 1fr; /* Stack vertically */
+        gap: 10px;
+        border-bottom: 1px dashed #e5e7eb;
+        padding-bottom: 15px;
+    }
+    
+    .btn-delete {
+        width: 100%;
+        margin-top: 5px;
+    }
+}
