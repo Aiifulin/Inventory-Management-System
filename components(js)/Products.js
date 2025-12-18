@@ -1,6 +1,6 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getFirestore, collection, getDocs, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+import { getFirestore, collection, getDocs, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 
 // --- CONFIG ---
 const firebaseConfig = {
@@ -24,24 +24,23 @@ const ADMIN_UID = "eisTKTAY9LfdMpXZ7ebo0spRDAN2";
 let allProducts = [];
 let currentSortDir = 'asc';
 let currentUser = null;
-let isAdmin = false; // Flag to store admin status
+let isAdmin = false; 
 
 // --- AUTH CHECK & INITIAL LOAD ---
 onAuthStateChanged(auth, (user) => {
     if (user) {
         currentUser = user;
-        // Check if the logged-in user matches your Hardcoded Admin ID
         isAdmin = (user.uid === ADMIN_UID);
         
-        // UI: Hide/Show "Add Product" button based on role
-        const addBtn = document.querySelector('.btn-primary'); // The Add Product Button
+        // Hide/Show "Add Product" button
+        const addBtn = document.querySelector('.btn-primary');
         if(addBtn) {
             addBtn.style.display = isAdmin ? "flex" : "none";
         }
 
         fetchProducts();
     } else {
-        // Not logged in? Redirect to Login
+        // Not logged in? Redirect
         window.location.href = "Login.html";
     }
 });
@@ -60,7 +59,7 @@ async function fetchProducts() {
     }
 }
 
-// --- FILTER & SORT (No changes here) ---
+// --- FILTER & SORT ---
 function applyFilters() {
     const searchVal = document.getElementById("searchInput").value.toLowerCase();
     const catVal = document.getElementById("filterCategory").value;
@@ -107,7 +106,7 @@ function renderTable(productsToRender) {
     productsToRender.forEach(p => {
         const docId = p.id;
         
-        // 1. Image Logic
+        // Image
         let imageHtml = p.imageUrl 
             ? `<img src="${p.imageUrl}" alt="${p.name}" style="width: 45px; height: 45px; border-radius: 8px; object-fit: cover; border: 1px solid #e5e7eb;">`
             : `<div class="product-img-placeholder"><i class="fa-regular fa-image"></i></div>`;
@@ -116,7 +115,7 @@ function renderTable(productsToRender) {
             ? `<img src="${p.imageUrl}" alt="${p.name}" style="width: 60px; height: 60px; border-radius: 8px; object-fit: cover; border: 1px solid #e5e7eb;">`
             : `<div class="card-img"><i class="fa-regular fa-image"></i></div>`;
 
-        // 2. Status Logic
+        // Status
         let statusText = "In Stock";
         let statusClass = "in-stock";
         const stock = Number(p.stock) || 0;
@@ -124,13 +123,13 @@ function renderTable(productsToRender) {
         if (stock === 0) { statusText = "Out of Stock"; statusClass = "out-of-stock"; }
         else if (stock <= threshold) { statusText = "Low Stock"; statusClass = "low-stock"; }
 
-        // 3. Date Logic
+        // Date
         let dateAdded = "N/A";
         if (p.createdAt && p.createdAt.toDate) {
             dateAdded = p.createdAt.toDate().toLocaleDateString("en-US", { month: 'short', day: 'numeric', year: 'numeric' });
         }
 
-        // 4. Variations & Attributes Logic (Combined)
+        // Variations & Attributes Tags
         let tagsHtml = (p.variations || []).map(v => 
             v.size ? `<span class="v-tag">${v.size}</span>` : ''
         ).join('');
@@ -143,7 +142,7 @@ function renderTable(productsToRender) {
 
         const allTags = tagsHtml + attributesHtml;
 
-        // 5. Admin Actions Logic
+        // Admin Actions
         const adminActions = isAdmin ? `
             <i class="fa-regular fa-pen-to-square" title="Edit" onclick="editProduct('${docId}')" style="cursor: pointer;"></i>
             <i class="fa-regular fa-trash-can delete-btn" data-id="${docId}" title="Delete" style="cursor: pointer;"></i>
@@ -154,7 +153,7 @@ function renderTable(productsToRender) {
             <button class="btn-card-action btn-card-delete delete-btn" data-id="${docId}"><i class="fa-regular fa-trash-can"></i></button>
         ` : '';
 
-        // --- DESKTOP RENDER ---
+        // Desktop Row
         if (tableBody) {
             const row = document.createElement("tr");
             row.innerHTML = `
@@ -181,7 +180,7 @@ function renderTable(productsToRender) {
             tableBody.appendChild(row);
         }
 
-        // --- MOBILE RENDER ---
+        // Mobile Card
         if (mobileList) {
             const card = document.createElement("div");
             card.className = "mobile-card";
@@ -211,6 +210,7 @@ function renderTable(productsToRender) {
     if(isAdmin) attachDeleteListeners();
 }
 
+// --- EDIT FUNCTION ---
 window.editProduct = function(id) {
     if (isAdmin) {
         window.location.href = `Edit_Product.html?id=${id}`;
@@ -219,6 +219,7 @@ window.editProduct = function(id) {
     }
 }
 
+// --- DELETE FUNCTION ---
 function attachDeleteListeners() {
     document.querySelectorAll('.delete-btn').forEach(btn => {
         btn.addEventListener('click', async (e) => {
@@ -246,15 +247,13 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("filterStatus").addEventListener("change", applyFilters);
     document.getElementById("filterSort").addEventListener("change", applyFilters);
     
-    // --- UPDATED SORT DIRECTION LOGIC ---
+    // Sort Direction
     document.getElementById("sortDirBtn").addEventListener("click", () => {
         currentSortDir = currentSortDir === 'asc' ? 'desc' : 'asc';
         
-        // Update Icon and Text
         const icon = document.getElementById("sortDirIcon");
         const text = document.getElementById("sortDirText");
         
-        // Change Arrow: Up for Ascending, Down for Descending
         icon.textContent = currentSortDir === 'asc' ? "↑" : "↓"; 
         text.textContent = currentSortDir === 'asc' ? "Ascending" : "Descending";
         
@@ -262,9 +261,9 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 });
 
-// --- LOGOUT FUNCTION ---
+// --- LOGOUT FUNCTION (MUST BE AT BOTTOM) ---
 window.logout = function() {
-    // 1. CLEAR SESSION (Instant protection)
+    // 1. CLEAR SESSION
     sessionStorage.removeItem("user_session");
     sessionStorage.removeItem("user_uid");
     sessionStorage.removeItem("user_role");
@@ -272,11 +271,9 @@ window.logout = function() {
     // 2. FIREBASE SIGNOUT
     signOut(auth).then(() => {
         // 3. REDIRECT
-        // Use replace() so they can't press 'Back'
         window.location.replace("Login.html");
     }).catch((error) => {
         console.error("Logout Error:", error);
-        // Force redirect even if Firebase fails
         window.location.replace("Login.html");
     });
 };
