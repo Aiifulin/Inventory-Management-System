@@ -1,5 +1,4 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
-// FIXED: Merged duplicate imports here
 import { getFirestore, collection, addDoc, serverTimestamp, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 
@@ -34,10 +33,9 @@ onAuthStateChanged(auth, (user) => {
 });
 
 // --- HELPER: ACTIVITY LOGGING FUNCTION ---
-// Defined globally so it can be called from anywhere
 async function logActivity(action, targetName) {
     try {
-        const userEmail = auth.currentUser ? auth.currentUser.email : "Admin"; // Get actual email
+        const userEmail = auth.currentUser ? auth.currentUser.email : "Admin"; 
         
         await addDoc(collection(db, "activities"), {
             action: action,          // e.g., "Added Product"
@@ -48,8 +46,6 @@ async function logActivity(action, targetName) {
         console.log("Activity logged successfully");
     } catch (e) {
         console.error("Error logging activity", e);
-        // We do NOT throw error here, because we don't want to stop the 
-        // user flow if just the logging fails.
     }
 }
 
@@ -217,12 +213,25 @@ document.addEventListener("DOMContentLoaded", () => {
             submitBtn.disabled = true;
 
             try {
+                // If input is empty, defaults to 0. If "0", parses as 0.
                 const priceVal = parseFloat(document.querySelector('input[type="number"][step="0.01"]').value) || 0;
                 const stockVal = parseInt(document.querySelector('input[placeholder="0"]').value) || 0;
                 const thresholdVal = parseInt(document.querySelector('input[placeholder="10"]').value) || 10;
 
+                // VALIDATION 1: Check Negatives
                 if (priceVal < 0 || stockVal < 0 || thresholdVal < 0) {
                     throw new Error("Price and Stock values cannot be negative.");
+                }
+
+                // VALIDATION 2 (NEW): Check for 0 Price
+                if (priceVal === 0) {
+                    const confirmZero = confirm("⚠️ Warning: You are setting the Price to 0.00.\n\nAre you sure this product is free?");
+                    if (!confirmZero) {
+                        // User cancelled
+                        submitBtn.innerText = "Add Product"; 
+                        submitBtn.disabled = false;
+                        return; // Stop execution here
+                    }
                 }
 
                 const rawName = document.querySelector('input[placeholder="Enter product name"]').value.trim();
@@ -240,7 +249,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     name: sanitizeInput(rawName), 
                     description: sanitizeInput(rawDesc), 
                     category: document.querySelector('select').value, 
-                    price: priceVal,
+                    price: priceVal, 
                     stock: stockVal,
                     lowStockThreshold: thresholdVal,
                     imageUrl: base64ImageString, 
@@ -275,7 +284,6 @@ document.addEventListener("DOMContentLoaded", () => {
                 isFormDirty = false; // Prevent beforeunload alert
 
                 // 2. LOG ACTIVITY
-                // We await this to ensure it triggers, but if it fails, the product is still saved.
                 await logActivity("Added Product", productData.name);
 
                 alert("Product Saved Successfully!");

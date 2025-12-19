@@ -219,12 +219,24 @@ function initPage() {
             submitBtn.disabled = true;
 
             try {
-                const priceVal = parseFloat(document.getElementById('inpPrice').value);
-                const stockVal = parseInt(document.getElementById('inpStock').value);
-                const thresholdVal = parseInt(document.getElementById('inpLowStock').value);
+                const priceVal = parseFloat(document.getElementById('inpPrice').value) || 0;
+                const stockVal = parseInt(document.getElementById('inpStock').value) || 0;
+                const thresholdVal = parseInt(document.getElementById('inpLowStock').value) || 10;
 
+                // VALIDATION 1: Check Negatives
                 if (priceVal < 0 || stockVal < 0 || thresholdVal < 0) {
                     throw new Error("Price and Stock values cannot be negative.");
+                }
+
+                // VALIDATION 2 (NEW): Check for 0 Price
+                if (priceVal === 0) {
+                    const confirmZero = confirm("⚠️ Warning: You are setting the Price to 0.00.\n\nAre you sure this product is free?");
+                    if (!confirmZero) {
+                        // User cancelled
+                        submitBtn.innerText = "Save Changes"; 
+                        submitBtn.disabled = false;
+                        return; // Stop execution here
+                    }
                 }
 
                 const rawName = document.getElementById('inpName').value.trim();
