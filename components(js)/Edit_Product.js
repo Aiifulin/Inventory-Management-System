@@ -1,5 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
-import { getFirestore, doc, getDoc, updateDoc, collection, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+// FIXED: Added addDoc and serverTimestamp to imports
+import { getFirestore, doc, getDoc, updateDoc, collection, getDocs, query, where, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 
 const firebaseConfig = {
@@ -20,7 +21,24 @@ const ADMIN_UID = "eisTKTAY9LfdMpXZ7ebo0spRDAN2";
 let currentBase64Image = "";
 let isFormDirty = false;
 
-// --- MOVED HELPERS TO TOP LEVEL SO EVERY FUNCTION CAN SEE THEM ---
+// --- HELPER: ACTIVITY LOGGING FUNCTION ---
+async function logActivity(action, targetName) {
+    try {
+        const userEmail = auth.currentUser ? auth.currentUser.email : "Admin"; 
+        
+        await addDoc(collection(db, "activities"), {
+            action: action,          // e.g., "Updated Product"
+            target: targetName,      // e.g., "Gaming Chair"
+            user: userEmail,         
+            timestamp: serverTimestamp()
+        });
+        console.log("Activity logged successfully");
+    } catch (e) {
+        console.error("Error logging activity", e);
+    }
+}
+
+// --- INPUT HELPERS ---
 function sanitizeInput(str) {
     if (!str) return "";
     if (typeof str !== 'string') return String(str);
@@ -86,7 +104,7 @@ function initPage() {
 
     // Apply limits to main inputs
     const nameInput = document.getElementById('inpName');
-    applyCharLimit(nameInput);
+    if(nameInput) applyCharLimit(nameInput);
     document.querySelectorAll('input[type="number"]').forEach(inp => preventNegatives(inp));
 
     // --- 2. IMAGE UPLOAD & REMOVE LOGIC ---
@@ -168,7 +186,6 @@ function initPage() {
                 }
 
                 // Populate Variations
-                // Using '&& length > 0' check ensures we don't accidentally skip to 'else' if array is just empty
                 if (data.variations && data.variations.length > 0) {
                     data.variations.forEach(v => addVariationRow(v.size, v.color, v.custom));
                 } else {
@@ -191,7 +208,7 @@ function initPage() {
 
     setupDynamicRows();
 
-    // --- 4. SAVE LOGIC ---
+    // --- 4. SAVE LOGIC WITH LOGGING ---
     const submitBtn = document.querySelector('.btn-submit');
 
     if (form) {
@@ -239,7 +256,6 @@ function initPage() {
 
                 const variations = [];
                 document.querySelectorAll('.variations-row').forEach(row => {
-                    // Use sanitizeInput here
                     const size = sanitizeInput(row.querySelector('.var-size').value);
                     const color = sanitizeInput(row.querySelector('.var-color').value);
                     const custom = sanitizeInput(row.querySelector('.var-custom').value);
@@ -269,8 +285,12 @@ function initPage() {
                     attributes: attributes
                 };
 
+                // 1. UPDATE PRODUCT
                 await updateDoc(doc(db, "products", productId), updatedData);
                 
+                // 2. LOG ACTIVITY
+                await logActivity("Updated Product", updatedData.name);
+
                 isFormDirty = false;
                 alert("Product Updated!");
                 window.location.href = "Products.html";
@@ -285,13 +305,12 @@ function initPage() {
     }
 }
 
-// --- HELPER FUNCTIONS (Now defined globally so they are visible) ---
+// --- HELPER FUNCTIONS ---
 function addVariationRow(size="", color="", custom="") {
     const container = document.getElementById("variation-container");
     const row = document.createElement("div");
     row.className = "variations-row";
     
-    // We create the elements using template strings but set values safely to handle quotes
     row.innerHTML = `
         <div class="input-group"><input type="text" class="var-size" placeholder="Ex: Large" required maxlength="30"></div>
         <div class="input-group"><input type="text" class="var-color" placeholder="Ex: Red" required maxlength="30"></div>
@@ -299,12 +318,10 @@ function addVariationRow(size="", color="", custom="") {
         <button type="button" class="btn-delete remove-row-btn"><i class="fas fa-trash"></i></button>
     `;
     
-    // Set values safely (handles quotes like 5" pipe)
     row.querySelector('.var-size').value = size || "";
     row.querySelector('.var-color').value = color || "";
     row.querySelector('.var-custom').value = custom || "";
 
-    // Apply limits (Function is now visible)
     row.querySelectorAll('input').forEach(inp => applyCharLimit(inp));
     
     container.appendChild(row);
@@ -320,11 +337,9 @@ function addAttributeRow(name="", value="") {
         <button type="button" class="btn-delete remove-attr-btn"><i class="fas fa-trash"></i></button>
     `;
     
-    // Set values safely
     row.querySelector('.attr-name').value = name || "";
     row.querySelector('.attr-value').value = value || "";
 
-    // Apply limits
     row.querySelectorAll('input').forEach(inp => applyCharLimit(inp));
     
     container.appendChild(row);

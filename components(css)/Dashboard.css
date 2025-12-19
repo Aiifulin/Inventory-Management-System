@@ -154,9 +154,11 @@
         /* --- STATS GRID --- */
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            /* Use minmax(200px...) to fit smaller screens better */
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
             gap: 20px;
             margin-bottom: 24px;
+            width: 100%; /* Prevent overflow */
         }
 
         .stat-card {
@@ -206,6 +208,8 @@
             display: flex;
             flex-direction: column;
             min-height: 300px;
+            /* CRITICAL FIX: Allows chart to shrink on mobile */
+            min-width: 0; 
         }
 
         .card-header { margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; }
@@ -223,26 +227,115 @@
             font-size: 13px;
         }
 
-        /* --- RECENT ACTIVITIES --- */
-        .full-width-card {
+        .chart-wrapper {
+            position: relative; 
+            height: 100%; 
             width: 100%;
-            background: #fff;
-            border-radius: 12px;
-            padding: 24px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-            border: 1px solid #f3f4f6;
-            box-sizing: border-box;
-            min-height: 200px;
+            overflow: hidden; /* Safety clip */
         }
-        .view-all-link { font-size: 13px; color: #4b5563; text-decoration: none; font-weight: 600; }
-        .activity-content {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            height: 150px;
-            color: #9ca3af;
-            font-size: 14px;
-        }
+
+        /* --- RECENT ACTIVITIES SECTION --- */
+.full-width-card {
+    width: 100%;
+    background: #fff;
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    border: 1px solid #f3f4f6;
+    box-sizing: border-box;
+    /* Changed from fixed height to min-height to allow list to grow */
+    min-height: 200px;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Hides the 'View All' link */
+.view-all-link {
+    display: none; 
+}
+
+/* UPDATED: Container for the list */
+.activity-content {
+    /* Removed center alignment so list starts at top */
+    display: block; 
+    width: 100%;
+    margin-top: 15px;
+    /* Optional: Limit height and scroll if you have many items */
+    max-height: 400px; 
+    overflow-y: auto;
+}
+
+/* --- ACTIVITY LIST STYLING --- */
+.activity-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0; /* Gap handled by padding/border */
+}
+
+.activity-item {
+    display: flex;
+    align-items: center; /* Aligns icon and text vertically */
+    padding: 15px 0;
+    border-bottom: 1px solid #f3f4f6;
+    transition: background-color 0.2s;
+}
+
+.activity-item:first-child {
+    padding-top: 0;
+}
+
+.activity-item:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+/* Icon box */
+.activity-icon-box {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    background-color: #f3f4f6;
+    color: #4b5563;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 16px;
+    flex-shrink: 0;
+    font-size: 16px;
+}
+
+/* Specific Action Colors */
+.act-add { background-color: #ecfdf5; color: #059669; } /* Green */
+.act-edit { background-color: #eff6ff; color: #3b82f6; } /* Blue */
+.act-delete { background-color: #fef2f2; color: #dc2626; } /* Red */
+
+.activity-details {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.activity-text {
+    margin: 0 0 4px 0;
+    font-size: 14px;
+    color: var(--text-main);
+    line-height: 1.4;
+}
+
+.activity-text strong {
+    font-weight: 600;
+    color: #111827;
+}
+
+.activity-meta {
+    margin: 0;
+    font-size: 12px;
+    color: var(--text-secondary);
+}
         
         /* --- MOBILE RESPONSIVENESS --- */
         @media (max-width: 768px) {
@@ -271,11 +364,17 @@
             .header-flex { flex-direction: column; gap: 10px; }
         }
 /* Mobile View Adjustments */
-        @media (max-width: 480px) {
-            .main-content {
-                padding: 15px;
-            }
-        }
+@media (max-width: 480px) {
+    .main-content {
+        padding: 15px; /* Keeps edges from touching screen */
+        width: 100%;   /* Ensures standard box model behavior */
+    }
+    
+    /* Optional: Reduce card padding on very small phones */
+    .card-container, .stat-card, .full-width-card {
+        padding: 15px;
+    }
+}
 
 /* --- CUSTOM CHART LEGEND --- */
 .custom-legend {

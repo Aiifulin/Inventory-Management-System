@@ -1,5 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
-import { getFirestore, collection, getDocs, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+// UPDATED: Added addDoc and serverTimestamp
+import { getFirestore, collection, getDocs, deleteDoc, doc, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 
 // --- CONFIG ---
@@ -25,6 +26,23 @@ let allProducts = [];
 let currentSortDir = 'asc';
 let currentUser = null;
 let isAdmin = false; 
+
+// --- HELPER: ACTIVITY LOGGING FUNCTION ---
+async function logActivity(action, targetName) {
+    try {
+        const userEmail = auth.currentUser ? auth.currentUser.email : "Admin";
+        
+        await addDoc(collection(db, "activities"), {
+            action: action,          // e.g., "Deleted Product"
+            target: targetName,      // e.g., "Gaming Chair"
+            user: userEmail,
+            timestamp: serverTimestamp()
+        });
+        console.log("Activity logged successfully");
+    } catch (e) {
+        console.error("Error logging activity", e);
+    }
+}
 
 // --- AUTH CHECK & INITIAL LOAD ---
 onAuthStateChanged(auth, (user) => {
@@ -59,17 +77,17 @@ async function fetchProducts() {
     }
 }
 
-// --- FILTER & SORT (UPDATED) ---
+// --- FILTER & SORT ---
 function applyFilters() {
     const searchVal = document.getElementById("searchInput").value.trim().toLowerCase();
     
     const catVal = document.getElementById("filterCategory").value;
-    const priceRangeVal = document.getElementById("filterPrice").value; // NEW
+    const priceRangeVal = document.getElementById("filterPrice").value; 
     const statusVal = document.getElementById("filterStatus").value;
     const sortVal = document.getElementById("filterSort").value;
 
     let filtered = allProducts.filter(p => {
-        // 1. Search Logic (Name, Category, ID)
+        // 1. Search Logic
         const prodName = (p.name || "").toLowerCase();
         const prodCat = (p.category || "").toLowerCase();
         const prodId = (p.id || "").toLowerCase();
@@ -92,7 +110,7 @@ function applyFilters() {
         
         const matchesStatus = statusVal === "" || pStatus === statusVal;
 
-        // 4. NEW: Price Range Logic
+        // 4. Price Range Logic
         let matchesPrice = true;
         if (priceRangeVal) {
             if (priceRangeVal === "1000+") {
@@ -128,7 +146,6 @@ function renderTable(productsToRender) {
     const mobileList = document.getElementById("mobileProductList");
     const tableHead = document.querySelector(".products-table thead tr");
 
-    // 1. UPDATE TABLE HEADER (Add ID Column)
     if (tableHead) {
         tableHead.innerHTML = `
             <th style="width: 80px;">ID</th> <th style="width: 35%;">Product</th>
@@ -264,21 +281,35 @@ window.editProduct = function(id) {
     }
 }
 
-// --- DELETE FUNCTION ---
+// --- DELETE FUNCTION WITH LOGGING ---
 function attachDeleteListeners() {
     document.querySelectorAll('.delete-btn').forEach(btn => {
         btn.addEventListener('click', async (e) => {
             const target = e.target.closest('.delete-btn'); 
             if(!target) return;
+            
             const idToDelete = target.getAttribute('data-id');
+            
+            // 1. Find Product Name BEFORE deleting (so we can log it)
+            const productToDelete = allProducts.find(p => p.id === idToDelete);
+            const nameToLog = productToDelete ? productToDelete.name : "Unknown Product";
+
             if(confirm("Are you sure you want to delete this product?")) {
                 try {
+                    // 2. Delete from Firestore
                     await deleteDoc(doc(db, "products", idToDelete));
+                    
+                    // 3. Log Activity
+                    await logActivity("Deleted Product", nameToLog);
+
+                    // 4. Update UI
                     allProducts = allProducts.filter(p => p.id !== idToDelete);
                     applyFilters();
                     alert("Product deleted!");
+
                 } catch(err) {
                     console.error("Error deleting:", err);
+                    alert("Error deleting product: " + err.message);
                 }
             }
         });
@@ -290,7 +321,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // 1. Filter Listeners
     document.getElementById("searchInput").addEventListener("input", applyFilters);
     document.getElementById("filterCategory").addEventListener("change", applyFilters);
-    document.getElementById("filterPrice").addEventListener("change", applyFilters); // NEW
+    document.getElementById("filterPrice").addEventListener("change", applyFilters); 
     document.getElementById("filterStatus").addEventListener("change", applyFilters);
     document.getElementById("filterSort").addEventListener("change", applyFilters);
     
@@ -304,7 +335,7 @@ document.addEventListener("DOMContentLoaded", () => {
         applyFilters();
     });
 
-    // 3. Reset Button (NEW)
+    // 3. Reset Button
     document.getElementById("resetFiltersBtn").addEventListener("click", () => {
         document.getElementById("searchInput").value = "";
         document.getElementById("filterCategory").value = "";
@@ -312,7 +343,6 @@ document.addEventListener("DOMContentLoaded", () => {
         document.getElementById("filterStatus").value = "";
         document.getElementById("filterSort").value = "name";
         
-        // Reset Sort Direction to Ascending
         currentSortDir = 'asc';
         document.getElementById("sortDirIcon").textContent = "↑";
         document.getElementById("sortDirText").textContent = "Ascending";

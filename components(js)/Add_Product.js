@@ -1,4 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+// FIXED: Merged duplicate imports here
 import { getFirestore, collection, addDoc, serverTimestamp, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 
@@ -31,6 +32,26 @@ onAuthStateChanged(auth, (user) => {
         console.log("Admin verified.");
     }
 });
+
+// --- HELPER: ACTIVITY LOGGING FUNCTION ---
+// Defined globally so it can be called from anywhere
+async function logActivity(action, targetName) {
+    try {
+        const userEmail = auth.currentUser ? auth.currentUser.email : "Admin"; // Get actual email
+        
+        await addDoc(collection(db, "activities"), {
+            action: action,          // e.g., "Added Product"
+            target: targetName,      // e.g., "Gaming Chair"
+            user: userEmail,         // Logs who performed the action
+            timestamp: serverTimestamp()
+        });
+        console.log("Activity logged successfully");
+    } catch (e) {
+        console.error("Error logging activity", e);
+        // We do NOT throw error here, because we don't want to stop the 
+        // user flow if just the logging fails.
+    }
+}
 
 document.addEventListener("DOMContentLoaded", () => {
 
@@ -79,7 +100,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     
     const nameInput = document.querySelector('input[placeholder="Enter product name"]');
-    applyCharLimit(nameInput);
+    if(nameInput) applyCharLimit(nameInput);
     document.querySelectorAll('input[type="number"]').forEach(inp => preventNegatives(inp));
 
     // --- 3. IMAGE UPLOAD & REMOVE LOGIC ---
@@ -94,13 +115,10 @@ document.addEventListener("DOMContentLoaded", () => {
     removeBtn.className = 'btn-remove-image';
     removeBtn.type = 'button'; 
     removeBtn.title = "Remove Image";
-    
-    // SAFETY: Ensure button is hidden by default when created
     removeBtn.style.display = 'none'; 
 
     if(uploadBox) uploadBox.appendChild(removeBtn);
 
-    // Reset Image Function
     function resetImage(e) {
         if(e) e.stopPropagation(); 
         fileInput.value = "";
@@ -108,10 +126,7 @@ document.addEventListener("DOMContentLoaded", () => {
         preview.src = "";
         preview.style.display = "none";
         placeholder.style.display = "block";
-        
-        // HIDE BUTTON HERE
         removeBtn.style.display = "none"; 
-        
         isFormDirty = true;
     }
 
@@ -134,10 +149,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 preview.src = reader.result;
                 preview.style.display = "block";
                 placeholder.style.display = "none";
-                
-                // SHOW BUTTON HERE (Only when image is loaded)
                 removeBtn.style.display = "flex"; 
-                
                 isFormDirty = true;
             }
             reader.readAsDataURL(file);
@@ -194,7 +206,7 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-    // --- 4. SAVE LOGIC ---
+    // --- 4. SAVE LOGIC WITH LOGGING ---
     const submitBtn = document.querySelector('.btn-submit');
 
     if(form) {
@@ -222,13 +234,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
                 if (!querySnapshot.empty) {
                     throw new Error(`Product name "${rawName}" already exists!`);
-                } else {
-                    const allDocs = await getDocs(collection(db, "products"));
-                    let isDuplicate = false;
-                    allDocs.forEach(doc => {
-                        if (doc.data().name.toLowerCase() === rawName.toLowerCase()) isDuplicate = true;
-                    });
-                    if (isDuplicate) throw new Error(`Product name "${rawName}" already exists (duplicate name)!`);
                 }
 
                 const productData = {
@@ -245,6 +250,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     attributes: []
                 };
 
+                // Harvest Variations
                 document.querySelectorAll('.variations-row').forEach(row => {
                     const size = sanitizeInput(row.querySelector('.var-size').value);
                     const color = sanitizeInput(row.querySelector('.var-color').value);
@@ -252,6 +258,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     if(size && color) productData.variations.push({ size, color, custom });
                 });
 
+                // Harvest Attributes
                 document.querySelectorAll('.custom-attr-row').forEach(row => {
                     const name = sanitizeInput(row.querySelector('.attr-name').value);
                     const value = sanitizeInput(row.querySelector('.attr-value').value);
@@ -262,10 +269,15 @@ document.addEventListener("DOMContentLoaded", () => {
                     throw new Error("Please add at least one valid Product Variation.");
                 }
 
+                // 1. SAVE PRODUCT
                 await addDoc(collection(db, "products"), productData);
                 
-                isFormDirty = false; 
-                
+                isFormDirty = false; // Prevent beforeunload alert
+
+                // 2. LOG ACTIVITY
+                // We await this to ensure it triggers, but if it fails, the product is still saved.
+                await logActivity("Added Product", productData.name);
+
                 alert("Product Saved Successfully!");
                 window.location.href = "Dashboard.html";
 
@@ -279,6 +291,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 });
 
+// Logout Helper
 window.logout = function() {
     sessionStorage.removeItem("user_session");
     sessionStorage.removeItem("user_uid");
