@@ -113,13 +113,37 @@
             </section>
         </div>
 
-        <section class="full-width-card">
-            <div class="card-header">
-                <h3>Recent Activities</h3>
-                <a href="#" class="view-all-link">View All</a>
-            </div>
-            <div class="activity-content">No recent activities</div>
-        </section>
+        <div class="bottom-grid">
+            
+            <section class="card-container no-min-width">
+                <div class="card-header">
+                    <h3>Recent Activities</h3>
+                </div>
+                <div class="activity-content">No recent activities</div>
+            </section>
+
+            <section class="card-container no-min-width">
+                <div class="card-header">
+                    <h3>Low Stock Alert</h3>
+                    <a href="Products.html" style="font-size:12px; text-decoration:none; color:#4b5563;">Manage</a>
+                </div>
+                <div class="table-responsive">
+                    <table class="simple-table" id="lowStockTable">
+                        <thead>
+                            <tr>
+                                <th>Product</th>
+                                <th>Stock</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td colspan="3" style="text-align:center; color:#9ca3af; padding:20px;">Loading...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+        </div>
     </main>
 
     <script type="module" src="components(js)/Dashboard.js"></script>

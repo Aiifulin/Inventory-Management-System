@@ -358,7 +358,7 @@ function addAttributeRow(name="", value="") {
 }
 
 function setupDynamicRows() {
-    const addVarBtn = document.getElementById("add-main-variation-btn");
+    const addVarBtn = document.getElementById("add-main-variation-btn"  );
     const addAttrBtn = document.getElementById("add-custom-attr-main-btn");
 
     if (addVarBtn) addVarBtn.addEventListener("click", () => addVariationRow());

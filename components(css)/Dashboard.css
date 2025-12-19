@@ -414,3 +414,78 @@
     color: var(--text-main);
     font-family: 'Segoe UI', monospace; /* Monospace aligns numbers better */
 }
+
+/* --- BOTTOM GRID LAYOUT --- */
+.bottom-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr; /* Two equal columns */
+    gap: 24px;
+    width: 100%;
+    margin-bottom: 30px;
+}
+
+/* Helper to reset min-width if needed for the cards inside grid */
+.no-min-width {
+    min-width: 0; 
+    min-height: 400px; /* Consistent height for both boxes */
+}
+
+/* --- SIMPLE TABLE STYLING --- */
+.table-responsive {
+    overflow-x: auto;
+    width: 100%;
+}
+
+.simple-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+}
+
+.simple-table th {
+    text-align: left;
+    padding: 10px 0;
+    color: var(--text-secondary);
+    font-weight: 600;
+    font-size: 12px;
+    border-bottom: 1px solid #f3f4f6;
+}
+
+.simple-table td {
+    padding: 12px 0;
+    border-bottom: 1px solid #f3f4f6;
+    color: var(--text-main);
+    vertical-align: middle;
+}
+
+.simple-table tr:last-child td {
+    border-bottom: none;
+}
+
+/* Tiny Status Pills for this table */
+.pill {
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+}
+.pill-red { background-color: #fef2f2; color: #dc2626; } /* Out of Stock */
+.pill-orange { background-color: #fffbeb; color: #d97706; } /* Low Stock */
+
+/* Product Image in Table */
+.sm-product-img {
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    object-fit: cover;
+    margin-right: 10px;
+    vertical-align: middle;
+    border: 1px solid #f3f4f6;
+}
+
+/* --- MOBILE RESPONSIVENESS FOR BOTTOM GRID --- */
+@media (max-width: 1000px) {
+    .bottom-grid {
+        grid-template-columns: 1fr; /* Stack them on smaller screens */
+    }
+}

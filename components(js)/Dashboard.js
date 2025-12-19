@@ -45,10 +45,12 @@ onAuthStateChanged(auth, async (user) => {
 });
 
 // --- LOAD STATS LOGIC ---
+// --- LOAD STATS & LOW STOCK LOGIC ---
 async function loadDashboardStats() {
     try {
         const querySnapshot = await getDocs(collection(db, "products"));
         const products = [];
+        const lowStockItems = []; // Array to hold low stock products
         
         const categoryMap = {}; 
 
@@ -58,24 +60,32 @@ async function loadDashboardStats() {
 
             const stock = Number(p.stock) || 0;
             const price = Number(p.price) || 0;
+            const threshold = Number(p.lowStockThreshold) || 10;
             const cat = p.category || "Uncategorized";
             const itemValue = stock * price;
 
+            // 1. Stats Calculation
             if (!categoryMap[cat]) {
                 categoryMap[cat] = { count: 0, value: 0 };
             }
-            categoryMap[cat].count += 1;       
+            categoryMap[cat].count += 1;        
             categoryMap[cat].value += itemValue; 
+
+            // 2. Identify Low Stock Items
+            if (stock <= threshold) {
+                lowStockItems.push({
+                    name: p.name,
+                    stock: stock,
+                    imageUrl: p.imageUrl,
+                    threshold: threshold
+                });
+            }
         });
 
+        // --- UPDATE TOP STATS ---
         const totalProducts = products.length;
         const categoriesCount = Object.keys(categoryMap).length;
-        
-        const lowStock = products.filter(p => {
-            const stock = Number(p.stock) || 0;
-            const threshold = Number(p.lowStockThreshold) || 10;
-            return stock <= threshold;
-        }).length;
+        const lowStockCount = lowStockItems.length;
         
         const totalValue = products.reduce((sum, p) => {
             return sum + ((Number(p.price) || 0) * (Number(p.stock) || 0));
@@ -83,7 +93,7 @@ async function loadDashboardStats() {
 
         updateStat("statTotalProducts", totalProducts);
         updateStat("statCategories", categoriesCount);
-        updateStat("statLowStock", lowStock);
+        updateStat("statLowStock", lowStockCount);
         
         const formattedValue = totalValue.toLocaleString('en-PH', {
             style: 'currency',
@@ -92,13 +102,64 @@ async function loadDashboardStats() {
         });
         updateStat("statTotalValue", formattedValue);
 
+        // --- RENDER CHARTS ---
         initCharts(categoryMap);
+
+        // --- RENDER LOW STOCK TABLE ---
+        renderLowStockTable(lowStockItems);
 
     } catch (error) {
         console.error("Error loading stats:", error);
     }
 }
 
+// --- HELPER: RENDER LOW STOCK TABLE ---
+function renderLowStockTable(items) {
+    const tableBody = document.querySelector('#lowStockTable tbody');
+    if (!tableBody) return;
+
+    if (items.length === 0) {
+        tableBody.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:20px; color:#9ca3af;">All products are well stocked!</td></tr>';
+        return;
+    }
+
+    // Sort by stock level (lowest first)
+    items.sort((a, b) => a.stock - b.stock);
+
+    // Limit to top 5 items to fit UI
+    const displayItems = items.slice(0, 5);
+
+    let html = '';
+    displayItems.forEach(item => {
+        // Determine status style
+        let pillClass = "pill-orange";
+        let statusText = "Low Stock";
+        
+        if (item.stock === 0) {
+            pillClass = "pill-red";
+            statusText = "Out of Stock";
+        }
+
+        // Image Logic
+        let imgTag = '<div style="display:inline-block; width:32px; height:32px; background:#f3f4f6; border-radius:6px; margin-right:10px; vertical-align:middle; text-align:center; line-height:32px;"><i class="fas fa-box" style="font-size:12px; color:#9ca3af;"></i></div>';
+        if (item.imageUrl) {
+            imgTag = `<img src="${item.imageUrl}" class="sm-product-img" alt="img">`;
+        }
+
+        html += `
+            <tr>
+                <td>
+                    ${imgTag}
+                    <span style="font-weight:500;">${item.name}</span>
+                </td>
+                <td style="font-family:monospace; font-size:14px;">${item.stock}</td>
+                <td><span class="pill ${pillClass}">${statusText}</span></td>
+            </tr>
+        `;
+    });
+
+    tableBody.innerHTML = html;
+}
 // --- LOAD RECENT ACTIVITIES ---
 async function loadRecentActivities() {
     const activityContainer = document.querySelector('.activity-content');
