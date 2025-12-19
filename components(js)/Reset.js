@@ -3,7 +3,12 @@
  ***********************************************/
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js"
 
-import { getAuth, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js"
+// Added 'fetchSignInMethodsForEmail' to imports
+import { 
+    getAuth, 
+    sendPasswordResetEmail, 
+    fetchSignInMethodsForEmail 
+} from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js"
 
 /************************************************
  * WAG GALAWIN
@@ -21,21 +26,21 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig)
 const auth = getAuth(app)
 
-    /************************************************
-     * Functionalities
-     ***********************************************/
-    // Navigation
-    window.goToLogin = function () {
-      window.location.href = "Login.html";
-  };
-  
-  
-    // Show Error Message
-    function showError(msg) {
-      const errorBox = document.getElementById("error-box")
-      errorBox.style.display = "block"
-      errorBox.textContent = msg
-    }
+/************************************************
+ * Functionalities
+ ***********************************************/
+// Navigation
+window.goToLogin = function () {
+  window.location.href = "Login.html";
+};
+
+
+// Show Error Message
+function showError(msg) {
+  const errorBox = document.getElementById("error-box")
+  errorBox.style.display = "block"
+  errorBox.textContent = msg
+}
 
 function showSuccess(msg) {
   const successBox = document.getElementById("success-box")
@@ -66,6 +71,16 @@ passwordResetForm.addEventListener("submit", async (e) => {
   }
 
   try {
+    // 1. CHECK IF EMAIL EXISTS IN AUTH
+    const signInMethods = await fetchSignInMethodsForEmail(auth, email);
+
+    // 2. IF ARRAY IS EMPTY, EMAIL DOES NOT EXIST
+    if (signInMethods.length === 0) {
+        showError("No account found with this email address.");
+        return; // Stop here, do not send email
+    }
+
+    // 3. IF EMAIL EXISTS, SEND RESET
     await sendPasswordResetEmail(auth, email)
 
     // Show success message
@@ -73,12 +88,11 @@ passwordResetForm.addEventListener("submit", async (e) => {
 
     // Clear form
     passwordResetForm.reset()
+
   } catch (err) {
     console.error(err)
 
-    if (err.code === "auth/user-not-found") {
-      showError("No account found with this email address.")
-    } else if (err.code === "auth/invalid-email") {
+    if (err.code === "auth/invalid-email") {
       showError("Please enter a valid email address.")
     } else if (err.code === "auth/too-many-requests") {
       showError("Too many attempts. Please try again later.")
