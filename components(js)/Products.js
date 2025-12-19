@@ -1,5 +1,4 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
-// FIXED: Added getDoc and doc for role checking and display
 import { getFirestore, collection, getDocs, deleteDoc, doc, addDoc, serverTimestamp, getDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 
@@ -25,10 +24,6 @@ let currentSortDir = 'asc';
 let currentUser = null;
 let isAdmin = false; 
 
-// --- PAGINATION STATE ---
-let currentPage = 1;
-let itemsPerPage = 10; 
-
 // --- HELPER: CHECK ADMIN ROLE (Dynamic) ---
 async function checkAdminRole(uid) {
     try {
@@ -48,14 +43,12 @@ async function checkAdminRole(uid) {
 
 // --- HELPER: DISPLAY USER ROLE (UI) ---
 async function displayUserRole(uid) {
-    // You need to ensure your Products.html sidebar has <span id="userRoleDisplay">
     const roleEl = document.getElementById('userRoleDisplay');
     if (!roleEl) {
-        // Fallback: Try to find the span by class if ID isn't there yet
         const sidebarRole = document.querySelector('.sidebar-header .user-role');
         if (sidebarRole) {
-            sidebarRole.id = 'userRoleDisplay'; // Dynamically assign ID if missing
-            return displayUserRole(uid); // Retry
+            sidebarRole.id = 'userRoleDisplay'; 
+            return displayUserRole(uid); 
         }
         return;
     }
@@ -67,11 +60,10 @@ async function displayUserRole(uid) {
         if (docSnap.exists()) {
             const data = docSnap.data();
             let roleName = data.role || "User";
-            // Capitalize first letter
             roleName = roleName.charAt(0).toUpperCase() + roleName.slice(1);
             roleEl.textContent = roleName;
         } else {
-            roleEl.textContent = "User"; // Fallback
+            roleEl.textContent = "User"; 
         }
     } catch (error) {
         console.error("Error displaying role:", error);
@@ -96,48 +88,21 @@ async function logActivity(action, targetName) {
     }
 }
 
-// --- HELPER: LOAD SETTINGS ---
-async function loadSettings() {
-    try {
-        const docRef = doc(db, "settings", "global_config");
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-            const data = docSnap.data();
-            // Update itemsPerPage only if it's valid
-            if (data.itemsPerPage && !isNaN(data.itemsPerPage)) {
-                const val = parseInt(data.itemsPerPage);
-                if (val > 0) itemsPerPage = val;
-            }
-        }
-    } catch (e) {
-        console.warn("Using default settings due to error or missing config.");
-    }
-}
-
 // --- AUTH CHECK & INITIAL LOAD ---
 onAuthStateChanged(auth, async (user) => {
     if (user) {
         currentUser = user;
 
-        // 1. UPDATE SIDEBAR ROLE INDICATOR
         displayUserRole(user.uid);
-
-        // 2. DYNAMIC ADMIN CHECK
         isAdmin = await checkAdminRole(user.uid);
         
-        // 3. Hide/Show "Add Product" button based on role
         const addBtn = document.querySelector('.btn-primary');
         if(addBtn) {
             addBtn.style.display = isAdmin ? "flex" : "none";
         }
 
-        // 4. Load Settings First
-        await loadSettings();
-
-        // 5. Fetch Data
         fetchProducts();
     } else {
-        // Not logged in? Redirect
         window.location.href = "Login.html";
     }
 });
@@ -150,7 +115,6 @@ async function fetchProducts() {
         querySnapshot.forEach((doc) => {
             allProducts.push({ id: doc.id, ...doc.data() });
         });
-        // Initial Filter & Render
         applyFilters();
     } catch (error) {
         console.error("Error loading products:", error);
@@ -199,7 +163,6 @@ function applyFilters() {
         return matchesSearch && matchesCategory && matchesStatus && matchesPrice;
     });
 
-    // Sort Logic
     result.sort((a, b) => {
         let valA, valB;
         if (sortVal === 'price') { valA = Number(a.price) || 0; valB = Number(b.price) || 0; }
@@ -212,43 +175,9 @@ function applyFilters() {
         return 0;
     });
 
-    // Update Filtered list and Render Page 1
     filteredProducts = result;
-    currentPage = 1;
-    renderPagination();
-}
-
-// --- PAGINATION & RENDER ---
-function renderPagination() {
-    const totalItems = filteredProducts.length;
-    const safeItemsPerPage = itemsPerPage > 0 ? itemsPerPage : 10;
-    const totalPages = Math.ceil(totalItems / safeItemsPerPage) || 1;
-
-    if (currentPage < 1) currentPage = 1;
-    if (currentPage > totalPages) currentPage = totalPages;
-
-    const startIndex = (currentPage - 1) * safeItemsPerPage;
-    const endIndex = Math.min(startIndex + safeItemsPerPage, totalItems);
-    
-    const pageItems = filteredProducts.slice(startIndex, endIndex);
-
-    // Update UI Stats
-    const startRange = document.getElementById('startRange');
-    const endRange = document.getElementById('endRange');
-    const totalItemsEl = document.getElementById('totalItems');
-    const pageInd = document.getElementById('pageIndicator');
-    const prevBtn = document.getElementById('prevBtn');
-    const nextBtn = document.getElementById('nextBtn');
-
-    if(startRange) startRange.textContent = totalItems === 0 ? 0 : startIndex + 1;
-    if(endRange) endRange.textContent = endIndex;
-    if(totalItemsEl) totalItemsEl.textContent = totalItems;
-    if(pageInd) pageInd.textContent = `Page ${currentPage} of ${totalPages}`;
-
-    if(prevBtn) prevBtn.disabled = (currentPage === 1);
-    if(nextBtn) nextBtn.disabled = (currentPage === totalPages || totalPages === 0);
-
-    renderTable(pageItems);
+    // DIRECTLY RENDER ALL ITEMS (No Pagination)
+    renderTable(filteredProducts);
 }
 
 // --- RENDER TABLE ---
@@ -282,7 +211,6 @@ function renderTable(productsToRender) {
         const docId = p.id;
         const shortId = "#" + docId.slice(0, 6); 
 
-        // Image Logic
         let imageHtml = p.imageUrl 
             ? `<img src="${p.imageUrl}" alt="${p.name}" style="width: 45px; height: 45px; border-radius: 8px; object-fit: cover; border: 1px solid #e5e7eb;">`
             : `<div class="product-img-placeholder"><i class="fa-regular fa-image"></i></div>`;
@@ -291,7 +219,6 @@ function renderTable(productsToRender) {
             ? `<img src="${p.imageUrl}" alt="${p.name}" style="width: 60px; height: 60px; border-radius: 8px; object-fit: cover; border: 1px solid #e5e7eb;">`
             : `<div class="card-img"><i class="fa-regular fa-image"></i></div>`;
 
-        // Status Logic
         let statusText = "In Stock";
         let statusClass = "in-stock";
         const stock = Number(p.stock) || 0;
@@ -299,13 +226,11 @@ function renderTable(productsToRender) {
         if (stock === 0) { statusText = "Out of Stock"; statusClass = "out-of-stock"; }
         else if (stock <= threshold) { statusText = "Low Stock"; statusClass = "low-stock"; }
 
-        // Date Logic
         let dateAdded = "N/A";
         if (p.createdAt && p.createdAt.toDate) {
             dateAdded = p.createdAt.toDate().toLocaleDateString("en-US", { month: 'short', day: 'numeric', year: 'numeric' });
         }
 
-        // Tags Logic
         let tagsHtml = (p.variations || []).map(v => 
             v.size ? `<span class="v-tag">${v.size}</span>` : ''
         ).join('');
@@ -318,7 +243,6 @@ function renderTable(productsToRender) {
 
         const allTags = tagsHtml + attributesHtml;
 
-        // Admin Actions (Dynamic Check)
         const adminActions = isAdmin ? `
             <i class="fa-regular fa-pen-to-square" title="Edit" onclick="editProduct('${docId}')" style="cursor: pointer;"></i>
             <i class="fa-regular fa-trash-can delete-btn" data-id="${docId}" title="Delete" style="cursor: pointer;"></i>
@@ -329,7 +253,6 @@ function renderTable(productsToRender) {
             <button class="btn-card-action btn-card-delete delete-btn" data-id="${docId}"><i class="fa-regular fa-trash-can"></i></button>
         ` : '';
 
-        // --- DESKTOP RENDER ---
         if (tableBody) {
             const row = document.createElement("tr");
             row.innerHTML = `
@@ -357,7 +280,6 @@ function renderTable(productsToRender) {
             tableBody.appendChild(row);
         }
 
-        // --- MOBILE RENDER ---
         if (mobileList) {
             const card = document.createElement("div");
             card.className = "mobile-card";
@@ -405,24 +327,16 @@ function attachDeleteListeners() {
             if(!target) return;
             
             const idToDelete = target.getAttribute('data-id');
-            
-            // 1. Find Product Name BEFORE deleting (so we can log it)
             const productToDelete = allProducts.find(p => p.id === idToDelete);
             const nameToLog = productToDelete ? productToDelete.name : "Unknown Product";
 
             if(confirm("Are you sure you want to delete this product?")) {
                 try {
-                    // 2. Delete from Firestore
                     await deleteDoc(doc(db, "products", idToDelete));
-                    
-                    // 3. Log Activity
                     await logActivity("Deleted Product", nameToLog);
-
-                    // 4. Update UI
                     allProducts = allProducts.filter(p => p.id !== idToDelete);
                     applyFilters();
                     alert("Product deleted!");
-
                 } catch(err) {
                     console.error("Error deleting:", err);
                     alert("Error deleting product: " + err.message);
@@ -434,14 +348,12 @@ function attachDeleteListeners() {
 
 // --- EVENT LISTENERS ---
 document.addEventListener("DOMContentLoaded", () => {
-    // 1. Filter Listeners
     document.getElementById("searchInput").addEventListener("input", applyFilters);
     document.getElementById("filterCategory").addEventListener("change", applyFilters);
     document.getElementById("filterPrice").addEventListener("change", applyFilters); 
     document.getElementById("filterStatus").addEventListener("change", applyFilters);
     document.getElementById("filterSort").addEventListener("change", applyFilters);
     
-    // 2. Sort Direction
     const sortBtn = document.getElementById("sortDirBtn");
     if(sortBtn) {
         sortBtn.addEventListener("click", () => {
@@ -454,7 +366,6 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-    // 3. Reset Button
     const resetBtn = document.getElementById("resetFiltersBtn");
     if(resetBtn) {
         resetBtn.addEventListener("click", () => {
@@ -471,29 +382,6 @@ document.addEventListener("DOMContentLoaded", () => {
             if(text) text.textContent = "Ascending";
 
             applyFilters();
-        });
-    }
-
-    // 4. Pagination Listeners
-    const prevBtn = document.getElementById("prevBtn");
-    const nextBtn = document.getElementById("nextBtn");
-
-    if (prevBtn) {
-        prevBtn.addEventListener("click", () => {
-            if (currentPage > 1) {
-                currentPage--;
-                renderPagination();
-            }
-        });
-    }
-
-    if (nextBtn) {
-        nextBtn.addEventListener("click", () => {
-            const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
-            if (currentPage < totalPages) {
-                currentPage++;
-                renderPagination();
-            }
         });
     }
 });

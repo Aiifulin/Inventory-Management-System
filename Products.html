@@ -157,7 +157,7 @@
         if(closeBtn) closeBtn.addEventListener('click', toggleSidebar);
         if(overlay) overlay.addEventListener('click', toggleSidebar);
 
-        // --- ADDED: Dynamic User Display Logic ---
+        // --- Dynamic User Display Logic ---
         document.addEventListener("DOMContentLoaded", () => {
             const roleDisplay = document.getElementById("userRoleDisplay");
             const sessionData = sessionStorage.getItem("user_session");
@@ -165,14 +165,12 @@
             if (sessionData && roleDisplay) {
                 try {
                     const user = JSON.parse(sessionData);
-                    // Update the text. Defaults to "Loading..." if role is missing in session
                     roleDisplay.textContent = user.role || user.username || "Loading...";
                 } catch (error) {
                     console.error("Error parsing user session:", error);
                     roleDisplay.textContent = "Loading...";
                 }
             } else if (roleDisplay) {
-                // Fallback if no session (though route guard handles this)
                 roleDisplay.textContent = "Guest";
             }
         });
