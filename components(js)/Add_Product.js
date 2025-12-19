@@ -1,5 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
-import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+// ADDED imports: query, where, getDocs
+import { getFirestore, collection, addDoc, serverTimestamp, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 
 const firebaseConfig = {
@@ -16,13 +17,9 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
 
-// --- HARDCODED ADMIN ID ---
 const ADMIN_UID = "eisTKTAY9LfdMpXZ7ebo0spRDAN2"; 
-
-// GLOBAL VARIABLE TO STORE IMAGE STRING
 let base64ImageString = "";
 
-// --- STRICT AUTH CHECK ---
 onAuthStateChanged(auth, (user) => {
     if (!user) {
         window.location.href = "Login.html";
@@ -36,8 +33,6 @@ onAuthStateChanged(auth, (user) => {
 
 document.addEventListener("DOMContentLoaded", () => {
 
-    // --- XSS PROTECTION: SANITIZE INPUT ---
-    // Converts characters like <, >, &, " into HTML entities so scripts don't run.
     function sanitizeInput(str) {
         if (typeof str !== 'string') return str;
         return str.replace(/[&<>"']/g, function(m) {
@@ -51,14 +46,9 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-    // --- HELPER: APPLY LIMIT & RED BORDER STYLE ---
     function applyCharLimit(input) {
         if (!input) return;
-        
-        // 1. Set the hard limit
         input.setAttribute("maxlength", "30");
-        
-        // 2. Add listener for visual feedback (Red Border)
         input.addEventListener("input", function() {
             if (this.value.length >= 30) {
                 this.style.borderColor = "red";
@@ -70,23 +60,19 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-    // --- HELPER: PREVENT NEGATIVE NUMBERS ---
     function preventNegatives(input) {
         input.addEventListener('input', function() {
             if (this.value < 0) {
-                this.value = 0; // Force reset to 0
+                this.value = 0; 
             }
         });
     }
     
-    // --- 0. APPLY LIMITS & VALIDATION ---
     const nameInput = document.querySelector('input[placeholder="Enter product name"]');
     applyCharLimit(nameInput);
 
-    // Apply negative prevention to all number inputs on load
     document.querySelectorAll('input[type="number"]').forEach(inp => preventNegatives(inp));
 
-    // --- 1. IMAGE UPLOAD LOGIC ---
     const fileInput = document.getElementById('fileInput');
     const preview = document.getElementById('imagePreview');
     const placeholder = document.getElementById('uploadPlaceholder');
@@ -113,12 +99,10 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-    // --- 2. ROW LOGIC (Variations) ---
     const variationContainer = document.getElementById("variation-container");
     const addVarBtn = document.getElementById("add-main-variation-btn");
 
     if(addVarBtn && variationContainer) {
-        // Apply limit to existing inputs in the first row
         variationContainer.querySelectorAll('input').forEach(inp => applyCharLimit(inp));
 
         addVarBtn.addEventListener("click", () => {
@@ -130,10 +114,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 <div class="input-group"><input type="text" class="var-custom" placeholder="Optional"></div>
                 <button type="button" class="btn-delete remove-row-btn"><i class="fas fa-trash"></i></button>
             `;
-            
-            // Apply limits to the NEW inputs immediately
             newRow.querySelectorAll('input').forEach(inp => applyCharLimit(inp));
-            
             variationContainer.appendChild(newRow);
         });
 
@@ -145,12 +126,10 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-    // --- 3. ROW LOGIC (Attributes) ---
     const attrContainer = document.getElementById("custom-attributes-container");
     const addAttrBtn = document.getElementById("add-custom-attr-main-btn");
 
     if(addAttrBtn && attrContainer) {
-        // Apply limit to existing inputs in the first row
         attrContainer.querySelectorAll('input').forEach(inp => applyCharLimit(inp));
 
         addAttrBtn.addEventListener("click", () => {
@@ -161,10 +140,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 <div class="input-group"><input type="text" class="attr-value" placeholder="Value"></div>
                 <button type="button" class="btn-delete remove-attr-btn"><i class="fas fa-trash"></i></button>
             `;
-            
-            // Apply limits to the NEW inputs immediately
             newRow.querySelectorAll('input').forEach(inp => applyCharLimit(inp));
-
             attrContainer.appendChild(newRow);
         });
 
@@ -176,7 +152,7 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-    // --- 4. SAVE LOGIC ---
+    // --- SAVE LOGIC ---
     const submitBtn = document.querySelector('.btn-submit');
     const form = document.querySelector('form');
 
@@ -193,24 +169,45 @@ document.addEventListener("DOMContentLoaded", () => {
             submitBtn.disabled = true;
 
             try {
-                // Get numerical values
                 const priceVal = parseFloat(document.querySelector('input[type="number"][step="0.01"]').value) || 0;
                 const stockVal = parseInt(document.querySelector('input[placeholder="0"]').value) || 0;
                 const thresholdVal = parseInt(document.querySelector('input[placeholder="10"]').value) || 10;
 
-                // Validate Negative Numbers
                 if (priceVal < 0 || stockVal < 0 || thresholdVal < 0) {
                     throw new Error("Price and Stock values cannot be negative.");
                 }
 
-                // GATHER DATA AND SANITIZE STRINGS (XSS PREVENTION)
-                const rawName = document.querySelector('input[placeholder="Enter product name"]').value;
+                const rawName = document.querySelector('input[placeholder="Enter product name"]').value.trim();
                 const rawDesc = document.querySelector('textarea').value;
-                
+
+                // --- 1. DUPLICATE CHECK ---
+                // Query Firestore for products with the exact same name
+                const q = query(collection(db, "products"), where("name", "==", rawName));
+                const querySnapshot = await getDocs(q);
+
+                if (!querySnapshot.empty) {
+                    // Exact match found immediately
+                    throw new Error(`Product name "${rawName}" already exists!`);
+                } else {
+                    // Optional: Fetch ALL names to check case-insensitive match (e.g., "Chair" vs "chair")
+                    // Note: For large databases, this is inefficient. For small inventory, it works.
+                    const allDocs = await getDocs(collection(db, "products"));
+                    let isDuplicate = false;
+                    allDocs.forEach(doc => {
+                        if (doc.data().name.toLowerCase() === rawName.toLowerCase()) {
+                            isDuplicate = true;
+                        }
+                    });
+                    
+                    if (isDuplicate) {
+                        throw new Error(`Product name "${rawName}" already exists (duplicate name)!`);
+                    }
+                }
+
                 const productData = {
-                    name: sanitizeInput(rawName), // Sanitize Name
-                    description: sanitizeInput(rawDesc), // Sanitize Description
-                    category: document.querySelector('select').value, // Select is safe (hardcoded values)
+                    name: sanitizeInput(rawName), 
+                    description: sanitizeInput(rawDesc), 
+                    category: document.querySelector('select').value, 
                     price: priceVal,
                     stock: stockVal,
                     lowStockThreshold: thresholdVal,
@@ -221,7 +218,6 @@ document.addEventListener("DOMContentLoaded", () => {
                     attributes: []
                 };
 
-                // Gather & Sanitize Variations
                 document.querySelectorAll('.variations-row').forEach(row => {
                     const size = sanitizeInput(row.querySelector('.var-size').value);
                     const color = sanitizeInput(row.querySelector('.var-color').value);
@@ -230,7 +226,6 @@ document.addEventListener("DOMContentLoaded", () => {
                     if(size && color) productData.variations.push({ size, color, custom });
                 });
 
-                // Gather & Sanitize Attributes
                 document.querySelectorAll('.custom-attr-row').forEach(row => {
                     const name = sanitizeInput(row.querySelector('.attr-name').value);
                     const value = sanitizeInput(row.querySelector('.attr-value').value);
@@ -257,7 +252,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 });
 
-// --- LOGOUT FUNCTION ---
 window.logout = function() {
     sessionStorage.removeItem("user_session");
     sessionStorage.removeItem("user_uid");

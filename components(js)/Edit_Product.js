@@ -1,5 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
-import { getFirestore, doc, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+// ADDED: collection, getDocs (for duplicate checking)
+import { getFirestore, doc, getDoc, updateDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 
 const firebaseConfig = {
@@ -155,9 +156,23 @@ function initPage() {
                     throw new Error("Price and Stock values cannot be negative.");
                 }
 
-                // --- GATHER DATA & SANITIZE ---
-                const rawName = document.getElementById('inpName').value;
+                // --- GATHER DATA ---
+                const rawName = document.getElementById('inpName').value.trim();
                 const rawDesc = document.getElementById('inpDesc').value;
+
+                // --- DUPLICATE CHECK (Case-Insensitive & Excludes Current ID) ---
+                const allDocs = await getDocs(collection(db, "products"));
+                let isDuplicate = false;
+                allDocs.forEach(d => {
+                    // Check if name matches AND it's NOT this product
+                    if (d.id !== productId && d.data().name.toLowerCase() === rawName.toLowerCase()) {
+                        isDuplicate = true;
+                    }
+                });
+
+                if (isDuplicate) {
+                    throw new Error(`Product name "${rawName}" already exists!`);
+                }
 
                 const variations = [];
                 document.querySelectorAll('.variations-row').forEach(row => {
@@ -181,9 +196,9 @@ function initPage() {
                 }
 
                 const updatedData = {
-                    name: sanitizeInput(rawName), // Sanitize
-                    description: sanitizeInput(rawDesc), // Sanitize
-                    category: document.getElementById('inpCategory').value, // Select is safe
+                    name: sanitizeInput(rawName), // Sanitize Name
+                    description: sanitizeInput(rawDesc), // Sanitize Description
+                    category: document.getElementById('inpCategory').value,
                     price: priceVal,
                     stock: stockVal,
                     lowStockThreshold: thresholdVal,
