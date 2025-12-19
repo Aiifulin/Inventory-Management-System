@@ -276,3 +276,42 @@
                 padding: 15px;
             }
         }
+
+/* --- CUSTOM CHART LEGEND --- */
+.custom-legend {
+    margin-top: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 200px;
+    overflow-y: auto; /* Scroll if you have many categories */
+    border-top: 1px solid #f3f4f6;
+    padding-top: 15px;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 13px;
+    color: var(--text-main);
+}
+
+.legend-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.legend-color {
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    display: inline-block;
+}
+
+.legend-value {
+    font-weight: 600;
+    color: var(--text-main);
+    font-family: 'Segoe UI', monospace; /* Monospace aligns numbers better */
+}

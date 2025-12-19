@@ -36,6 +36,21 @@ onAuthStateChanged(auth, (user) => {
 
 document.addEventListener("DOMContentLoaded", () => {
 
+    // --- XSS PROTECTION: SANITIZE INPUT ---
+    // Converts characters like <, >, &, " into HTML entities so scripts don't run.
+    function sanitizeInput(str) {
+        if (typeof str !== 'string') return str;
+        return str.replace(/[&<>"']/g, function(m) {
+            return {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            }[m];
+        });
+    }
+
     // --- HELPER: APPLY LIMIT & RED BORDER STYLE ---
     function applyCharLimit(input) {
         if (!input) return;
@@ -47,17 +62,29 @@ document.addEventListener("DOMContentLoaded", () => {
         input.addEventListener("input", function() {
             if (this.value.length >= 30) {
                 this.style.borderColor = "red";
-                this.style.outlineColor = "red"; // Optional: helps if focused
+                this.style.outlineColor = "red"; 
             } else {
                 this.style.borderColor = "";
                 this.style.outlineColor = "";
             }
         });
     }
+
+    // --- HELPER: PREVENT NEGATIVE NUMBERS ---
+    function preventNegatives(input) {
+        input.addEventListener('input', function() {
+            if (this.value < 0) {
+                this.value = 0; // Force reset to 0
+            }
+        });
+    }
     
-    // --- 0. LIMIT PRODUCT NAME ---
+    // --- 0. APPLY LIMITS & VALIDATION ---
     const nameInput = document.querySelector('input[placeholder="Enter product name"]');
     applyCharLimit(nameInput);
+
+    // Apply negative prevention to all number inputs on load
+    document.querySelectorAll('input[type="number"]').forEach(inp => preventNegatives(inp));
 
     // --- 1. IMAGE UPLOAD LOGIC ---
     const fileInput = document.getElementById('fileInput');
@@ -166,13 +193,27 @@ document.addEventListener("DOMContentLoaded", () => {
             submitBtn.disabled = true;
 
             try {
+                // Get numerical values
+                const priceVal = parseFloat(document.querySelector('input[type="number"][step="0.01"]').value) || 0;
+                const stockVal = parseInt(document.querySelector('input[placeholder="0"]').value) || 0;
+                const thresholdVal = parseInt(document.querySelector('input[placeholder="10"]').value) || 10;
+
+                // Validate Negative Numbers
+                if (priceVal < 0 || stockVal < 0 || thresholdVal < 0) {
+                    throw new Error("Price and Stock values cannot be negative.");
+                }
+
+                // GATHER DATA AND SANITIZE STRINGS (XSS PREVENTION)
+                const rawName = document.querySelector('input[placeholder="Enter product name"]').value;
+                const rawDesc = document.querySelector('textarea').value;
+                
                 const productData = {
-                    name: document.querySelector('input[placeholder="Enter product name"]').value,
-                    description: document.querySelector('textarea').value, // Description is NOT limited
-                    category: document.querySelector('select').value,
-                    price: parseFloat(document.querySelector('input[type="number"][step="0.01"]').value) || 0,
-                    stock: parseInt(document.querySelector('input[placeholder="0"]').value) || 0,
-                    lowStockThreshold: parseInt(document.querySelector('input[placeholder="10"]').value) || 10,
+                    name: sanitizeInput(rawName), // Sanitize Name
+                    description: sanitizeInput(rawDesc), // Sanitize Description
+                    category: document.querySelector('select').value, // Select is safe (hardcoded values)
+                    price: priceVal,
+                    stock: stockVal,
+                    lowStockThreshold: thresholdVal,
                     imageUrl: base64ImageString, 
                     createdAt: serverTimestamp(),
                     createdBy: auth.currentUser.uid, 
@@ -180,18 +221,20 @@ document.addEventListener("DOMContentLoaded", () => {
                     attributes: []
                 };
 
-                // Gather Variations
+                // Gather & Sanitize Variations
                 document.querySelectorAll('.variations-row').forEach(row => {
-                    const size = row.querySelector('.var-size').value;
-                    const color = row.querySelector('.var-color').value;
-                    const custom = row.querySelector('.var-custom').value;
+                    const size = sanitizeInput(row.querySelector('.var-size').value);
+                    const color = sanitizeInput(row.querySelector('.var-color').value);
+                    const custom = sanitizeInput(row.querySelector('.var-custom').value);
+                    
                     if(size && color) productData.variations.push({ size, color, custom });
                 });
 
-                // Gather Attributes
+                // Gather & Sanitize Attributes
                 document.querySelectorAll('.custom-attr-row').forEach(row => {
-                    const name = row.querySelector('.attr-name').value;
-                    const value = row.querySelector('.attr-value').value;
+                    const name = sanitizeInput(row.querySelector('.attr-name').value);
+                    const value = sanitizeInput(row.querySelector('.attr-value').value);
+                    
                     if(name && value) productData.attributes.push({ name, value });
                 });
 

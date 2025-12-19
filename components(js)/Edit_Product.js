@@ -40,9 +40,25 @@ function initPage() {
         return;
     }
 
-    // --- APPLY LIMIT TO MAIN PRODUCT NAME ---
+    // --- XSS PROTECTION: SANITIZE INPUT ---
+    function sanitizeInput(str) {
+        if (typeof str !== 'string') return str;
+        return str.replace(/[&<>"']/g, function(m) {
+            return {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            }[m];
+        });
+    }
+
+    // --- APPLY LIMITS & NEGATIVE PREVENTION ---
     const nameInput = document.getElementById('inpName');
-    applyCharLimit(nameInput); // Helper function is defined at the bottom
+    applyCharLimit(nameInput); 
+
+    document.querySelectorAll('input[type="number"]').forEach(inp => preventNegatives(inp));
 
     // --- SETUP IMAGE UPLOAD LISTENER ---
     const fileInput = document.getElementById('fileInput');
@@ -129,18 +145,34 @@ function initPage() {
             btn.disabled = true;
 
             try {
+                // Get numerical values
+                const priceVal = parseFloat(document.getElementById('inpPrice').value);
+                const stockVal = parseInt(document.getElementById('inpStock').value);
+                const thresholdVal = parseInt(document.getElementById('inpLowStock').value);
+
+                // --- VALIDATE NEGATIVE NUMBERS ---
+                if (priceVal < 0 || stockVal < 0 || thresholdVal < 0) {
+                    throw new Error("Price and Stock values cannot be negative.");
+                }
+
+                // --- GATHER DATA & SANITIZE ---
+                const rawName = document.getElementById('inpName').value;
+                const rawDesc = document.getElementById('inpDesc').value;
+
                 const variations = [];
                 document.querySelectorAll('.variations-row').forEach(row => {
-                    const size = row.querySelector('.var-size').value;
-                    const color = row.querySelector('.var-color').value;
-                    const custom = row.querySelector('.var-custom').value;
+                    const size = sanitizeInput(row.querySelector('.var-size').value);
+                    const color = sanitizeInput(row.querySelector('.var-color').value);
+                    const custom = sanitizeInput(row.querySelector('.var-custom').value);
+                    
                     if(size && color) variations.push({ size, color, custom });
                 });
 
                 const attributes = [];
                 document.querySelectorAll('.custom-attr-row').forEach(row => {
-                    const name = row.querySelector('.attr-name').value;
-                    const value = row.querySelector('.attr-value').value;
+                    const name = sanitizeInput(row.querySelector('.attr-name').value);
+                    const value = sanitizeInput(row.querySelector('.attr-value').value);
+                    
                     if(name && value) attributes.push({ name, value });
                 });
 
@@ -149,12 +181,12 @@ function initPage() {
                 }
 
                 const updatedData = {
-                    name: document.getElementById('inpName').value,
-                    description: document.getElementById('inpDesc').value,
-                    category: document.getElementById('inpCategory').value,
-                    price: parseFloat(document.getElementById('inpPrice').value),
-                    stock: parseInt(document.getElementById('inpStock').value),
-                    lowStockThreshold: parseInt(document.getElementById('inpLowStock').value),
+                    name: sanitizeInput(rawName), // Sanitize
+                    description: sanitizeInput(rawDesc), // Sanitize
+                    category: document.getElementById('inpCategory').value, // Select is safe
+                    price: priceVal,
+                    stock: stockVal,
+                    lowStockThreshold: thresholdVal,
                     imageUrl: currentBase64Image, 
                     variations: variations,
                     attributes: attributes
@@ -175,10 +207,19 @@ function initPage() {
     }
 }
 
+// --- HELPER: PREVENT NEGATIVE NUMBERS ---
+function preventNegatives(input) {
+    input.addEventListener('input', function() {
+        if (this.value < 0) {
+            this.value = 0; // Force reset to 0
+        }
+    });
+}
+
 // --- HELPER: APPLY LIMIT & RED BORDER STYLE ---
 function applyCharLimit(input) {
     if (!input) return;
-    input.setAttribute("maxlength", "30"); // Hard limit
+    input.setAttribute("maxlength", "30"); 
     
     input.addEventListener("input", function() {
         if (this.value.length >= 30) {

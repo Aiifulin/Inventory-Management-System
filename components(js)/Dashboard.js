@@ -20,25 +20,23 @@ const db = getFirestore(app);
 // --- HARDCODED ADMIN ID ---
 const ADMIN_UID = "eisTKTAY9LfdMpXZ7ebo0spRDAN2";
 
+// Global Chart Instances (so we can destroy them before re-rendering)
+let barChartInstance = null;
+let pieChartInstance = null;
+
 // --- AUTH LISTENER ---
 onAuthStateChanged(auth, async (user) => {
     if (user) {
         console.log("User Logged In:", user.uid);
 
-        // 1. CHECK IF ADMIN
         if (user.uid !== ADMIN_UID) {
-            // If NOT Admin, hide the "Add Product" button
-            const addBtn = document.querySelector('.btn-add'); // Make sure this matches your HTML class
-            if (addBtn) {
-                addBtn.style.display = 'none';
-            }
+            const addBtn = document.querySelector('.btn-add'); 
+            if (addBtn) addBtn.style.display = 'none';
         }
 
-        // 2. LOAD DASHBOARD DATA
         loadDashboardStats();
 
     } else {
-        // Not logged in -> Redirect
         window.location.href = "Login.html";
     }
 });
@@ -49,34 +47,162 @@ async function loadDashboardStats() {
         const querySnapshot = await getDocs(collection(db, "products"));
         const products = [];
         
+        // 1. Process Data for Charts
+        const categoryMap = {}; // Will store { "Furniture": { count: 0, value: 0 } }
+
         querySnapshot.forEach((doc) => {
-            products.push(doc.data());
+            const p = doc.data();
+            products.push(p);
+
+            // Calculate for Stats
+            const stock = Number(p.stock) || 0;
+            const price = Number(p.price) || 0;
+            const cat = p.category || "Uncategorized";
+            const itemValue = stock * price;
+
+            // Aggregate for Charts
+            if (!categoryMap[cat]) {
+                categoryMap[cat] = { count: 0, value: 0 };
+            }
+            categoryMap[cat].count += 1;       // Count products
+            categoryMap[cat].value += itemValue; // Sum Value
         });
 
-        // Calculate Stats
+        // 2. Calculate Dashboard Top Cards
         const totalProducts = products.length;
+        const categoriesCount = Object.keys(categoryMap).length;
         
-        // Count unique categories
-        const categories = new Set(products.map(p => p.category).filter(c => c)).size;
+        const lowStock = products.filter(p => {
+            const stock = Number(p.stock) || 0;
+            const threshold = Number(p.lowStockThreshold) || 10;
+            return stock <= threshold;
+        }).length;
         
-        // Count low stock (assuming threshold is 10 if not set)
-        const lowStock = products.filter(p => p.stock <= (p.lowStockThreshold || 10)).length;
-        
-        // Calculate Total Value (Price * Stock)
-        const totalValue = products.reduce((sum, p) => sum + (Number(p.price || 0) * Number(p.stock || 0)), 0);
+        const totalValue = products.reduce((sum, p) => {
+            return sum + ((Number(p.price) || 0) * (Number(p.stock) || 0));
+        }, 0);
 
-        // Update HTML Elements (Ensure these IDs exist in Dashboard.html)
+        // 3. Update HTML Text
         updateStat("statTotalProducts", totalProducts);
-        updateStat("statCategories", categories);
+        updateStat("statCategories", categoriesCount);
         updateStat("statLowStock", lowStock);
-        updateStat("statTotalValue", `$${totalValue.toLocaleString(undefined, {minimumFractionDigits: 2})}`);
+        
+        const formattedValue = totalValue.toLocaleString('en-PH', {
+            style: 'currency',
+            currency: 'PHP',
+            minimumFractionDigits: 2
+        });
+        updateStat("statTotalValue", formattedValue);
+
+        // 4. RENDER CHARTS
+        initCharts(categoryMap);
 
     } catch (error) {
         console.error("Error loading stats:", error);
     }
 }
 
-// Helper to safely update element text
+// --- CHART RENDERING FUNCTION ---
+function initCharts(dataMap) {
+    const labels = Object.keys(dataMap);
+    const counts = labels.map(cat => dataMap[cat].count);
+    const values = labels.map(cat => dataMap[cat].value);
+
+    // 1. Define Colors (Shared between Chart and Legend)
+    const chartColors = [
+        '#0f172a', // Dark Blue
+        '#3b82f6', // Bright Blue
+        '#64748b', // Slate Gray
+        '#cbd5e1', // Light Gray
+        '#f59e0b', // Orange
+        '#10b981', // Green
+        '#ef4444'  // Red
+    ];
+
+    // --- BAR CHART (Products per Category) ---
+    const ctxBar = document.getElementById('barChart').getContext('2d');
+    if (barChartInstance) barChartInstance.destroy();
+
+    barChartInstance = new Chart(ctxBar, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Number of Products',
+                data: counts,
+                backgroundColor: '#0f172a',
+                borderRadius: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+        }
+    });
+
+    // --- PIE CHART (Value Distribution) ---
+    const ctxPie = document.getElementById('pieChart').getContext('2d');
+    if (pieChartInstance) pieChartInstance.destroy();
+
+    pieChartInstance = new Chart(ctxPie, {
+        type: 'doughnut',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: values,
+                backgroundColor: chartColors, // Use the variable
+                hoverOffset: 4,
+                borderWidth: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false }, // HIDE default Chart.js legend
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            let label = context.label || '';
+                            if (label) { label += ': '; }
+                            if (context.parsed !== null) {
+                                label += new Intl.NumberFormat('en-PH', { 
+                                    style: 'currency', currency: 'PHP' 
+                                }).format(context.parsed);
+                            }
+                            return label;
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    // --- GENERATE CUSTOM HTML LEGEND ---
+    const legendContainer = document.getElementById('pieLegend');
+    if (legendContainer) {
+        legendContainer.innerHTML = labels.map((label, index) => {
+            const color = chartColors[index % chartColors.length]; // Cycle colors if more cats than colors
+            const value = values[index];
+            const formattedValue = new Intl.NumberFormat('en-PH', { 
+                style: 'currency', currency: 'PHP' 
+            }).format(value);
+
+            return `
+                <div class="legend-item">
+                    <div class="legend-left">
+                        <span class="legend-color" style="background-color: ${color};"></span>
+                        <span>${label}</span>
+                    </div>
+                    <span class="legend-value">${formattedValue}</span>
+                </div>
+            `;
+        }).join('');
+    }
+}
+
 function updateStat(id, value) {
     const el = document.getElementById(id);
     if(el) el.innerText = value;
@@ -84,19 +210,14 @@ function updateStat(id, value) {
 
 // --- LOGOUT FUNCTION ---
 window.logout = function() {
-    // 1. CLEAR SESSION (Instant protection)
     sessionStorage.removeItem("user_session");
     sessionStorage.removeItem("user_uid");
     sessionStorage.removeItem("user_role");
 
-    // 2. FIREBASE SIGNOUT
     signOut(auth).then(() => {
-        // 3. REDIRECT
-        // Use replace() so they can't press 'Back'
         window.location.replace("Login.html");
     }).catch((error) => {
         console.error("Logout Error:", error);
-        // Force redirect even if Firebase fails
         window.location.replace("Login.html");
     });
 };
