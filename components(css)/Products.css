@@ -129,6 +129,24 @@ body {
 .btn-primary { background: var(--primary-color); color: white; border: none; }
 .btn-primary:hover { opacity: 0.9; }
 
+/* --- NEW: RESET BUTTON HOVER STYLE --- */
+#resetFiltersBtn {
+    transition: all 0.2s ease;
+}
+
+#resetFiltersBtn:hover {
+    background-color: #fee2e2;       /* Light red background */
+    border-color: #ef4444 !important; /* Darker red border */
+    color: #991b1b !important;        /* Darker red text */
+    transform: translateY(-1px);      /* Slight lift effect */
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+#resetFiltersBtn:active {
+    transform: translateY(0);
+    background-color: #fecaca;
+}
+
 /* Filters */
 .content-wrapper { background: #fff; border-radius: 12px; border: 1px solid var(--border-color); padding: 20px; }
 .filters-container { display: flex; gap: 15px; margin-bottom: 25px; flex-wrap: wrap; }
@@ -149,7 +167,13 @@ body {
 .products-table th { text-align: left; padding: 12px 0; font-size: 13px; color: var(--text-main); border-bottom: 1px solid var(--border-color); }
 .products-table td { padding: 16px 0; border-bottom: 1px solid #f3f4f6; vertical-align: middle; font-size: 14px; }
 
-.product-cell { display: flex; align-items: center; gap: 12px; }
+.product-cell { 
+    display: flex; 
+    align-items: center; 
+    gap: 12px; 
+    /* Add space between the new ID column and the image */
+    margin-left: 15px; 
+}
 .product-img-placeholder { 
     width: 45px; height: 45px; background: #f3f4f6; border-radius: 8px; 
     display: flex; align-items: center; justify-content: center; color: #9ca3af; 
@@ -220,4 +244,24 @@ body {
     .card-actions { display: flex; gap: 10px; margin-top: auto; }
     .btn-card-action { flex: 1; background: #f9fafb; border: 1px solid var(--border-color); border-radius: 8px; height: 42px; font-size: 14px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; }
     .btn-card-delete { flex: 0 0 50px; color: #ef4444; border-color: #fee2e2; background: #fff; }
+}
+
+.id-badge {
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    background: #f3f4f6;
+    padding: 2px 6px;
+    border-radius: 4px;
+    cursor: help; /* Shows '?' cursor to indicate hover for full ID */
+}
+
+/* Mobile specific ID header */
+.mobile-id-header {
+    font-size: 12px;
+    color: #9ca3af;
+    margin-bottom: 8px;
+    border-bottom: 1px solid #f3f4f6;
+    padding-bottom: 4px;
 }

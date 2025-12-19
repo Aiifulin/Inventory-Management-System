@@ -59,27 +59,54 @@ async function fetchProducts() {
     }
 }
 
-// --- FILTER & SORT ---
+// --- FILTER & SORT (UPDATED) ---
 function applyFilters() {
-    const searchVal = document.getElementById("searchInput").value.toLowerCase();
+    const searchVal = document.getElementById("searchInput").value.trim().toLowerCase();
+    
     const catVal = document.getElementById("filterCategory").value;
+    const priceRangeVal = document.getElementById("filterPrice").value; // NEW
     const statusVal = document.getElementById("filterStatus").value;
     const sortVal = document.getElementById("filterSort").value;
 
     let filtered = allProducts.filter(p => {
-        const matchesSearch = (p.name || "").toLowerCase().includes(searchVal) || (p.category || "").toLowerCase().includes(searchVal);
+        // 1. Search Logic (Name, Category, ID)
+        const prodName = (p.name || "").toLowerCase();
+        const prodCat = (p.category || "").toLowerCase();
+        const prodId = (p.id || "").toLowerCase();
+
+        const matchesSearch = prodName.includes(searchVal) || 
+                              prodCat.includes(searchVal) || 
+                              prodId.includes(searchVal);
+
+        // 2. Category Logic
         const matchesCategory = catVal === "" || p.category === catVal;
         
+        // 3. Status Logic
         let pStatus = 'in-stock';
         const stock = Number(p.stock) || 0;
+        const price = Number(p.price) || 0;
         const threshold = Number(p.lowStockThreshold) || 10;
+        
         if (stock === 0) pStatus = 'out-of-stock';
         else if (stock <= threshold) pStatus = 'low-stock';
         
         const matchesStatus = statusVal === "" || pStatus === statusVal;
-        return matchesSearch && matchesCategory && matchesStatus;
+
+        // 4. NEW: Price Range Logic
+        let matchesPrice = true;
+        if (priceRangeVal) {
+            if (priceRangeVal === "1000+") {
+                matchesPrice = price >= 1000;
+            } else {
+                const [min, max] = priceRangeVal.split("-").map(Number);
+                matchesPrice = price >= min && price <= max;
+            }
+        }
+
+        return matchesSearch && matchesCategory && matchesStatus && matchesPrice;
     });
 
+    // Sort Logic
     filtered.sort((a, b) => {
         let valA, valB;
         if (sortVal === 'price') { valA = Number(a.price) || 0; valB = Number(b.price) || 0; }
@@ -99,14 +126,29 @@ function applyFilters() {
 function renderTable(productsToRender) {
     const tableBody = document.getElementById("productTableBody");
     const mobileList = document.getElementById("mobileProductList");
+    const tableHead = document.querySelector(".products-table thead tr");
+
+    // 1. UPDATE TABLE HEADER (Add ID Column)
+    if (tableHead) {
+        tableHead.innerHTML = `
+            <th style="width: 80px;">ID</th> <th style="width: 35%;">Product</th>
+            <th>Category</th>
+            <th>Price</th>
+            <th>Stock</th>
+            <th>Status</th>
+            <th>Added</th>
+            <th>Actions</th>
+        `;
+    }
 
     if (tableBody) tableBody.innerHTML = "";
     if (mobileList) mobileList.innerHTML = "";
 
     productsToRender.forEach(p => {
         const docId = p.id;
-        
-        // Image
+        const shortId = "#" + docId.slice(0, 6); 
+
+        // Image Logic
         let imageHtml = p.imageUrl 
             ? `<img src="${p.imageUrl}" alt="${p.name}" style="width: 45px; height: 45px; border-radius: 8px; object-fit: cover; border: 1px solid #e5e7eb;">`
             : `<div class="product-img-placeholder"><i class="fa-regular fa-image"></i></div>`;
@@ -115,7 +157,7 @@ function renderTable(productsToRender) {
             ? `<img src="${p.imageUrl}" alt="${p.name}" style="width: 60px; height: 60px; border-radius: 8px; object-fit: cover; border: 1px solid #e5e7eb;">`
             : `<div class="card-img"><i class="fa-regular fa-image"></i></div>`;
 
-        // Status
+        // Status Logic
         let statusText = "In Stock";
         let statusClass = "in-stock";
         const stock = Number(p.stock) || 0;
@@ -123,13 +165,13 @@ function renderTable(productsToRender) {
         if (stock === 0) { statusText = "Out of Stock"; statusClass = "out-of-stock"; }
         else if (stock <= threshold) { statusText = "Low Stock"; statusClass = "low-stock"; }
 
-        // Date
+        // Date Logic
         let dateAdded = "N/A";
         if (p.createdAt && p.createdAt.toDate) {
             dateAdded = p.createdAt.toDate().toLocaleDateString("en-US", { month: 'short', day: 'numeric', year: 'numeric' });
         }
 
-        // Variations & Attributes Tags
+        // Tags Logic
         let tagsHtml = (p.variations || []).map(v => 
             v.size ? `<span class="v-tag">${v.size}</span>` : ''
         ).join('');
@@ -153,10 +195,12 @@ function renderTable(productsToRender) {
             <button class="btn-card-action btn-card-delete delete-btn" data-id="${docId}"><i class="fa-regular fa-trash-can"></i></button>
         ` : '';
 
-        // Desktop Row
+        // --- DESKTOP RENDER ---
         if (tableBody) {
             const row = document.createElement("tr");
             row.innerHTML = `
+                <td><span class="id-badge" title="${docId}">${shortId}</span></td>
+                
                 <td>
                     <div class="product-cell">
                         ${imageHtml}
@@ -180,11 +224,12 @@ function renderTable(productsToRender) {
             tableBody.appendChild(row);
         }
 
-        // Mobile Card
+        // --- MOBILE RENDER ---
         if (mobileList) {
             const card = document.createElement("div");
             card.className = "mobile-card";
             card.innerHTML = `
+                <div class="mobile-id-header">ID: <span class="id-badge">${shortId}</span></div>
                 <div class="card-top">
                     ${mobileImageHtml}
                     <div class="card-header-text">
@@ -242,35 +287,47 @@ function attachDeleteListeners() {
 
 // --- EVENT LISTENERS ---
 document.addEventListener("DOMContentLoaded", () => {
+    // 1. Filter Listeners
     document.getElementById("searchInput").addEventListener("input", applyFilters);
     document.getElementById("filterCategory").addEventListener("change", applyFilters);
+    document.getElementById("filterPrice").addEventListener("change", applyFilters); // NEW
     document.getElementById("filterStatus").addEventListener("change", applyFilters);
     document.getElementById("filterSort").addEventListener("change", applyFilters);
     
-    // Sort Direction
+    // 2. Sort Direction
     document.getElementById("sortDirBtn").addEventListener("click", () => {
         currentSortDir = currentSortDir === 'asc' ? 'desc' : 'asc';
-        
         const icon = document.getElementById("sortDirIcon");
         const text = document.getElementById("sortDirText");
-        
         icon.textContent = currentSortDir === 'asc' ? "↑" : "↓"; 
         text.textContent = currentSortDir === 'asc' ? "Ascending" : "Descending";
+        applyFilters();
+    });
+
+    // 3. Reset Button (NEW)
+    document.getElementById("resetFiltersBtn").addEventListener("click", () => {
+        document.getElementById("searchInput").value = "";
+        document.getElementById("filterCategory").value = "";
+        document.getElementById("filterPrice").value = "";
+        document.getElementById("filterStatus").value = "";
+        document.getElementById("filterSort").value = "name";
         
+        // Reset Sort Direction to Ascending
+        currentSortDir = 'asc';
+        document.getElementById("sortDirIcon").textContent = "↑";
+        document.getElementById("sortDirText").textContent = "Ascending";
+
         applyFilters();
     });
 });
 
-// --- LOGOUT FUNCTION (MUST BE AT BOTTOM) ---
+// --- LOGOUT FUNCTION ---
 window.logout = function() {
-    // 1. CLEAR SESSION
     sessionStorage.removeItem("user_session");
     sessionStorage.removeItem("user_uid");
     sessionStorage.removeItem("user_role");
 
-    // 2. FIREBASE SIGNOUT
     signOut(auth).then(() => {
-        // 3. REDIRECT
         window.location.replace("Login.html");
     }).catch((error) => {
         console.error("Logout Error:", error);

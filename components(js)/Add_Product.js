@@ -1,7 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
 import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
-import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
-import { signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 
 const firebaseConfig = {
     apiKey: "AIzaSyBeaF2VKovHASuzhvZHzOoE0yB7QnBDej0",
@@ -15,10 +14,10 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
-const auth = getAuth(app); // FIXED: Was missing
+const auth = getAuth(app);
 
 // --- HARDCODED ADMIN ID ---
-const ADMIN_UID = "eisTKTAY9LfdMpXZ7ebo0spRDAN2"; // FIXED: Was missing
+const ADMIN_UID = "eisTKTAY9LfdMpXZ7ebo0spRDAN2"; 
 
 // GLOBAL VARIABLE TO STORE IMAGE STRING
 let base64ImageString = "";
@@ -31,13 +30,35 @@ onAuthStateChanged(auth, (user) => {
         alert("Access Denied: Only Admin can add products.");
         window.location.href = "Products.html";
     } else {
-        // User is Admin. Script continues...
         console.log("Admin verified.");
     }
 });
 
 document.addEventListener("DOMContentLoaded", () => {
+
+    // --- HELPER: APPLY LIMIT & RED BORDER STYLE ---
+    function applyCharLimit(input) {
+        if (!input) return;
+        
+        // 1. Set the hard limit
+        input.setAttribute("maxlength", "30");
+        
+        // 2. Add listener for visual feedback (Red Border)
+        input.addEventListener("input", function() {
+            if (this.value.length >= 30) {
+                this.style.borderColor = "red";
+                this.style.outlineColor = "red"; // Optional: helps if focused
+            } else {
+                this.style.borderColor = "";
+                this.style.outlineColor = "";
+            }
+        });
+    }
     
+    // --- 0. LIMIT PRODUCT NAME ---
+    const nameInput = document.querySelector('input[placeholder="Enter product name"]');
+    applyCharLimit(nameInput);
+
     // --- 1. IMAGE UPLOAD LOGIC ---
     const fileInput = document.getElementById('fileInput');
     const preview = document.getElementById('imagePreview');
@@ -48,11 +69,8 @@ document.addEventListener("DOMContentLoaded", () => {
             const file = e.target.files[0];
             if (!file) return;
 
-            // FIXED: Firestore Limit is 1MB. Base64 adds 33% overhead.
-            // Limit file to ~750KB to be safe.
             if (file.size > 750000) { 
                 alert("File is too large! Please select an image under 750KB.");
-                // Reset input
                 fileInput.value = ""; 
                 return;
             }
@@ -73,6 +91,9 @@ document.addEventListener("DOMContentLoaded", () => {
     const addVarBtn = document.getElementById("add-main-variation-btn");
 
     if(addVarBtn && variationContainer) {
+        // Apply limit to existing inputs in the first row
+        variationContainer.querySelectorAll('input').forEach(inp => applyCharLimit(inp));
+
         addVarBtn.addEventListener("click", () => {
             const newRow = document.createElement("div");
             newRow.classList.add("variations-row");
@@ -82,6 +103,10 @@ document.addEventListener("DOMContentLoaded", () => {
                 <div class="input-group"><input type="text" class="var-custom" placeholder="Optional"></div>
                 <button type="button" class="btn-delete remove-row-btn"><i class="fas fa-trash"></i></button>
             `;
+            
+            // Apply limits to the NEW inputs immediately
+            newRow.querySelectorAll('input').forEach(inp => applyCharLimit(inp));
+            
             variationContainer.appendChild(newRow);
         });
 
@@ -98,6 +123,9 @@ document.addEventListener("DOMContentLoaded", () => {
     const addAttrBtn = document.getElementById("add-custom-attr-main-btn");
 
     if(addAttrBtn && attrContainer) {
+        // Apply limit to existing inputs in the first row
+        attrContainer.querySelectorAll('input').forEach(inp => applyCharLimit(inp));
+
         addAttrBtn.addEventListener("click", () => {
             const newRow = document.createElement("div");
             newRow.classList.add("custom-attr-row");
@@ -106,6 +134,10 @@ document.addEventListener("DOMContentLoaded", () => {
                 <div class="input-group"><input type="text" class="attr-value" placeholder="Value"></div>
                 <button type="button" class="btn-delete remove-attr-btn"><i class="fas fa-trash"></i></button>
             `;
+            
+            // Apply limits to the NEW inputs immediately
+            newRow.querySelectorAll('input').forEach(inp => applyCharLimit(inp));
+
             attrContainer.appendChild(newRow);
         });
 
@@ -136,14 +168,14 @@ document.addEventListener("DOMContentLoaded", () => {
             try {
                 const productData = {
                     name: document.querySelector('input[placeholder="Enter product name"]').value,
-                    description: document.querySelector('textarea').value,
+                    description: document.querySelector('textarea').value, // Description is NOT limited
                     category: document.querySelector('select').value,
                     price: parseFloat(document.querySelector('input[type="number"][step="0.01"]').value) || 0,
                     stock: parseInt(document.querySelector('input[placeholder="0"]').value) || 0,
                     lowStockThreshold: parseInt(document.querySelector('input[placeholder="10"]').value) || 10,
                     imageUrl: base64ImageString, 
                     createdAt: serverTimestamp(),
-                    createdBy: auth.currentUser.uid, // Track who added it
+                    createdBy: auth.currentUser.uid, 
                     variations: [],
                     attributes: []
                 };
@@ -182,16 +214,13 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 });
 
-// --- LOGOUT FUNCTION (MUST BE AT BOTTOM) ---
+// --- LOGOUT FUNCTION ---
 window.logout = function() {
-    // 1. CLEAR SESSION
     sessionStorage.removeItem("user_session");
     sessionStorage.removeItem("user_uid");
     sessionStorage.removeItem("user_role");
 
-    // 2. FIREBASE SIGNOUT
     signOut(auth).then(() => {
-        // 3. REDIRECT
         window.location.replace("Login.html");
     }).catch((error) => {
         console.error("Logout Error:", error);

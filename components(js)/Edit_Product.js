@@ -1,7 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
 import { getFirestore, doc, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
-import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js"; // FIXED: Added Auth Imports
-import { signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 
 const firebaseConfig = {
     apiKey: "AIzaSyBeaF2VKovHASuzhvZHzOoE0yB7QnBDej0",
@@ -15,30 +14,23 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
-const auth = getAuth(app); // FIXED: Defined Auth
+const auth = getAuth(app); 
 
-// --- HARDCODED ADMIN ID ---
-const ADMIN_UID = "eisTKTAY9LfdMpXZ7ebo0spRDAN2"; // FIXED: Defined Admin ID
-
-// GLOBAL VARIABLE FOR IMAGE
+const ADMIN_UID = "eisTKTAY9LfdMpXZ7ebo0spRDAN2";
 let currentBase64Image = "";
 
-// --- STRICT AUTH CHECK ---
 onAuthStateChanged(auth, (user) => {
     if (!user) {
         window.location.href = "Login.html";
     } else if (user.uid !== ADMIN_UID) {
-        // If logged in but NOT the owner
         alert("Access Denied: Only Admin can edit products.");
         window.location.href = "Products.html";
     } else {
-        // User IS Admin, allow script to run
-        initPage(); // Call initPage ONLY after auth is confirmed
+        initPage(); 
     }
 });
 
-function initPage() { // WRAPPED LOGIC IN FUNCTION
-    // 1. GET ID FROM URL
+function initPage() { 
     const urlParams = new URLSearchParams(window.location.search);
     const productId = urlParams.get('id');
 
@@ -47,6 +39,10 @@ function initPage() { // WRAPPED LOGIC IN FUNCTION
         window.location.href = "Products.html";
         return;
     }
+
+    // --- APPLY LIMIT TO MAIN PRODUCT NAME ---
+    const nameInput = document.getElementById('inpName');
+    applyCharLimit(nameInput); // Helper function is defined at the bottom
 
     // --- SETUP IMAGE UPLOAD LISTENER ---
     const fileInput = document.getElementById('fileInput');
@@ -57,14 +53,11 @@ function initPage() { // WRAPPED LOGIC IN FUNCTION
         fileInput.addEventListener('change', function(e) {
             const file = e.target.files[0];
             if (!file) return;
-            
-            // FIXED: Limit size to 750KB
             if (file.size > 750000) {
                 alert("File is too large! Please select an image under 750KB.");
                 fileInput.value = "";
                 return;
             }
-
             const reader = new FileReader();
             reader.onloadend = function() {
                 currentBase64Image = reader.result; 
@@ -76,8 +69,8 @@ function initPage() { // WRAPPED LOGIC IN FUNCTION
         });
     }
 
-    // 2. FETCH AND FILL DATA
-    (async () => { // Wrapped in async IIFE
+    // --- FETCH DATA ---
+    (async () => { 
         try {
             const docRef = doc(db, "products", productId);
             const docSnap = await getDoc(docRef);
@@ -92,7 +85,6 @@ function initPage() { // WRAPPED LOGIC IN FUNCTION
                 document.getElementById('inpStock').value = data.stock || "";
                 document.getElementById('inpLowStock').value = data.lowStockThreshold || 10;
 
-                // --- LOAD EXISTING IMAGE ---
                 if (data.imageUrl) {
                     currentBase64Image = data.imageUrl; 
                     preview.src = data.imageUrl;
@@ -100,14 +92,12 @@ function initPage() { // WRAPPED LOGIC IN FUNCTION
                     placeholder.style.display = "none";
                 }
 
-                // Fill Variations
                 if (data.variations) {
                     data.variations.forEach(v => addVariationRow(v.size, v.color, v.custom));
                 } else {
                     addVariationRow();
                 }
 
-                // Fill Attributes
                 if (data.attributes) {
                     data.attributes.forEach(a => addAttributeRow(a.name, a.value));
                 }
@@ -121,15 +111,13 @@ function initPage() { // WRAPPED LOGIC IN FUNCTION
         }
     })();
 
-    // 3. SETUP DYNAMIC BUTTONS
     setupDynamicRows();
 
-    // 4. HANDLE UPDATE
+    // --- UPDATE LOGIC ---
     const form = document.getElementById('editProductForm');
     if (form) {
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
-            
             if (!form.checkValidity()) {
                 form.reportValidity();
                 return;
@@ -187,6 +175,22 @@ function initPage() { // WRAPPED LOGIC IN FUNCTION
     }
 }
 
+// --- HELPER: APPLY LIMIT & RED BORDER STYLE ---
+function applyCharLimit(input) {
+    if (!input) return;
+    input.setAttribute("maxlength", "30"); // Hard limit
+    
+    input.addEventListener("input", function() {
+        if (this.value.length >= 30) {
+            this.style.borderColor = "red";
+            this.style.outlineColor = "red";
+        } else {
+            this.style.borderColor = "";
+            this.style.outlineColor = "";
+        }
+    });
+}
+
 // --- HELPER FUNCTIONS ---
 function addVariationRow(size="", color="", custom="") {
     const container = document.getElementById("variation-container");
@@ -198,6 +202,8 @@ function addVariationRow(size="", color="", custom="") {
         <div class="input-group"><input type="text" class="var-custom" value="${custom}" placeholder="Optional"></div>
         <button type="button" class="btn-plus remove-row-btn" style="background:#fee2e2; color:#ef4444;"><i class="fas fa-trash"></i></button>
     `;
+    // Apply limits to new inputs
+    row.querySelectorAll('input').forEach(inp => applyCharLimit(inp));
     container.appendChild(row);
 }
 
@@ -210,6 +216,8 @@ function addAttributeRow(name="", value="") {
         <div class="input-group"><input type="text" class="attr-value" value="${value}" placeholder="Value"></div>
         <button type="button" class="btn-plus remove-attr-btn" style="background:#fee2e2; color:#ef4444;"><i class="fas fa-trash"></i></button>
     `;
+    // Apply limits to new inputs
+    row.querySelectorAll('input').forEach(inp => applyCharLimit(inp));
     container.appendChild(row);
 }
 
@@ -230,16 +238,13 @@ function setupDynamicRows() {
     });
 }
 
-// --- LOGOUT FUNCTION (MUST BE AT BOTTOM) ---
+// --- LOGOUT FUNCTION ---
 window.logout = function() {
-    // 1. CLEAR SESSION
     sessionStorage.removeItem("user_session");
     sessionStorage.removeItem("user_uid");
     sessionStorage.removeItem("user_role");
 
-    // 2. FIREBASE SIGNOUT
     signOut(auth).then(() => {
-        // 3. REDIRECT
         window.location.replace("Login.html");
     }).catch((error) => {
         console.error("Logout Error:", error);

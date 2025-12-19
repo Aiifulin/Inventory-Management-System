@@ -82,6 +82,15 @@
                         <option value="Furniture">Furniture</option>
                     </select>
                 
+                    <select id="filterPrice" class="control-input">
+                        <option value="">All Prices</option>
+                        <option value="0-50">$0 - $50</option>
+                        <option value="51-100">$51 - $100</option>
+                        <option value="101-500">$101 - $500</option>
+                        <option value="501-1000">$501 - $1000</option>
+                        <option value="1000+">$1000+</option>
+                    </select>
+                
                     <select id="filterStatus" class="control-input">
                         <option value="">All Statuses</option>
                         <option value="in-stock">In Stock (Healthy)</option>
@@ -98,6 +107,10 @@
                 
                     <button id="sortDirBtn" class="btn-sort control-input">
                         <span id="sortDirIcon">↑</span> <span id="sortDirText">Ascending</span>
+                    </button>
+                
+                    <button id="resetFiltersBtn" class="btn-outline control-input" style="color: #dc2626; border-color: #fca5a5;" title="Reset Filters">
+                        <i class="fas fa-undo"></i>
                     </button>
                 </div>
             </div>
