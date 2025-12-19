@@ -1,6 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
-// ADDED: collection, getDocs (for duplicate checking)
-import { getFirestore, doc, getDoc, updateDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { getFirestore, doc, getDoc, updateDoc, collection, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 
 const firebaseConfig = {
@@ -19,7 +18,38 @@ const auth = getAuth(app);
 
 const ADMIN_UID = "eisTKTAY9LfdMpXZ7ebo0spRDAN2";
 let currentBase64Image = "";
+let isFormDirty = false;
 
+// --- MOVED HELPERS TO TOP LEVEL SO EVERY FUNCTION CAN SEE THEM ---
+function sanitizeInput(str) {
+    if (!str) return "";
+    if (typeof str !== 'string') return String(str);
+    const div = document.createElement('div');
+    div.innerText = str; 
+    return div.innerHTML;
+}
+
+function applyCharLimit(input) {
+    if (!input) return;
+    input.setAttribute("maxlength", "30");
+    input.addEventListener("input", function() {
+        if (this.value.length >= 30) {
+            this.style.borderColor = "red";
+            this.style.outlineColor = "red";
+        } else {
+            this.style.borderColor = "";
+            this.style.outlineColor = "";
+        }
+    });
+}
+
+function preventNegatives(input) {
+    input.addEventListener('input', function() {
+        if (this.value < 0) this.value = 0; 
+    });
+}
+
+// --- AUTH CHECK ---
 onAuthStateChanged(auth, (user) => {
     if (!user) {
         window.location.href = "Login.html";
@@ -41,30 +71,52 @@ function initPage() {
         return;
     }
 
-    // --- XSS PROTECTION: SANITIZE INPUT ---
-    function sanitizeInput(str) {
-        if (typeof str !== 'string') return str;
-        return str.replace(/[&<>"']/g, function(m) {
-            return {
-                '&': '&amp;',
-                '<': '&lt;',
-                '>': '&gt;',
-                '"': '&quot;',
-                "'": '&#039;'
-            }[m];
-        });
+    // --- 1. DATA LOSS PREVENTION ---
+    const form = document.getElementById('editProductForm');
+    if (form) {
+        form.addEventListener('input', () => isFormDirty = true);
+        form.addEventListener('change', () => isFormDirty = true);
     }
+    window.addEventListener('beforeunload', (e) => {
+        if (isFormDirty) {
+            e.preventDefault();
+            e.returnValue = ''; 
+        }
+    });
 
-    // --- APPLY LIMITS & NEGATIVE PREVENTION ---
+    // Apply limits to main inputs
     const nameInput = document.getElementById('inpName');
-    applyCharLimit(nameInput); 
-
+    applyCharLimit(nameInput);
     document.querySelectorAll('input[type="number"]').forEach(inp => preventNegatives(inp));
 
-    // --- SETUP IMAGE UPLOAD LISTENER ---
+    // --- 2. IMAGE UPLOAD & REMOVE LOGIC ---
     const fileInput = document.getElementById('fileInput');
     const preview = document.getElementById('imagePreview');
     const placeholder = document.getElementById('uploadPlaceholder');
+    const uploadBox = document.querySelector('.image-upload-box');
+
+    // Create Remove Button Dynamically
+    const removeBtn = document.createElement('button');
+    removeBtn.innerHTML = '<i class="fas fa-times"></i>';
+    removeBtn.className = 'btn-remove-image';
+    removeBtn.type = 'button';
+    removeBtn.title = "Remove Image";
+    removeBtn.style.display = 'none'; // Hidden by default
+
+    if(uploadBox) uploadBox.appendChild(removeBtn);
+
+    function resetImage(e) {
+        if(e) e.stopPropagation();
+        fileInput.value = "";
+        currentBase64Image = "";
+        preview.src = "";
+        preview.style.display = "none";
+        placeholder.style.display = "block";
+        removeBtn.style.display = "none";
+        isFormDirty = true;
+    }
+
+    removeBtn.addEventListener('click', resetImage);
 
     if(fileInput) {
         fileInput.addEventListener('change', function(e) {
@@ -81,6 +133,8 @@ function initPage() {
                 preview.src = reader.result;
                 preview.style.display = "block";
                 placeholder.style.display = "none";
+                removeBtn.style.display = "flex"; // Show button
+                isFormDirty = true;
             }
             reader.readAsDataURL(file);
         });
@@ -102,20 +156,27 @@ function initPage() {
                 document.getElementById('inpStock').value = data.stock || "";
                 document.getElementById('inpLowStock').value = data.lowStockThreshold || 10;
 
+                // Load existing image
                 if (data.imageUrl) {
                     currentBase64Image = data.imageUrl; 
                     preview.src = data.imageUrl;
                     preview.style.display = "block";
                     placeholder.style.display = "none";
+                    removeBtn.style.display = "flex"; 
+                } else {
+                    removeBtn.style.display = "none"; 
                 }
 
-                if (data.variations) {
+                // Populate Variations
+                // Using '&& length > 0' check ensures we don't accidentally skip to 'else' if array is just empty
+                if (data.variations && data.variations.length > 0) {
                     data.variations.forEach(v => addVariationRow(v.size, v.color, v.custom));
                 } else {
-                    addVariationRow();
+                    addVariationRow(); // Add empty row if none exist
                 }
 
-                if (data.attributes) {
+                // Populate Attributes
+                if (data.attributes && data.attributes.length > 0) {
                     data.attributes.forEach(a => addAttributeRow(a.name, a.value));
                 }
 
@@ -130,45 +191,47 @@ function initPage() {
 
     setupDynamicRows();
 
-    // --- UPDATE LOGIC ---
-    const form = document.getElementById('editProductForm');
+    // --- 4. SAVE LOGIC ---
+    const submitBtn = document.querySelector('.btn-submit');
+
     if (form) {
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
-            if (!form.checkValidity()) {
-                form.reportValidity();
-                return;
-            }
-
-            const btn = document.querySelector('.btn-submit');
-            const originalText = btn.innerText;
-            btn.innerText = "Updating...";
-            btn.disabled = true;
+            
+            submitBtn.innerText = "Updating...";
+            submitBtn.disabled = true;
 
             try {
-                // Get numerical values
                 const priceVal = parseFloat(document.getElementById('inpPrice').value);
                 const stockVal = parseInt(document.getElementById('inpStock').value);
                 const thresholdVal = parseInt(document.getElementById('inpLowStock').value);
 
-                // --- VALIDATE NEGATIVE NUMBERS ---
                 if (priceVal < 0 || stockVal < 0 || thresholdVal < 0) {
                     throw new Error("Price and Stock values cannot be negative.");
                 }
 
-                // --- GATHER DATA ---
                 const rawName = document.getElementById('inpName').value.trim();
                 const rawDesc = document.getElementById('inpDesc').value;
 
-                // --- DUPLICATE CHECK (Case-Insensitive & Excludes Current ID) ---
-                const allDocs = await getDocs(collection(db, "products"));
+                // Duplicate Check
+                const q = query(collection(db, "products"), where("name", "==", rawName));
+                const querySnapshot = await getDocs(q);
+                
                 let isDuplicate = false;
-                allDocs.forEach(d => {
-                    // Check if name matches AND it's NOT this product
-                    if (d.id !== productId && d.data().name.toLowerCase() === rawName.toLowerCase()) {
-                        isDuplicate = true;
-                    }
-                });
+                if (!querySnapshot.empty) {
+                    querySnapshot.forEach(d => {
+                        if (d.id !== productId) isDuplicate = true; 
+                    });
+                }
+                
+                if (!isDuplicate) {
+                    const allDocs = await getDocs(collection(db, "products"));
+                    allDocs.forEach(d => {
+                        if (d.id !== productId && d.data().name.toLowerCase() === rawName.toLowerCase()) {
+                            isDuplicate = true;
+                        }
+                    });
+                }
 
                 if (isDuplicate) {
                     throw new Error(`Product name "${rawName}" already exists!`);
@@ -176,10 +239,10 @@ function initPage() {
 
                 const variations = [];
                 document.querySelectorAll('.variations-row').forEach(row => {
+                    // Use sanitizeInput here
                     const size = sanitizeInput(row.querySelector('.var-size').value);
                     const color = sanitizeInput(row.querySelector('.var-color').value);
                     const custom = sanitizeInput(row.querySelector('.var-custom').value);
-                    
                     if(size && color) variations.push({ size, color, custom });
                 });
 
@@ -187,7 +250,6 @@ function initPage() {
                 document.querySelectorAll('.custom-attr-row').forEach(row => {
                     const name = sanitizeInput(row.querySelector('.attr-name').value);
                     const value = sanitizeInput(row.querySelector('.attr-value').value);
-                    
                     if(name && value) attributes.push({ name, value });
                 });
 
@@ -196,8 +258,8 @@ function initPage() {
                 }
 
                 const updatedData = {
-                    name: sanitizeInput(rawName), // Sanitize Name
-                    description: sanitizeInput(rawDesc), // Sanitize Description
+                    name: sanitizeInput(rawName), 
+                    description: sanitizeInput(rawDesc),
                     category: document.getElementById('inpCategory').value,
                     price: priceVal,
                     stock: stockVal,
@@ -209,57 +271,42 @@ function initPage() {
 
                 await updateDoc(doc(db, "products", productId), updatedData);
                 
+                isFormDirty = false;
                 alert("Product Updated!");
                 window.location.href = "Products.html";
 
             } catch (error) {
                 console.error("Error updating:", error);
                 alert("Error updating product: " + error.message);
-                btn.innerText = originalText;
-                btn.disabled = false;
+                submitBtn.innerText = "Save Changes";
+                submitBtn.disabled = false;
             }
         });
     }
 }
 
-// --- HELPER: PREVENT NEGATIVE NUMBERS ---
-function preventNegatives(input) {
-    input.addEventListener('input', function() {
-        if (this.value < 0) {
-            this.value = 0; // Force reset to 0
-        }
-    });
-}
-
-// --- HELPER: APPLY LIMIT & RED BORDER STYLE ---
-function applyCharLimit(input) {
-    if (!input) return;
-    input.setAttribute("maxlength", "30"); 
-    
-    input.addEventListener("input", function() {
-        if (this.value.length >= 30) {
-            this.style.borderColor = "red";
-            this.style.outlineColor = "red";
-        } else {
-            this.style.borderColor = "";
-            this.style.outlineColor = "";
-        }
-    });
-}
-
-// --- HELPER FUNCTIONS ---
+// --- HELPER FUNCTIONS (Now defined globally so they are visible) ---
 function addVariationRow(size="", color="", custom="") {
     const container = document.getElementById("variation-container");
     const row = document.createElement("div");
     row.className = "variations-row";
+    
+    // We create the elements using template strings but set values safely to handle quotes
     row.innerHTML = `
-        <div class="input-group"><input type="text" class="var-size" value="${size}" placeholder="Ex: Large" required></div>
-        <div class="input-group"><input type="text" class="var-color" value="${color}" placeholder="Ex: Red" required></div>
-        <div class="input-group"><input type="text" class="var-custom" value="${custom}" placeholder="Optional"></div>
-        <button type="button" class="btn-plus remove-row-btn" style="background:#fee2e2; color:#ef4444;"><i class="fas fa-trash"></i></button>
+        <div class="input-group"><input type="text" class="var-size" placeholder="Ex: Large" required maxlength="30"></div>
+        <div class="input-group"><input type="text" class="var-color" placeholder="Ex: Red" required maxlength="30"></div>
+        <div class="input-group"><input type="text" class="var-custom" placeholder="Optional" maxlength="30"></div>
+        <button type="button" class="btn-delete remove-row-btn"><i class="fas fa-trash"></i></button>
     `;
-    // Apply limits to new inputs
+    
+    // Set values safely (handles quotes like 5" pipe)
+    row.querySelector('.var-size').value = size || "";
+    row.querySelector('.var-color').value = color || "";
+    row.querySelector('.var-custom').value = custom || "";
+
+    // Apply limits (Function is now visible)
     row.querySelectorAll('input').forEach(inp => applyCharLimit(inp));
+    
     container.appendChild(row);
 }
 
@@ -268,12 +315,18 @@ function addAttributeRow(name="", value="") {
     const row = document.createElement("div");
     row.className = "custom-attr-row";
     row.innerHTML = `
-        <div class="input-group"><input type="text" class="attr-name" value="${name}" placeholder="Name"></div>
-        <div class="input-group"><input type="text" class="attr-value" value="${value}" placeholder="Value"></div>
-        <button type="button" class="btn-plus remove-attr-btn" style="background:#fee2e2; color:#ef4444;"><i class="fas fa-trash"></i></button>
+        <div class="input-group"><input type="text" class="attr-name" placeholder="Name" maxlength="30"></div>
+        <div class="input-group"><input type="text" class="attr-value" placeholder="Value" maxlength="30"></div>
+        <button type="button" class="btn-delete remove-attr-btn"><i class="fas fa-trash"></i></button>
     `;
-    // Apply limits to new inputs
+    
+    // Set values safely
+    row.querySelector('.attr-name').value = name || "";
+    row.querySelector('.attr-value').value = value || "";
+
+    // Apply limits
     row.querySelectorAll('input').forEach(inp => applyCharLimit(inp));
+    
     container.appendChild(row);
 }
 
@@ -287,23 +340,18 @@ function setupDynamicRows() {
     document.body.addEventListener("click", (e) => {
         if (e.target.closest(".remove-row-btn")) {
             e.target.closest(".variations-row").remove();
+            isFormDirty = true;
         }
         if (e.target.closest(".remove-attr-btn")) {
             e.target.closest(".custom-attr-row").remove();
+            isFormDirty = true;
         }
     });
 }
 
-// --- LOGOUT FUNCTION ---
 window.logout = function() {
     sessionStorage.removeItem("user_session");
     sessionStorage.removeItem("user_uid");
     sessionStorage.removeItem("user_role");
-
-    signOut(auth).then(() => {
-        window.location.replace("Login.html");
-    }).catch((error) => {
-        console.error("Logout Error:", error);
-        window.location.replace("Login.html");
-    });
+    signOut(auth).then(() => window.location.replace("Login.html"));
 };

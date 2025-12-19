@@ -12,55 +12,6 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="components(css)/Add_Product.css" />
     <script type="module" src="components(js)/Route_Guard.js"></script> <!--To prevent the user from accessing the dashboard without logging in -->
-    <style>
-        /* --- FIXED ROW STYLING --- */
-
-/* 1. Ensure the rows use Flexbox and align everything to the top or center */
-.variations-row, 
-.custom-attr-row {
-    display: flex;
-    gap: 15px;
-    margin-bottom: 10px;
-    align-items: start; /* Aligns inputs and button to the top */
-}
-
-/* 2. Remove the bottom spacing from inputs specifically inside these rows 
-      so they don't push the alignment off */
-.variations-row .input-group, 
-.custom-attr-row .input-group {
-    margin-bottom: 0;
-    flex: 1; /* Makes the inputs stretch to fill space */
-}
-
-/* 3. Fix the Delete Button Alignment */
-.btn-delete {
-    background: #fee2e2;
-    color: #ef4444;
-    border: 1px solid #fecaca;
-    
-    /* FIX: Match the EXACT height of your inputs (42px) */
-    width: 42px;
-    height: 42px; 
-    
-    border-radius: 6px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.2s;
-    
-    /* FIX: Remove the old margin-top that was pushing it down */
-    margin-top: 0; 
-    
-    /* Optional: If inputs have labels inside the row, use this to push button down. 
-       Since your labels are at the top, keep this at 0. */
-}
-
-.btn-delete:hover {
-    background: #fecaca;
-    color: #dc2626;
-}
-    </style>
 </head>
 <body>
 

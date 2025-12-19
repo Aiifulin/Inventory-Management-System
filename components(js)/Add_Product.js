@@ -1,5 +1,4 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
-// ADDED imports: query, where, getDocs
 import { getFirestore, collection, addDoc, serverTimestamp, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 
@@ -19,7 +18,9 @@ const auth = getAuth(app);
 
 const ADMIN_UID = "eisTKTAY9LfdMpXZ7ebo0spRDAN2"; 
 let base64ImageString = "";
+let isFormDirty = false;
 
+// --- AUTH CHECK ---
 onAuthStateChanged(auth, (user) => {
     if (!user) {
         window.location.href = "Login.html";
@@ -33,17 +34,28 @@ onAuthStateChanged(auth, (user) => {
 
 document.addEventListener("DOMContentLoaded", () => {
 
+    // --- 1. DATA LOSS PREVENTION ---
+    const form = document.querySelector('form');
+    
+    if (form) {
+        form.addEventListener('input', () => isFormDirty = true);
+        form.addEventListener('change', () => isFormDirty = true);
+    }
+
+    window.addEventListener('beforeunload', (e) => {
+        if (isFormDirty) {
+            e.preventDefault();
+            e.returnValue = ''; 
+        }
+    });
+
+    // --- 2. SANITIZERS & HELPERS ---
     function sanitizeInput(str) {
-        if (typeof str !== 'string') return str;
-        return str.replace(/[&<>"']/g, function(m) {
-            return {
-                '&': '&amp;',
-                '<': '&lt;',
-                '>': '&gt;',
-                '"': '&quot;',
-                "'": '&#039;'
-            }[m];
-        });
+        if (!str) return "";
+        if (typeof str !== 'string') return String(str);
+        const div = document.createElement('div');
+        div.innerText = str; 
+        return div.innerHTML;
     }
 
     function applyCharLimit(input) {
@@ -62,20 +74,48 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function preventNegatives(input) {
         input.addEventListener('input', function() {
-            if (this.value < 0) {
-                this.value = 0; 
-            }
+            if (this.value < 0) this.value = 0; 
         });
     }
     
     const nameInput = document.querySelector('input[placeholder="Enter product name"]');
     applyCharLimit(nameInput);
-
     document.querySelectorAll('input[type="number"]').forEach(inp => preventNegatives(inp));
 
+    // --- 3. IMAGE UPLOAD & REMOVE LOGIC ---
     const fileInput = document.getElementById('fileInput');
     const preview = document.getElementById('imagePreview');
     const placeholder = document.getElementById('uploadPlaceholder');
+    const uploadBox = document.querySelector('.image-upload-box');
+
+    // Create Remove Button Dynamically
+    const removeBtn = document.createElement('button');
+    removeBtn.innerHTML = '<i class="fas fa-times"></i>';
+    removeBtn.className = 'btn-remove-image';
+    removeBtn.type = 'button'; 
+    removeBtn.title = "Remove Image";
+    
+    // SAFETY: Ensure button is hidden by default when created
+    removeBtn.style.display = 'none'; 
+
+    if(uploadBox) uploadBox.appendChild(removeBtn);
+
+    // Reset Image Function
+    function resetImage(e) {
+        if(e) e.stopPropagation(); 
+        fileInput.value = "";
+        base64ImageString = "";
+        preview.src = "";
+        preview.style.display = "none";
+        placeholder.style.display = "block";
+        
+        // HIDE BUTTON HERE
+        removeBtn.style.display = "none"; 
+        
+        isFormDirty = true;
+    }
+
+    removeBtn.addEventListener('click', resetImage);
 
     if(fileInput) {
         fileInput.addEventListener('change', function(e) {
@@ -94,17 +134,22 @@ document.addEventListener("DOMContentLoaded", () => {
                 preview.src = reader.result;
                 preview.style.display = "block";
                 placeholder.style.display = "none";
+                
+                // SHOW BUTTON HERE (Only when image is loaded)
+                removeBtn.style.display = "flex"; 
+                
+                isFormDirty = true;
             }
             reader.readAsDataURL(file);
         });
     }
 
+    // --- ROW LOGIC ---
     const variationContainer = document.getElementById("variation-container");
     const addVarBtn = document.getElementById("add-main-variation-btn");
 
     if(addVarBtn && variationContainer) {
         variationContainer.querySelectorAll('input').forEach(inp => applyCharLimit(inp));
-
         addVarBtn.addEventListener("click", () => {
             const newRow = document.createElement("div");
             newRow.classList.add("variations-row");
@@ -117,7 +162,6 @@ document.addEventListener("DOMContentLoaded", () => {
             newRow.querySelectorAll('input').forEach(inp => applyCharLimit(inp));
             variationContainer.appendChild(newRow);
         });
-
         variationContainer.addEventListener("click", (e) => {
             const btn = e.target.closest(".remove-row-btn");
             if (btn && variationContainer.querySelectorAll('.variations-row').length > 1) {
@@ -131,7 +175,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if(addAttrBtn && attrContainer) {
         attrContainer.querySelectorAll('input').forEach(inp => applyCharLimit(inp));
-
         addAttrBtn.addEventListener("click", () => {
             const newRow = document.createElement("div");
             newRow.classList.add("custom-attr-row");
@@ -143,7 +186,6 @@ document.addEventListener("DOMContentLoaded", () => {
             newRow.querySelectorAll('input').forEach(inp => applyCharLimit(inp));
             attrContainer.appendChild(newRow);
         });
-
         attrContainer.addEventListener("click", (e) => {
             const btn = e.target.closest(".remove-attr-btn");
             if (btn && attrContainer.querySelectorAll('.custom-attr-row').length > 1) {
@@ -152,19 +194,13 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-    // --- SAVE LOGIC ---
+    // --- 4. SAVE LOGIC ---
     const submitBtn = document.querySelector('.btn-submit');
-    const form = document.querySelector('form');
 
-    if(submitBtn && form) {
-        submitBtn.addEventListener("click", async (e) => {
-            if (!form.checkValidity()) {
-                form.reportValidity();
-                return;
-            }
-            e.preventDefault();
+    if(form) {
+        form.addEventListener("submit", async (e) => {
+            e.preventDefault(); 
 
-            const originalText = submitBtn.innerText;
             submitBtn.innerText = "Saving...";
             submitBtn.disabled = true;
 
@@ -180,28 +216,19 @@ document.addEventListener("DOMContentLoaded", () => {
                 const rawName = document.querySelector('input[placeholder="Enter product name"]').value.trim();
                 const rawDesc = document.querySelector('textarea').value;
 
-                // --- 1. DUPLICATE CHECK ---
-                // Query Firestore for products with the exact same name
+                // DUPLICATE CHECK
                 const q = query(collection(db, "products"), where("name", "==", rawName));
                 const querySnapshot = await getDocs(q);
 
                 if (!querySnapshot.empty) {
-                    // Exact match found immediately
                     throw new Error(`Product name "${rawName}" already exists!`);
                 } else {
-                    // Optional: Fetch ALL names to check case-insensitive match (e.g., "Chair" vs "chair")
-                    // Note: For large databases, this is inefficient. For small inventory, it works.
                     const allDocs = await getDocs(collection(db, "products"));
                     let isDuplicate = false;
                     allDocs.forEach(doc => {
-                        if (doc.data().name.toLowerCase() === rawName.toLowerCase()) {
-                            isDuplicate = true;
-                        }
+                        if (doc.data().name.toLowerCase() === rawName.toLowerCase()) isDuplicate = true;
                     });
-                    
-                    if (isDuplicate) {
-                        throw new Error(`Product name "${rawName}" already exists (duplicate name)!`);
-                    }
+                    if (isDuplicate) throw new Error(`Product name "${rawName}" already exists (duplicate name)!`);
                 }
 
                 const productData = {
@@ -222,14 +249,12 @@ document.addEventListener("DOMContentLoaded", () => {
                     const size = sanitizeInput(row.querySelector('.var-size').value);
                     const color = sanitizeInput(row.querySelector('.var-color').value);
                     const custom = sanitizeInput(row.querySelector('.var-custom').value);
-                    
                     if(size && color) productData.variations.push({ size, color, custom });
                 });
 
                 document.querySelectorAll('.custom-attr-row').forEach(row => {
                     const name = sanitizeInput(row.querySelector('.attr-name').value);
                     const value = sanitizeInput(row.querySelector('.attr-value').value);
-                    
                     if(name && value) productData.attributes.push({ name, value });
                 });
 
@@ -239,13 +264,15 @@ document.addEventListener("DOMContentLoaded", () => {
 
                 await addDoc(collection(db, "products"), productData);
                 
+                isFormDirty = false; 
+                
                 alert("Product Saved Successfully!");
                 window.location.href = "Dashboard.html";
 
             } catch (error) {
                 console.error("Error:", error);
                 alert("Error saving: " + error.message);
-                submitBtn.innerText = originalText;
+                submitBtn.innerText = "Add Product"; 
                 submitBtn.disabled = false;
             }
         });

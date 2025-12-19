@@ -1,263 +1,373 @@
-/* --- RESET & BASICS (Shared with Dashboard) --- */
-        :root { 
-            --sidebar-width: 250px; 
-            --bg-body: #f9fafb;
-            --text-main: #111827;
-            --text-secondary: #6b7280;
-            --border-color: #e5e7eb;
-            --input-bg: #f3f4f6;
-        }
-
-        html, body { height: 100%; margin: 0; }
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            display: flex;
-            min-height: 100vh;
-            overflow-x: hidden;
-            background-color: var(--bg-body);
-            color: var(--text-main);
-        }
-
-        /* --- SIDEBAR (Same as Dashboard) --- */
-        .sidebar {
-            width: var(--sidebar-width);
-            background-color: #fff;
-            padding: 20px 0;
-            height: 100vh;
-            box-shadow: 2px 0 5px rgba(0,0,0,0.05);
-            flex-shrink: 0;
-            position: relative;
-            z-index: 1000;
-            display: flex;
-            flex-direction: column;
-        }
-
-        .sidebar-header { padding: 0 20px 20px; border-bottom: 1px solid #f3f4f6; margin-bottom: 20px; }
-        .sidebar-header h2 { margin: 0 0 5px 0; font-size: 18px; color: #333; font-weight: 700; }
-        .sidebar-header .user-role { font-size: 13px; color: #666; }
-
-        .sidebar-content { display: flex; flex-direction: column; height: 100%; overflow-y: auto; }
-        .sidebar-nav { display: flex; flex-direction: column; gap: 5px; flex-grow: 1; padding: 0 10px; }
-        .sidebar a {
-            display: flex; align-items: center; padding: 12px 15px; color: #4b5563;
-            text-decoration: none; transition: all 0.2s; border-radius: 6px; font-size: 14px; font-weight: 500;
-        }
-        .sidebar a i { margin-right: 12px; width: 20px; text-align: center; }
-        .sidebar a:hover { background-color: #f3f4f6; color: #111827; }
-
-        .sidebar-footer { padding: 15px 20px; border-top: 1px solid #f3f4f6; }
-        .sidebar-footer .logout { color: #ef4444; font-weight: 500; }
-        .sidebar-footer .logout:hover { background-color: #fef2f2; color: #dc2626; }
-
-        /* --- MAIN CONTENT AREA --- */
-        .main-content {
-            flex: 1;
-            padding: 30px;
-            width: 100%;
-            box-sizing: border-box;
-            /* Changed alignment to left by removing auto margin and setting fixed max-width aligned left */
-            margin-left: 0; 
-            max-width: 1100px; 
-        }
-
-        /* --- HEADER --- */
-        .page-header {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            margin-bottom: 25px;
-        }
-        .back-btn {
-            color: var(--text-main);
-            font-size: 18px;
-            text-decoration: none;
-            cursor: pointer;
-        }
-        .header-title h1 { margin: 0; font-size: 22px; font-weight: 700; }
-        .header-title p { margin: 4px 0 0; color: var(--text-secondary); font-size: 14px; }
-
-        /* --- FORM LAYOUT --- */
-        .form-section {
-            background: #fff;
-            border-radius: 12px;
-            padding: 24px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-            border: 1px solid var(--border-color);
-            margin-bottom: 20px;
-        }
-
-        .section-title {
-            font-size: 15px;
-            font-weight: 600;
-            color: var(--text-main);
-            margin-bottom: 20px;
-        }
-
-        /* Grid for Basic Info */
-        .basic-info-grid {
-            display: grid;
-            grid-template-columns: 150px 1fr;
-            gap: 24px;
-        }
-
-        /* Image Upload Box */
-        .image-upload-box {
-            width: 100%;
-            height: 150px;
-            border: 2px dashed #d1d5db;
-            border-radius: 8px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            color: var(--text-secondary);
-            background: #fafafa;
-            transition: border-color 0.2s;
-        }
-        .image-upload-box:hover { border-color: #9ca3af; }
-        .image-upload-box i { font-size: 24px; margin-bottom: 8px; }
-        .image-upload-box span { font-size: 13px; font-weight: 500; }
-        .label-text { display: block; margin-bottom: 8px; font-size: 13px; font-weight: 600; color: #374151; }
-
-        /* Inputs */
-        .input-group { margin-bottom: 16px; width: 100%; }
-        .input-group label { display: block; margin-bottom: 6px; font-size: 13px; font-weight: 600; color: #374151; }
-        
-        input[type="text"], 
-        input[type="number"], 
-        textarea, 
-        select {
-            width: 100%;
-            padding: 10px 12px;
-            background-color: var(--input-bg);
-            border: 1px solid transparent;
-            border-radius: 6px;
-            font-size: 14px;
-            color: var(--text-main);
-            box-sizing: border-box;
-            transition: border 0.2s, background 0.2s;
-            height: 42px; /* Fixed height for alignment */
-        }
-        
-        input:focus, textarea:focus, select:focus {
-            outline: none;
-            background-color: #fff;
-            border-color: #d1d5db;
-        }
-
-        textarea { resize: vertical; height: 80px; font-family: inherit; }
-
-        /* Pricing Grid */
-        .pricing-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
-            gap: 20px;
-        }
-
-        /* Variations Grid (3 inputs + button) */
-        .variations-row {
-            display: grid;
-            grid-template-columns: 1fr 1fr 1fr 42px;  /* three equal inputs + fixed button */
-            gap: 15px;
-            align-items: flex-end; /* aligns button with input boxes */
-            margin-bottom: 16px;
-        }
-
-        /* Plus Button Styling */
-        .btn-plus {
-            height: 42px; /* matches input height */
-            width: 42px;
-            background-color: #111827;
-            color: white;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 16px;
-        }
-
-        .btn-plus:hover {
-            opacity: 0.9;
-        }
-
-        .variations-row .btn-plus {
-            align-self: end;     /* sticks to bottom to match input-group */
-            margin-bottom: 16px; /* same as input-group’s bottom spacing */
-        }
-
-        /* Footer Actions */
-        .form-actions {
-            display: flex;
-            justify-content: flex-end;
-            gap: 12px;
-            margin-top: 10px;
-            margin-bottom: 40px;
-        }
-
-        .btn-cancel {
-            background: #fff;
-            border: 1px solid var(--border-color);
-            padding: 10px 20px;
-            border-radius: 6px;
-            font-size: 14px;
-            font-weight: 600;
-            color: #374151;
-            cursor: pointer;
-            text-decoration: none;
-            display: inline-block;
-        }
-        
-        .btn-submit {
-            background: #111827;
-            border: none;
-            padding: 10px 24px;
-            border-radius: 6px;
-            font-size: 14px;
-            font-weight: 600;
-            color: #fff;
-            cursor: pointer;
-        }
-
-        .btn-finaladd {
-            margin-top: 10px;
-            background-color: #111827;
-            color: white;
-            padding: 8px 14px;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-        }
-
-        .btn-finaladd:hover {
-            opacity: 0.9;
-        }
-
-        .custom-attr-row {
-            display: grid;
-            grid-template-columns: 1fr 1fr 42px;
-            gap: 15px;
-            margin-bottom: 16px;
-        }
-        
-        /* Responsive */
-        @media (max-width: 768px) {
-            .sidebar { display: none; }
-            .basic-info-grid { grid-template-columns: 1fr; }
-            .pricing-grid { grid-template-columns: 1fr; }
-            .variations-row {
-                grid-template-columns: 1fr; /* stack vertically */
+    /* --- RESET & BASICS (Shared with Dashboard) --- */
+            :root { 
+                --sidebar-width: 250px; 
+                --bg-body: #f9fafb;
+                --text-main: #111827;
+                --text-secondary: #6b7280;
+                --border-color: #e5e7eb;
+                --input-bg: #f3f4f6;
             }
-            .btn-plus {
-                width: 100%;
-                height: 42px;
+
+            html, body { height: 100%; margin: 0; }
+            body {
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                display: flex;
+                min-height: 100vh;
+                overflow-x: hidden;
+                background-color: var(--bg-body);
+                color: var(--text-main);
             }
-        }
-/* Mobile View Adjustments */
-        @media (max-width: 480px) {
+
+            /* --- SIDEBAR (Same as Dashboard) --- */
+            .sidebar {
+                width: var(--sidebar-width);
+                background-color: #fff;
+                padding: 20px 0;
+                height: 100vh;
+                box-shadow: 2px 0 5px rgba(0,0,0,0.05);
+                flex-shrink: 0;
+                position: relative;
+                z-index: 1000;
+                display: flex;
+                flex-direction: column;
+            }
+
+            .sidebar-header { padding: 0 20px 20px; border-bottom: 1px solid #f3f4f6; margin-bottom: 20px; }
+            .sidebar-header h2 { margin: 0 0 5px 0; font-size: 18px; color: #333; font-weight: 700; }
+            .sidebar-header .user-role { font-size: 13px; color: #666; }
+
+            .sidebar-content { display: flex; flex-direction: column; height: 100%; overflow-y: auto; }
+            .sidebar-nav { display: flex; flex-direction: column; gap: 5px; flex-grow: 1; padding: 0 10px; }
+            .sidebar a {
+                display: flex; align-items: center; padding: 12px 15px; color: #4b5563;
+                text-decoration: none; transition: all 0.2s; border-radius: 6px; font-size: 14px; font-weight: 500;
+            }
+            .sidebar a i { margin-right: 12px; width: 20px; text-align: center; }
+            .sidebar a:hover { background-color: #f3f4f6; color: #111827; }
+
+            .sidebar-footer { padding: 15px 20px; border-top: 1px solid #f3f4f6; }
+            .sidebar-footer .logout { color: #ef4444; font-weight: 500; }
+            .sidebar-footer .logout:hover { background-color: #fef2f2; color: #dc2626; }
+
+            /* --- MAIN CONTENT AREA --- */
             .main-content {
-                padding: 15px;
+                flex: 1;
+                padding: 30px;
+                width: 100%;
+                box-sizing: border-box;
+                /* Changed alignment to left by removing auto margin and setting fixed max-width aligned left */
+                margin-left: 0; 
+                max-width: 1100px; 
             }
-        }
+
+            /* --- HEADER --- */
+            .page-header {
+                display: flex;
+                align-items: center;
+                gap: 15px;
+                margin-bottom: 25px;
+            }
+            .back-btn {
+                color: var(--text-main);
+                font-size: 18px;
+                text-decoration: none;
+                cursor: pointer;
+            }
+            .header-title h1 { margin: 0; font-size: 22px; font-weight: 700; }
+            .header-title p { margin: 4px 0 0; color: var(--text-secondary); font-size: 14px; }
+
+            /* --- FORM LAYOUT --- */
+            .form-section {
+                background: #fff;
+                border-radius: 12px;
+                padding: 24px;
+                box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+                border: 1px solid var(--border-color);
+                margin-bottom: 20px;
+            }
+
+            .section-title {
+                font-size: 15px;
+                font-weight: 600;
+                color: var(--text-main);
+                margin-bottom: 20px;
+            }
+
+            /* Grid for Basic Info */
+            .basic-info-grid {
+                display: grid;
+                grid-template-columns: 150px 1fr;
+                gap: 24px;
+            }
+
+            /* Image Upload Box */
+            .image-upload-box {
+                width: 100%;
+                height: 150px;
+                border: 2px dashed #d1d5db;
+                border-radius: 8px;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                cursor: pointer;
+                color: var(--text-secondary);
+                background: #fafafa;
+                transition: border-color 0.2s;
+            }
+            .image-upload-box:hover { border-color: #9ca3af; }
+            .image-upload-box i { font-size: 24px; margin-bottom: 8px; }
+            .image-upload-box span { font-size: 13px; font-weight: 500; }
+            .label-text { display: block; margin-bottom: 8px; font-size: 13px; font-weight: 600; color: #374151; }
+
+            /* Inputs */
+            .input-group { margin-bottom: 16px; width: 100%; }
+            .input-group label { display: block; margin-bottom: 6px; font-size: 13px; font-weight: 600; color: #374151; }
+            
+            input[type="text"], 
+            input[type="number"], 
+            textarea, 
+            select {
+                width: 100%;
+                padding: 10px 12px;
+                background-color: var(--input-bg);
+                border: 1px solid transparent;
+                border-radius: 6px;
+                font-size: 14px;
+                color: var(--text-main);
+                box-sizing: border-box;
+                transition: border 0.2s, background 0.2s;
+                height: 42px; /* Fixed height for alignment */
+            }
+            
+            input:focus, textarea:focus, select:focus {
+                outline: none;
+                background-color: #fff;
+                border-color: #d1d5db;
+            }
+
+            textarea { resize: vertical; height: 80px; font-family: inherit; }
+
+            /* Pricing Grid */
+            .pricing-grid {
+                display: grid;
+                grid-template-columns: 1fr 1fr 1fr;
+                gap: 20px;
+            }
+
+            /* Variations Grid (3 inputs + button) */
+            .variations-row {
+                display: grid;
+                grid-template-columns: 1fr 1fr 1fr 42px;  /* three equal inputs + fixed button */
+                gap: 15px;
+                align-items: flex-end; /* aligns button with input boxes */
+                margin-bottom: 16px;
+            }
+
+            /* Plus Button Styling */
+            .btn-plus {
+                height: 42px; /* matches input height */
+                width: 42px;
+                background-color: #111827;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                cursor: pointer;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 16px;
+            }
+
+            .btn-plus:hover {
+                opacity: 0.9;
+            }
+
+            .variations-row .btn-plus {
+                align-self: end;     /* sticks to bottom to match input-group */
+                margin-bottom: 16px; /* same as input-group’s bottom spacing */
+            }
+
+            /* Footer Actions */
+            .form-actions {
+                display: flex;
+                justify-content: flex-end;
+                gap: 12px;
+                margin-top: 10px;
+                margin-bottom: 40px;
+            }
+
+            .btn-cancel {
+                background: #fff;
+                border: 1px solid var(--border-color);
+                padding: 10px 20px;
+                border-radius: 6px;
+                font-size: 14px;
+                font-weight: 600;
+                color: #374151;
+                cursor: pointer;
+                text-decoration: none;
+                display: inline-block;
+            }
+            
+            .btn-submit {
+                background: #111827;
+                border: none;
+                padding: 10px 24px;
+                border-radius: 6px;
+                font-size: 14px;
+                font-weight: 600;
+                color: #fff;
+                cursor: pointer;
+            }
+
+            .btn-finaladd {
+                margin-top: 10px;
+                background-color: #111827;
+                color: white;
+                padding: 8px 14px;
+                border: none;
+                border-radius: 6px;
+                cursor: pointer;
+            }
+
+            .btn-finaladd:hover {
+                opacity: 0.9;
+            }
+
+            .custom-attr-row {
+                display: grid;
+                grid-template-columns: 1fr 1fr 42px;
+                gap: 15px;
+                margin-bottom: 16px;
+            }
+            
+            /* Responsive */
+            @media (max-width: 768px) {
+                .sidebar { display: none; }
+                .basic-info-grid { grid-template-columns: 1fr; }
+                .pricing-grid { grid-template-columns: 1fr; }
+                .variations-row {
+                    grid-template-columns: 1fr; /* stack vertically */
+                }
+                .btn-plus {
+                    width: 100%;
+                    height: 42px;
+                }
+            }
+    /* Mobile View Adjustments */
+            @media (max-width: 480px) {
+                .main-content {
+                    padding: 15px;
+                }
+            }
+
+    /* 1. Parent Container */
+    /* Must be relative to anchor the absolute button. 
+    'overflow: visible' ensures the button's shadow isn't cut off. */
+    .image-upload-box {
+        position: relative;
+        overflow: visible; 
+    }
+
+    /* 2. Fixed Remove Button Style */
+    .btn-remove-image {
+        display: none; /* Hidden by default */
+        position: absolute;
+        top: 8px;      /* Tucked nicely in the corner */
+        right: 8px;
+        
+        width: 32px;   /* Fixed dimensions for a perfect circle */
+        height: 32px;
+        padding: 0;    /* Remove default button padding that causes misalignment */
+        
+        /* USE SOLID COLOR: Prevents the image behind it from showing through */
+        background: #ffffff; 
+        border: 1px solid #fee2e2;
+        color: #ef4444;
+        border-radius: 50%;
+        
+        /* Flexbox centering for the icon */
+        display: flex; 
+        align-items: center;
+        justify-content: center;
+        
+        cursor: pointer;
+        z-index: 20;   /* High z-index to stay on top of the uploaded image */
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
+        transition: all 0.2s ease;
+        
+        /* CRITICAL FIX: Clips any hover background spill-over */
+        overflow: hidden; 
+    }
+
+    /* 3. Icon Styling */
+    .btn-remove-image i {
+        font-size: 1.8rem; 
+        pointer-events: none; /* Ensures clicking the icon triggers the button click */
+        line-height: 1;
+        margin-top: 0.5rem;
+        margin-left: 0.1rem;
+    }
+
+    /* 4. Hover State */
+    .btn-remove-image:hover {
+        background: #fee2e2;
+        color: #dc2626;
+        border-color: #fca5a5;
+        transform: scale(1.1);
+    }
+
+    /* 5. Logic Helper */
+    /* Ensures JS showing the button doesn't break flex centering */
+    .btn-remove-image[style*="display: flex"] {
+        display: flex !important;
+    }
+
+    /* --- FIXED ROW STYLING --- */
+
+/* 1. Ensure the rows use Flexbox and align everything to the top or center */
+.variations-row, 
+.custom-attr-row {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 10px;
+    align-items: start; /* Aligns inputs and button to the top */
+}
+
+/* 2. Remove the bottom spacing from inputs specifically inside these rows 
+      so they don't push the alignment off */
+.variations-row .input-group, 
+.custom-attr-row .input-group {
+    margin-bottom: 0;
+    flex: 1; /* Makes the inputs stretch to fill space */
+}
+
+/* 3. Fix the Delete Button Alignment */
+.btn-delete {
+    background: #fee2e2;
+    color: #ef4444;
+    border: 1px solid #fecaca;
+    
+    /* FIX: Match the EXACT height of your inputs (42px) */
+    width: 42px;
+    height: 42px; 
+    
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    
+    /* FIX: Remove the old margin-top that was pushing it down */
+    margin-top: 0; 
+    
+    /* Optional: If inputs have labels inside the row, use this to push button down. 
+       Since your labels are at the top, keep this at 0. */
+}
+
+.btn-delete:hover {
+    background: #fecaca;
+    color: #dc2626;
+}

@@ -292,3 +292,113 @@ textarea.form-input {
         margin-top: 5px;
     }
 }
+
+/* 1. Parent Container */
+/* Must be relative to anchor the absolute button. 
+   'overflow: visible' ensures the button's shadow isn't cut off. */
+.image-upload-box {
+    position: relative;
+    overflow: visible; 
+}
+
+/* 2. Fixed Remove Button Style */
+.btn-remove-image {
+    display: none; /* Hidden by default */
+    position: absolute;
+    top: 8px;      /* Tucked nicely in the corner */
+    right: 8px;
+    
+    width: 32px;   /* Fixed dimensions for a perfect circle */
+    height: 32px;
+    padding: 0;    /* Remove default button padding that causes misalignment */
+    
+    /* USE SOLID COLOR: Prevents the image behind it from showing through */
+    background: #ffffff; 
+    border: 1px solid #fee2e2;
+    color: #ef4444;
+    border-radius: 50%;
+    
+    /* Flexbox centering for the icon */
+    display: flex; 
+    align-items: center;
+    justify-content: center;
+    
+    cursor: pointer;
+    z-index: 20;   /* High z-index to stay on top of the uploaded image */
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
+    transition: all 0.2s ease;
+    
+    /* CRITICAL FIX: Clips any hover background spill-over */
+    overflow: hidden; 
+}
+
+/* 3. Icon Styling */
+.btn-remove-image i {
+    font-size: 1.8rem; 
+    pointer-events: none; /* Ensures clicking the icon triggers the button click */
+    line-height: 1;
+    margin-top: 0.5rem;
+    margin-left: 0.1rem;
+}
+
+/* 4. Hover State */
+.btn-remove-image:hover {
+    background: #fee2e2;
+    color: #dc2626;
+    border-color: #fca5a5;
+    transform: scale(1.1);
+}
+
+/* 5. Logic Helper */
+/* Ensures JS showing the button doesn't break flex centering */
+.btn-remove-image[style*="display: flex"] {
+    display: flex !important;
+}
+
+/* --- FIXED ROW STYLING --- */
+
+/* 1. Ensure the rows use Flexbox and align everything to the top or center */
+.variations-row, 
+.custom-attr-row {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 10px;
+    align-items: start; /* Aligns inputs and button to the top */
+}
+
+/* 2. Remove the bottom spacing from inputs specifically inside these rows 
+      so they don't push the alignment off */
+.variations-row .input-group, 
+.custom-attr-row .input-group {
+    margin-bottom: 0;
+    flex: 1; /* Makes the inputs stretch to fill space */
+}
+
+/* 3. Fix the Delete Button Alignment */
+.btn-delete {
+    background: #fee2e2;
+    color: #ef4444;
+    border: 1px solid #fecaca;
+    
+    /* FIX: Match the EXACT height of your inputs (42px) */
+    width: 42px;
+    height: 42px; 
+    
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    
+    /* FIX: Remove the old margin-top that was pushing it down */
+    margin-top: 0; 
+    
+    /* Optional: If inputs have labels inside the row, use this to push button down. 
+       Since your labels are at the top, keep this at 0. */
+}
+
+.btn-delete:hover {
+    background: #fecaca;
+    color: #dc2626;
+}
