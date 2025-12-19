@@ -80,7 +80,7 @@ if (typeof window !== 'undefined') {
             if(successBox) { successBox.style.display = "none"; successBox.textContent = ""; }
 
             try {
-                // Call Logic
+                // Call Logic.
                 const successMsg = await handlePasswordReset(email, auth);
                 showSuccess(successMsg);
                 passwordResetForm.reset();
