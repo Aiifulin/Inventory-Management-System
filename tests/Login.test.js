@@ -1,8 +1,6 @@
-import { describe, it, expect } from "vitest";
-import { firebaseConfig } from "./Login.js";
-import { togglePassword } from "./Login.js";
-import { beforeEach } from "vitest";
-import { afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+// Ensure this path points to your refactored Login.js
+import { firebaseConfig, togglePassword } from "./Login.js";
 
 describe("firebaseConfig", () => {
     it("should have all required Firebase configuration properties", () => {
@@ -30,6 +28,7 @@ describe("firebaseConfig", () => {
     });
 
     it("should have a valid apiKey format", () => {
+        // Regex adjusted to match standard API key length (usually 39 chars)
         expect(firebaseConfig.apiKey).toMatch(/^AIza[0-9A-Za-z_-]{35}$/);
     });
 
@@ -51,6 +50,7 @@ describe("firebaseConfig", () => {
         const validProjectId = "inventory-management-sys-baccc";
         expect(firebaseConfig.projectId).toBe(validProjectId);
     });
+});
 
 describe("togglePassword", () => {
     let input;
@@ -70,55 +70,45 @@ describe("togglePassword", () => {
         icon = document.getElementById("test-icon");
         button = document.getElementById("toggle-button");
 
-        // Spy on window.location.href to track changes
-        // JSDOM provides a writable location mock
-        window.location.href = "Initial.html"; 
+        // Mock window.location
+        delete window.location;
+        window.location = { href: "Initial.html" };
     });
 
     afterEach(() => {
         // Clean up the DOM after each test
-        document.body.innerHTML = ''; 
+        document.body.innerHTML = '';
     });
-    
+
     // --- TEST 1: Toggle from password to text ---
     it("should change input type from 'password' to 'text'", () => {
-        // Arrange: Input is initially type="password" (from beforeEach)
         expect(input.type).toBe("password");
-        
-        // Act
         togglePassword(inputId, button);
-
-        // Assert
         expect(input.type).toBe("text");
     });
 
     // --- TEST 2: Toggle from text back to password ---
     it("should change input type from 'text' back to 'password'", () => {
-        // Arrange: Manually set input type to 'text' before calling the function
         input.type = "text";
-        expect(input.type).toBe("text"); 
+        // Helper to manually set icon state to match input type
+        icon.classList.remove('fa-eye');
+        icon.classList.add('fa-eye-slash');
         
-        // Act
+        expect(input.type).toBe("text");
+        
         togglePassword(inputId, button);
-
-        // Assert
         expect(input.type).toBe("password");
     });
 
     // --- TEST 3: Icon change (fa-eye to fa-eye-slash) ---
     it("should toggle icon class from 'fa-eye' to 'fa-eye-slash'", () => {
-        // Arrange: Input is initially type="password" (from beforeEach)
         expect(icon.classList.contains('fa-eye')).toBe(true);
-
-        // Act (simulates showing the password)
         togglePassword(inputId, button);
-
-        // Assert
         expect(icon.classList.contains('fa-eye')).toBe(false);
         expect(icon.classList.contains('fa-eye-slash')).toBe(true);
     });
-    
-    // --- TEST 5: Icon change (fa-eye-slash to fa-eye) ---
+
+    // --- TEST 4: Icon change (fa-eye-slash to fa-eye) ---
     it("should toggle icon class from 'fa-eye-slash' back to 'fa-eye'", () => {
         // Arrange: Set up the state where the password is currently visible
         input.type = "text";
@@ -126,16 +116,11 @@ describe("togglePassword", () => {
         icon.classList.add('fa-eye-slash');
         expect(icon.classList.contains('fa-eye-slash')).toBe(true);
 
-        // Act (simulates hiding the password)
+        // Act
         togglePassword(inputId, button);
 
         // Assert
         expect(icon.classList.contains('fa-eye-slash')).toBe(false);
         expect(icon.classList.contains('fa-eye')).toBe(true);
     });
-
-});
-
-
-
 });

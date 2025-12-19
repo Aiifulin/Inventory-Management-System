@@ -3,10 +3,10 @@
         "test": "vitest"
     },
     "devDependencies": {
-        "jsdom": "^27.2.0",
-        "vitest": "^4.0.14"
+        "jsdom": "^27.3.0",
+        "vitest": "^4.0.16"
     },
     "dependencies": {
-        "firebase": "^12.6.0"
+        "firebase": "^12.7.0"
     }
 }

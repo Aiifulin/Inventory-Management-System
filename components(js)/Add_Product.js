@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
-// FIXED: Added doc and getDoc for role checking
+// Added doc and getDoc for role checking
 import { getFirestore, collection, addDoc, serverTimestamp, query, where, getDocs, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 
@@ -23,10 +23,7 @@ let isFormDirty = false;
 // --- AUTH CHECK WITH ROLE VALIDATION ---
 onAuthStateChanged(auth, async (user) => {
     if (user) {
-        // 1. Update UI with User Role (Visual)
-        displayUserRole(user.uid);
-
-        // 2. Fetch User Role from 'users' collection
+        // 1. Fetch User Role from 'users' collection
         const isAdmin = await checkAdminRole(user.uid);
 
         if (!isAdmin) {
@@ -41,32 +38,6 @@ onAuthStateChanged(auth, async (user) => {
         window.location.href = "Login.html";
     }
 });
-
-// --- HELPER: DISPLAY USER ROLE (UI) ---
-async function displayUserRole(uid) {
-    // NOTE: You need to add id="userRoleDisplay" to the span in your HTML sidebar
-    // e.g. <span class="user-role" id="userRoleDisplay">Loading...</span>
-    const roleEl = document.getElementById('userRoleDisplay');
-    if (!roleEl) return;
-
-    try {
-        const docRef = doc(db, "users", uid);
-        const docSnap = await getDoc(docRef);
-        
-        if (docSnap.exists()) {
-            const data = docSnap.data();
-            let roleName = data.role || "User";
-            // Capitalize first letter
-            roleName = roleName.charAt(0).toUpperCase() + roleName.slice(1);
-            roleEl.textContent = roleName;
-        } else {
-            roleEl.textContent = "User"; // Fallback
-        }
-    } catch (error) {
-        console.error("Error displaying role:", error);
-        roleEl.textContent = "User";
-    }
-}
 
 // --- HELPER: CHECK ADMIN ROLE ---
 async function checkAdminRole(uid) {
