@@ -1,0 +1,32 @@
+name: Run Tests
+
+# Trigger the workflow on push or pull request to the main branch
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+    # 1. Check out your code onto the CI server
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    # 2. Install Node.js (using version 20 for stability)
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+
+    # 3. Install dependencies (clean install)
+    - name: Install Dependencies
+      run: npm ci
+
+    # 4. Run the tests (this executes 'vitest run')
+    - name: Run Vitest
+      run: npm test
