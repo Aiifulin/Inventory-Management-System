@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <script>
+        // Route Guard
         if (!sessionStorage.getItem("user_session")) {
             window.location.replace("Login.html");
         }
@@ -25,7 +26,7 @@
         <div class="sidebar-content">
             <div class="sidebar-header">
                 <h2>Inventory MS</h2>
-                <span class="user-role">Admin User</span>
+                <span class="user-role" id="userRoleDisplay">Loading...</span>
                 <button class="close-btn" id="closeBtn"><i class="fas fa-times"></i></button>
             </div>
 
@@ -84,11 +85,11 @@
                 
                     <select id="filterPrice" class="control-input">
                         <option value="">All Prices</option>
-                        <option value="0-50">$0 - $50</option>
-                        <option value="51-100">$51 - $100</option>
-                        <option value="101-500">$101 - $500</option>
-                        <option value="501-1000">$501 - $1000</option>
-                        <option value="1000+">$1000+</option>
+                        <option value="0-50">₱0 - ₱50</option>
+                        <option value="51-100">₱51 - ₱100</option>
+                        <option value="101-500">₱101 - ₱500</option>
+                        <option value="501-1000">₱501 - ₱1000</option>
+                        <option value="1000+">₱1000+</option>
                     </select>
                 
                     <select id="filterStatus" class="control-input">
@@ -141,6 +142,7 @@
     <script type="module" src="components(js)/Products.js"></script>
 
     <script>
+        // --- Sidebar Logic ---
         const hamburger = document.getElementById('hamburgerBtn');
         const sidebar = document.getElementById('sidebar');
         const overlay = document.getElementById('overlay');
@@ -154,6 +156,26 @@
         if(hamburger) hamburger.addEventListener('click', toggleSidebar);
         if(closeBtn) closeBtn.addEventListener('click', toggleSidebar);
         if(overlay) overlay.addEventListener('click', toggleSidebar);
+
+        // --- ADDED: Dynamic User Display Logic ---
+        document.addEventListener("DOMContentLoaded", () => {
+            const roleDisplay = document.getElementById("userRoleDisplay");
+            const sessionData = sessionStorage.getItem("user_session");
+            
+            if (sessionData && roleDisplay) {
+                try {
+                    const user = JSON.parse(sessionData);
+                    // Update the text. Defaults to "Loading..." if role is missing in session
+                    roleDisplay.textContent = user.role || user.username || "Loading...";
+                } catch (error) {
+                    console.error("Error parsing user session:", error);
+                    roleDisplay.textContent = "Loading...";
+                }
+            } else if (roleDisplay) {
+                // Fallback if no session (though route guard handles this)
+                roleDisplay.textContent = "Guest";
+            }
+        });
     </script>
 </body>
 </html>

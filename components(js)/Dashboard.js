@@ -1,7 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
 import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 // FIXED: Merged all Firestore imports into one line
-import { getFirestore, collection, getDocs, query, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { getFirestore, collection, getDocs, query, orderBy, limit, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
 // --- CONFIG ---
 const firebaseConfig = {
@@ -18,9 +18,6 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// --- HARDCODED ADMIN ID ---
-const ADMIN_UID = "eisTKTAY9LfdMpXZ7ebo0spRDAN2";
-
 // Global Chart Instances
 let barChartInstance = null;
 let pieChartInstance = null;
@@ -30,12 +27,18 @@ onAuthStateChanged(auth, async (user) => {
     if (user) {
         console.log("User Logged In:", user.uid);
 
-        if (user.uid !== ADMIN_UID) {
+        // 1. Update UI with User Role (Visual)
+        displayUserRole(user.uid);
+
+        // 2. Check Permission Logic
+        const isAdmin = await checkAdminRole(user.uid);
+
+        if (!isAdmin) {
             const addBtn = document.querySelector('.btn-add'); 
             if (addBtn) addBtn.style.display = 'none';
         }
 
-        // Load data
+        // 3. Load data
         loadDashboardStats();
         loadRecentActivities();
 
@@ -44,13 +47,53 @@ onAuthStateChanged(auth, async (user) => {
     }
 });
 
-// --- LOAD STATS LOGIC ---
+// --- HELPER: DISPLAY USER ROLE (UI) ---
+async function displayUserRole(uid) {
+    const roleEl = document.getElementById('userRoleDisplay');
+    if (!roleEl) return;
+
+    try {
+        const docRef = doc(db, "users", uid);
+        const docSnap = await getDoc(docRef);
+        
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            let roleName = data.role || "User";
+            // Capitalize first letter (e.g. "admin" -> "Admin")
+            roleName = roleName.charAt(0).toUpperCase() + roleName.slice(1);
+            roleEl.textContent = roleName;
+        } else {
+            roleEl.textContent = "User"; // Fallback
+        }
+    } catch (error) {
+        console.error("Error displaying role:", error);
+        roleEl.textContent = "User";
+    }
+}
+
+// --- HELPER: CHECK ADMIN ROLE (Logic) ---
+async function checkAdminRole(uid) {
+    try {
+        const userDocRef = doc(db, "users", uid);
+        const userSnap = await getDoc(userDocRef);
+        
+        if (userSnap.exists()) {
+            const userData = userSnap.data();
+            return (userData.role && userData.role.toLowerCase() === 'admin');
+        }
+        return false;
+    } catch (error) {
+        console.error("Error checking role:", error);
+        return false; 
+    }
+}
+
 // --- LOAD STATS & LOW STOCK LOGIC ---
 async function loadDashboardStats() {
     try {
         const querySnapshot = await getDocs(collection(db, "products"));
         const products = [];
-        const lowStockItems = []; // Array to hold low stock products
+        const lowStockItems = []; 
         
         const categoryMap = {}; 
 
@@ -64,14 +107,12 @@ async function loadDashboardStats() {
             const cat = p.category || "Uncategorized";
             const itemValue = stock * price;
 
-            // 1. Stats Calculation
             if (!categoryMap[cat]) {
                 categoryMap[cat] = { count: 0, value: 0 };
             }
             categoryMap[cat].count += 1;        
             categoryMap[cat].value += itemValue; 
 
-            // 2. Identify Low Stock Items
             if (stock <= threshold) {
                 lowStockItems.push({
                     name: p.name,
@@ -82,7 +123,6 @@ async function loadDashboardStats() {
             }
         });
 
-        // --- UPDATE TOP STATS ---
         const totalProducts = products.length;
         const categoriesCount = Object.keys(categoryMap).length;
         const lowStockCount = lowStockItems.length;
@@ -102,10 +142,7 @@ async function loadDashboardStats() {
         });
         updateStat("statTotalValue", formattedValue);
 
-        // --- RENDER CHARTS ---
         initCharts(categoryMap);
-
-        // --- RENDER LOW STOCK TABLE ---
         renderLowStockTable(lowStockItems);
 
     } catch (error) {
@@ -123,15 +160,11 @@ function renderLowStockTable(items) {
         return;
     }
 
-    // Sort by stock level (lowest first)
     items.sort((a, b) => a.stock - b.stock);
-
-    // Limit to top 5 items to fit UI
     const displayItems = items.slice(0, 5);
 
     let html = '';
     displayItems.forEach(item => {
-        // Determine status style
         let pillClass = "pill-orange";
         let statusText = "Low Stock";
         
@@ -140,7 +173,6 @@ function renderLowStockTable(items) {
             statusText = "Out of Stock";
         }
 
-        // Image Logic
         let imgTag = '<div style="display:inline-block; width:32px; height:32px; background:#f3f4f6; border-radius:6px; margin-right:10px; vertical-align:middle; text-align:center; line-height:32px;"><i class="fas fa-box" style="font-size:12px; color:#9ca3af;"></i></div>';
         if (item.imageUrl) {
             imgTag = `<img src="${item.imageUrl}" class="sm-product-img" alt="img">`;
@@ -160,15 +192,13 @@ function renderLowStockTable(items) {
 
     tableBody.innerHTML = html;
 }
+
 // --- LOAD RECENT ACTIVITIES ---
 async function loadRecentActivities() {
     const activityContainer = document.querySelector('.activity-content');
-    
-    // Safety check: if HTML element is missing, stop
     if (!activityContainer) return; 
 
     try {
-        // Query: Sort by 'timestamp' descending, max 5 items
         const q = query(
             collection(db, "activities"), 
             orderBy("timestamp", "desc"), 
@@ -177,7 +207,6 @@ async function loadRecentActivities() {
 
         const querySnapshot = await getDocs(q);
         
-        // CASE 1: No Activities found in Database
         if (querySnapshot.empty) {
             activityContainer.innerHTML = `
                 <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; color:#9ca3af;">
@@ -187,7 +216,6 @@ async function loadRecentActivities() {
             return;
         }
 
-        // CASE 2: Activities found
         let html = '<ul class="activity-list">';
 
         querySnapshot.forEach((doc) => {
@@ -203,8 +231,7 @@ async function loadRecentActivities() {
 
             let iconClass = "fa-info";
             let colorClass = "";
-            
-            const actionLower = (data.action || "").toLowerCase(); // Safety check for null action
+            const actionLower = (data.action || "").toLowerCase(); 
             
             if (actionLower.includes("add")) {
                 iconClass = "fa-plus";
@@ -237,7 +264,6 @@ async function loadRecentActivities() {
 
     } catch (error) {
         console.error("Error fetching activities:", error);
-        // Display error in the box so you know something went wrong
         activityContainer.innerHTML = `<div style="color:red; text-align:center; padding:20px;">Error: ${error.message}</div>`;
     }
 }
@@ -337,7 +363,8 @@ function updateStat(id, value) {
     const el = document.getElementById(id);
     if(el) el.innerText = value;
 }
-// --- UI EVENT LISTENERS (Hamburger Menu) ---
+
+// --- UI EVENT LISTENERS ---
 document.addEventListener("DOMContentLoaded", () => {
     const hamburgerBtn = document.getElementById('hamburgerBtn');
     const closeBtn = document.getElementById('closeBtn');
@@ -345,7 +372,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const overlay = document.getElementById('overlay');
 
     function toggleSidebar() {
-        // Toggle the class defined in your CSS
         sidebar.classList.toggle('open');
         overlay.classList.toggle('show');
     }
@@ -355,25 +381,23 @@ document.addEventListener("DOMContentLoaded", () => {
         overlay.classList.remove('show');
     }
 
-    // Open Sidebar
     if (hamburgerBtn) {
         hamburgerBtn.addEventListener('click', (e) => {
-            e.stopPropagation(); // Prevent immediate closing if bubbling issues occur
+            e.stopPropagation();
             toggleSidebar();
         });
     }
 
-    // Close Sidebar (X button)
     if (closeBtn) {
         closeBtn.addEventListener('click', closeSidebar);
     }
 
-    // Close Sidebar (Clicking outside on overlay)
     if (overlay) {
         overlay.addEventListener('click', closeSidebar);
     }
 });
 
+// --- LOGOUT FUNCTION ---
 window.logout = function() {
     sessionStorage.removeItem("user_session");
     sessionStorage.removeItem("user_uid");

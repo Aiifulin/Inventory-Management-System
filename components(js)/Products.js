@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
-// UPDATED: Added addDoc and serverTimestamp
-import { getFirestore, collection, getDocs, deleteDoc, doc, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+// FIXED: Added getDoc and doc for role checking and display
+import { getFirestore, collection, getDocs, deleteDoc, doc, addDoc, serverTimestamp, getDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 
 // --- CONFIG ---
@@ -18,14 +18,66 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
 
-// --- HARDCODED ADMIN ID ---
-const ADMIN_UID = "eisTKTAY9LfdMpXZ7ebo0spRDAN2";
-
 // --- GLOBAL STATE ---
 let allProducts = [];
+let filteredProducts = []; 
 let currentSortDir = 'asc';
 let currentUser = null;
 let isAdmin = false; 
+
+// --- PAGINATION STATE ---
+let currentPage = 1;
+let itemsPerPage = 10; 
+
+// --- HELPER: CHECK ADMIN ROLE (Dynamic) ---
+async function checkAdminRole(uid) {
+    try {
+        const userDocRef = doc(db, "users", uid);
+        const userSnap = await getDoc(userDocRef);
+        
+        if (userSnap.exists()) {
+            const userData = userSnap.data();
+            return (userData.role && userData.role.toLowerCase() === 'admin');
+        }
+        return false;
+    } catch (error) {
+        console.error("Error checking role:", error);
+        return false; 
+    }
+}
+
+// --- HELPER: DISPLAY USER ROLE (UI) ---
+async function displayUserRole(uid) {
+    // You need to ensure your Products.html sidebar has <span id="userRoleDisplay">
+    const roleEl = document.getElementById('userRoleDisplay');
+    if (!roleEl) {
+        // Fallback: Try to find the span by class if ID isn't there yet
+        const sidebarRole = document.querySelector('.sidebar-header .user-role');
+        if (sidebarRole) {
+            sidebarRole.id = 'userRoleDisplay'; // Dynamically assign ID if missing
+            return displayUserRole(uid); // Retry
+        }
+        return;
+    }
+
+    try {
+        const docRef = doc(db, "users", uid);
+        const docSnap = await getDoc(docRef);
+        
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            let roleName = data.role || "User";
+            // Capitalize first letter
+            roleName = roleName.charAt(0).toUpperCase() + roleName.slice(1);
+            roleEl.textContent = roleName;
+        } else {
+            roleEl.textContent = "User"; // Fallback
+        }
+    } catch (error) {
+        console.error("Error displaying role:", error);
+        roleEl.textContent = "User";
+    }
+}
 
 // --- HELPER: ACTIVITY LOGGING FUNCTION ---
 async function logActivity(action, targetName) {
@@ -33,8 +85,8 @@ async function logActivity(action, targetName) {
         const userEmail = auth.currentUser ? auth.currentUser.email : "Admin";
         
         await addDoc(collection(db, "activities"), {
-            action: action,          // e.g., "Deleted Product"
-            target: targetName,      // e.g., "Gaming Chair"
+            action: action,          
+            target: targetName,      
             user: userEmail,
             timestamp: serverTimestamp()
         });
@@ -44,18 +96,45 @@ async function logActivity(action, targetName) {
     }
 }
 
+// --- HELPER: LOAD SETTINGS ---
+async function loadSettings() {
+    try {
+        const docRef = doc(db, "settings", "global_config");
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            // Update itemsPerPage only if it's valid
+            if (data.itemsPerPage && !isNaN(data.itemsPerPage)) {
+                const val = parseInt(data.itemsPerPage);
+                if (val > 0) itemsPerPage = val;
+            }
+        }
+    } catch (e) {
+        console.warn("Using default settings due to error or missing config.");
+    }
+}
+
 // --- AUTH CHECK & INITIAL LOAD ---
-onAuthStateChanged(auth, (user) => {
+onAuthStateChanged(auth, async (user) => {
     if (user) {
         currentUser = user;
-        isAdmin = (user.uid === ADMIN_UID);
+
+        // 1. UPDATE SIDEBAR ROLE INDICATOR
+        displayUserRole(user.uid);
+
+        // 2. DYNAMIC ADMIN CHECK
+        isAdmin = await checkAdminRole(user.uid);
         
-        // Hide/Show "Add Product" button
+        // 3. Hide/Show "Add Product" button based on role
         const addBtn = document.querySelector('.btn-primary');
         if(addBtn) {
             addBtn.style.display = isAdmin ? "flex" : "none";
         }
 
+        // 4. Load Settings First
+        await loadSettings();
+
+        // 5. Fetch Data
         fetchProducts();
     } else {
         // Not logged in? Redirect
@@ -71,6 +150,7 @@ async function fetchProducts() {
         querySnapshot.forEach((doc) => {
             allProducts.push({ id: doc.id, ...doc.data() });
         });
+        // Initial Filter & Render
         applyFilters();
     } catch (error) {
         console.error("Error loading products:", error);
@@ -80,14 +160,12 @@ async function fetchProducts() {
 // --- FILTER & SORT ---
 function applyFilters() {
     const searchVal = document.getElementById("searchInput").value.trim().toLowerCase();
-    
     const catVal = document.getElementById("filterCategory").value;
     const priceRangeVal = document.getElementById("filterPrice").value; 
     const statusVal = document.getElementById("filterStatus").value;
     const sortVal = document.getElementById("filterSort").value;
 
-    let filtered = allProducts.filter(p => {
-        // 1. Search Logic
+    let result = allProducts.filter(p => {
         const prodName = (p.name || "").toLowerCase();
         const prodCat = (p.category || "").toLowerCase();
         const prodId = (p.id || "").toLowerCase();
@@ -96,10 +174,8 @@ function applyFilters() {
                               prodCat.includes(searchVal) || 
                               prodId.includes(searchVal);
 
-        // 2. Category Logic
         const matchesCategory = catVal === "" || p.category === catVal;
         
-        // 3. Status Logic
         let pStatus = 'in-stock';
         const stock = Number(p.stock) || 0;
         const price = Number(p.price) || 0;
@@ -110,7 +186,6 @@ function applyFilters() {
         
         const matchesStatus = statusVal === "" || pStatus === statusVal;
 
-        // 4. Price Range Logic
         let matchesPrice = true;
         if (priceRangeVal) {
             if (priceRangeVal === "1000+") {
@@ -125,7 +200,7 @@ function applyFilters() {
     });
 
     // Sort Logic
-    filtered.sort((a, b) => {
+    result.sort((a, b) => {
         let valA, valB;
         if (sortVal === 'price') { valA = Number(a.price) || 0; valB = Number(b.price) || 0; }
         else if (sortVal === 'stock') { valA = Number(a.stock) || 0; valB = Number(b.stock) || 0; }
@@ -137,10 +212,46 @@ function applyFilters() {
         return 0;
     });
 
-    renderTable(filtered);
+    // Update Filtered list and Render Page 1
+    filteredProducts = result;
+    currentPage = 1;
+    renderPagination();
 }
 
-// --- RENDER FUNCTION ---
+// --- PAGINATION & RENDER ---
+function renderPagination() {
+    const totalItems = filteredProducts.length;
+    const safeItemsPerPage = itemsPerPage > 0 ? itemsPerPage : 10;
+    const totalPages = Math.ceil(totalItems / safeItemsPerPage) || 1;
+
+    if (currentPage < 1) currentPage = 1;
+    if (currentPage > totalPages) currentPage = totalPages;
+
+    const startIndex = (currentPage - 1) * safeItemsPerPage;
+    const endIndex = Math.min(startIndex + safeItemsPerPage, totalItems);
+    
+    const pageItems = filteredProducts.slice(startIndex, endIndex);
+
+    // Update UI Stats
+    const startRange = document.getElementById('startRange');
+    const endRange = document.getElementById('endRange');
+    const totalItemsEl = document.getElementById('totalItems');
+    const pageInd = document.getElementById('pageIndicator');
+    const prevBtn = document.getElementById('prevBtn');
+    const nextBtn = document.getElementById('nextBtn');
+
+    if(startRange) startRange.textContent = totalItems === 0 ? 0 : startIndex + 1;
+    if(endRange) endRange.textContent = endIndex;
+    if(totalItemsEl) totalItemsEl.textContent = totalItems;
+    if(pageInd) pageInd.textContent = `Page ${currentPage} of ${totalPages}`;
+
+    if(prevBtn) prevBtn.disabled = (currentPage === 1);
+    if(nextBtn) nextBtn.disabled = (currentPage === totalPages || totalPages === 0);
+
+    renderTable(pageItems);
+}
+
+// --- RENDER TABLE ---
 function renderTable(productsToRender) {
     const tableBody = document.getElementById("productTableBody");
     const mobileList = document.getElementById("mobileProductList");
@@ -160,6 +271,12 @@ function renderTable(productsToRender) {
 
     if (tableBody) tableBody.innerHTML = "";
     if (mobileList) mobileList.innerHTML = "";
+
+    if (productsToRender.length === 0) {
+        if(tableBody) tableBody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:30px; color:#9ca3af;">No products found.</td></tr>`;
+        if(mobileList) mobileList.innerHTML = `<div style="text-align:center; padding:30px; color:#9ca3af;">No products found.</div>`;
+        return;
+    }
 
     productsToRender.forEach(p => {
         const docId = p.id;
@@ -201,7 +318,7 @@ function renderTable(productsToRender) {
 
         const allTags = tagsHtml + attributesHtml;
 
-        // Admin Actions
+        // Admin Actions (Dynamic Check)
         const adminActions = isAdmin ? `
             <i class="fa-regular fa-pen-to-square" title="Edit" onclick="editProduct('${docId}')" style="cursor: pointer;"></i>
             <i class="fa-regular fa-trash-can delete-btn" data-id="${docId}" title="Delete" style="cursor: pointer;"></i>
@@ -217,7 +334,6 @@ function renderTable(productsToRender) {
             const row = document.createElement("tr");
             row.innerHTML = `
                 <td><span class="id-badge" title="${docId}">${shortId}</span></td>
-                
                 <td>
                     <div class="product-cell">
                         ${imageHtml}
@@ -230,7 +346,7 @@ function renderTable(productsToRender) {
                     </div>
                 </td>
                 <td>${p.category}</td>
-                <td>$${Number(p.price).toFixed(2)}</td>
+                <td>₱${Number(p.price).toFixed(2)}</td>
                 <td>${p.stock}</td>
                 <td><span class="status-pill ${statusClass}">${statusText}</span></td>
                 <td>${dateAdded}</td>
@@ -258,7 +374,7 @@ function renderTable(productsToRender) {
                     <div class="card-badge"><span class="status-pill ${statusClass}">${statusText}</span></div>
                 </div>
                 <div class="card-details-grid">
-                    <div class="detail-item"><label>Price:</label> <span>$${Number(p.price).toFixed(2)}</span></div>
+                    <div class="detail-item"><label>Price:</label> <span>₱${Number(p.price).toFixed(2)}</span></div>
                     <div class="detail-item"><label>Stock:</label> <span>${p.stock}</span></div>
                 </div>
                 <div class="card-actions">
@@ -326,29 +442,60 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("filterSort").addEventListener("change", applyFilters);
     
     // 2. Sort Direction
-    document.getElementById("sortDirBtn").addEventListener("click", () => {
-        currentSortDir = currentSortDir === 'asc' ? 'desc' : 'asc';
-        const icon = document.getElementById("sortDirIcon");
-        const text = document.getElementById("sortDirText");
-        icon.textContent = currentSortDir === 'asc' ? "↑" : "↓"; 
-        text.textContent = currentSortDir === 'asc' ? "Ascending" : "Descending";
-        applyFilters();
-    });
+    const sortBtn = document.getElementById("sortDirBtn");
+    if(sortBtn) {
+        sortBtn.addEventListener("click", () => {
+            currentSortDir = currentSortDir === 'asc' ? 'desc' : 'asc';
+            const icon = document.getElementById("sortDirIcon");
+            const text = document.getElementById("sortDirText");
+            if(icon) icon.textContent = currentSortDir === 'asc' ? "↑" : "↓"; 
+            if(text) text.textContent = currentSortDir === 'asc' ? "Ascending" : "Descending";
+            applyFilters();
+        });
+    }
 
     // 3. Reset Button
-    document.getElementById("resetFiltersBtn").addEventListener("click", () => {
-        document.getElementById("searchInput").value = "";
-        document.getElementById("filterCategory").value = "";
-        document.getElementById("filterPrice").value = "";
-        document.getElementById("filterStatus").value = "";
-        document.getElementById("filterSort").value = "name";
-        
-        currentSortDir = 'asc';
-        document.getElementById("sortDirIcon").textContent = "↑";
-        document.getElementById("sortDirText").textContent = "Ascending";
+    const resetBtn = document.getElementById("resetFiltersBtn");
+    if(resetBtn) {
+        resetBtn.addEventListener("click", () => {
+            document.getElementById("searchInput").value = "";
+            document.getElementById("filterCategory").value = "";
+            document.getElementById("filterPrice").value = "";
+            document.getElementById("filterStatus").value = "";
+            document.getElementById("filterSort").value = "name";
+            
+            currentSortDir = 'asc';
+            const icon = document.getElementById("sortDirIcon");
+            const text = document.getElementById("sortDirText");
+            if(icon) icon.textContent = "↑";
+            if(text) text.textContent = "Ascending";
 
-        applyFilters();
-    });
+            applyFilters();
+        });
+    }
+
+    // 4. Pagination Listeners
+    const prevBtn = document.getElementById("prevBtn");
+    const nextBtn = document.getElementById("nextBtn");
+
+    if (prevBtn) {
+        prevBtn.addEventListener("click", () => {
+            if (currentPage > 1) {
+                currentPage--;
+                renderPagination();
+            }
+        });
+    }
+
+    if (nextBtn) {
+        nextBtn.addEventListener("click", () => {
+            const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
+            if (currentPage < totalPages) {
+                currentPage++;
+                renderPagination();
+            }
+        });
+    }
 });
 
 // --- LOGOUT FUNCTION ---

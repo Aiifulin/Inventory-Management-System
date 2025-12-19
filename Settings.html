@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <script>
+        if (!sessionStorage.getItem("user_session")) {
+            window.location.replace("Login.html");
+        }
+    </script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settings - Inventory MS</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="components(css)/Settings.css">
+</head>
+
+<body>
+
+    <button class="hamburger" id="hamburgerBtn">
+        <i class="fas fa-bars"></i>
+    </button>
+    <div class="overlay" id="overlay"></div>
+
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-content">
+            <div class="sidebar-header">
+                <h2>Inventory MS</h2>
+                <span class="user-role" id="userRoleDisplay">Loading...</span>
+                <button class="close-btn" id="closeBtn"><i class="fas fa-times"></i></button>
+            </div>
+
+            <nav class="sidebar-nav">
+                <a href="Dashboard.html" class="nav-link"><i class="fas fa-chart-line"></i> Dashboard</a>
+                <a href="Products.html" class="nav-link"><i class="fas fa-box"></i> Products</a>
+                <a href="Categories.html" class="nav-link"><i class="fas fa-tags"></i> Categories</a>
+                <a href="Activity.html" class="nav-link"><i class="fas fa-history"></i> Activity Log</a>
+                <a href="Reports.html" class="nav-link"><i class="fas fa-file-alt"></i> Reports</a>
+                <a href="#" class="nav-link"><i class="fas fa-archive"></i> Archived</a>
+                <a href="Settings.html" class="nav-link active"><i class="fas fa-gear"></i> Settings</a>
+            </nav>
+
+            <div class="sidebar-footer">
+                <a href="#" onclick="logout()" class="logout" id="logoutBtn">
+                    <i class="fas fa-arrow-right-from-bracket"></i>Logout
+                </a>
+            </div>
+        </div>
+    </aside>
+
+    <main class="main-content">
+        <div class="page-header">
+            <div class="header-text">
+                <h1>Settings</h1>
+                <p>Manage your inventory system settings</p>
+            </div>
+            <div class="header-actions">
+                <button class="btn-primary" id="saveSettingsBtn">
+                    <i class="fas fa-save"></i> <span class="btn-text">Save Changes</span>
+                </button>
+            </div>
+        </div>
+
+        <div class="settings-container">
+            
+            <div class="settings-card">
+                <div class="card-header">
+                    <h3><i class="fas fa-sliders-h"></i> Inventory Settings</h3>
+                </div>
+                <div class="card-body">
+                    <form id="inventorySettingsForm">
+                        <div class="form-group">
+                            <label for="defaultThreshold">Default Low Stock Threshold</label>
+                            <div class="input-with-hint">
+                                <input type="number" id="defaultThreshold" class="form-input" placeholder="e.g. 10" min="0">
+                                <span class="hint-text">units</span>
+                            </div>
+                            <p class="help-text">New products will default to this alert level.</p>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div class="settings-card">
+                <div class="card-header">
+                    <h3><i class="fas fa-user-shield"></i> Admin Profile</h3>
+                </div>
+                <div class="card-body">
+                    <div class="admin-profile-grid">
+                        <div class="profile-avatar">
+                            <i class="fas fa-user"></i>
+                        </div>
+                        
+                        <div class="profile-details">
+                            <div class="detail-item">
+                                <span class="detail-label">Full Name</span>
+                                <span class="detail-value" id="adminNameDisplay">Loading...</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Email Address</span>
+                                <span class="detail-value" id="adminEmailDisplay">Loading...</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Current Role</span>
+                                <span class="role-badge"><i class="fas fa-crown"></i> Owner</span>
+                            </div>
+                            <div class="detail-item full-width">
+                                <span class="detail-label">User ID (UID)</span>
+                                <span class="detail-value code-font" id="adminIdDisplay">...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="settings-card">
+                <div class="card-header">
+                    <h3><i class="fas fa-users-cog"></i> User Management</h3>
+                </div>
+                <div class="table-responsive">
+                    <table class="users-table" id="usersTable">
+                        <thead>
+                            <tr>
+                                <th width="30%">User</th>
+                                <th width="35%">Email</th>
+                                <th width="20%">Role</th>
+                                <th width="15%" style="text-align: right;">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td colspan="4" style="text-align:center; padding:30px; color:#6b7280;">Loading users...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <script type="module" src="components(js)/Settings.js"></script>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            const hamburger = document.getElementById('hamburgerBtn');
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('overlay');
+            const closeBtn = document.getElementById('closeBtn');
+
+            function toggleSidebar() {
+                sidebar.classList.toggle('open');
+                overlay.classList.toggle('show');
+            }
+
+            if(hamburger) hamburger.addEventListener('click', toggleSidebar);
+            if(closeBtn) closeBtn.addEventListener('click', toggleSidebar);
+            if(overlay) overlay.addEventListener('click', toggleSidebar);
+        });
+    </script>
+</body>
+</html>

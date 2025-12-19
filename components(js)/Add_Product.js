@@ -1,5 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
-import { getFirestore, collection, addDoc, serverTimestamp, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+// FIXED: Added doc and getDoc for role checking
+import { getFirestore, collection, addDoc, serverTimestamp, query, where, getDocs, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 
 const firebaseConfig = {
@@ -16,21 +17,76 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
 
-const ADMIN_UID = "eisTKTAY9LfdMpXZ7ebo0spRDAN2"; 
 let base64ImageString = "";
 let isFormDirty = false;
 
-// --- AUTH CHECK ---
-onAuthStateChanged(auth, (user) => {
-    if (!user) {
-        window.location.href = "Login.html";
-    } else if (user.uid !== ADMIN_UID) {
-        alert("Access Denied: Only Admin can add products.");
-        window.location.href = "Products.html";
+// --- AUTH CHECK WITH ROLE VALIDATION ---
+onAuthStateChanged(auth, async (user) => {
+    if (user) {
+        // 1. Update UI with User Role (Visual)
+        displayUserRole(user.uid);
+
+        // 2. Fetch User Role from 'users' collection
+        const isAdmin = await checkAdminRole(user.uid);
+
+        if (!isAdmin) {
+            alert("Access Denied: Only Admins can add products.");
+            window.location.href = "Products.html";
+        } else {
+            console.log("Admin verified.");
+            // Only load page logic if admin is verified
+            loadDefaultThreshold();
+        }
     } else {
-        console.log("Admin verified.");
+        window.location.href = "Login.html";
     }
 });
+
+// --- HELPER: DISPLAY USER ROLE (UI) ---
+async function displayUserRole(uid) {
+    // NOTE: You need to add id="userRoleDisplay" to the span in your HTML sidebar
+    // e.g. <span class="user-role" id="userRoleDisplay">Loading...</span>
+    const roleEl = document.getElementById('userRoleDisplay');
+    if (!roleEl) return;
+
+    try {
+        const docRef = doc(db, "users", uid);
+        const docSnap = await getDoc(docRef);
+        
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            let roleName = data.role || "User";
+            // Capitalize first letter
+            roleName = roleName.charAt(0).toUpperCase() + roleName.slice(1);
+            roleEl.textContent = roleName;
+        } else {
+            roleEl.textContent = "User"; // Fallback
+        }
+    } catch (error) {
+        console.error("Error displaying role:", error);
+        roleEl.textContent = "User";
+    }
+}
+
+// --- HELPER: CHECK ADMIN ROLE ---
+async function checkAdminRole(uid) {
+    try {
+        const userDocRef = doc(db, "users", uid);
+        const userSnap = await getDoc(userDocRef);
+        
+        if (userSnap.exists()) {
+            const userData = userSnap.data();
+            // Check if role is 'admin' (case-insensitive for safety)
+            return (userData.role && userData.role.toLowerCase() === 'admin');
+        }
+        
+        // Fallback: If user not found in DB (legacy accounts), assume NOT admin
+        return false;
+    } catch (error) {
+        console.error("Error checking role:", error);
+        return false; 
+    }
+}
 
 // --- HELPER: ACTIVITY LOGGING FUNCTION ---
 async function logActivity(action, targetName) {
@@ -46,6 +102,27 @@ async function logActivity(action, targetName) {
         console.log("Activity logged successfully");
     } catch (e) {
         console.error("Error logging activity", e);
+    }
+}
+
+// --- HELPER: LOAD DEFAULT SETTINGS ---
+async function loadDefaultThreshold() {
+    try {
+        const docRef = doc(db, "settings", "global_config");
+        const docSnap = await getDoc(docRef);
+
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            const settingValue = data.defaultLowStockThreshold;
+            
+            const thresholdInput = document.querySelector('input[placeholder="10"]');
+            
+            if (thresholdInput && settingValue) {
+                thresholdInput.value = settingValue;
+            }
+        }
+    } catch (error) {
+        console.log("Could not load default settings, using hardcoded fallback.");
     }
 }
 
@@ -213,7 +290,6 @@ document.addEventListener("DOMContentLoaded", () => {
             submitBtn.disabled = true;
 
             try {
-                // If input is empty, defaults to 0. If "0", parses as 0.
                 const priceVal = parseFloat(document.querySelector('input[type="number"][step="0.01"]').value) || 0;
                 const stockVal = parseInt(document.querySelector('input[placeholder="0"]').value) || 0;
                 const thresholdVal = parseInt(document.querySelector('input[placeholder="10"]').value) || 10;
@@ -223,14 +299,13 @@ document.addEventListener("DOMContentLoaded", () => {
                     throw new Error("Price and Stock values cannot be negative.");
                 }
 
-                // VALIDATION 2 (NEW): Check for 0 Price
+                // VALIDATION 2: Check for 0 Price
                 if (priceVal === 0) {
                     const confirmZero = confirm("⚠️ Warning: You are setting the Price to 0.00.\n\nAre you sure this product is free?");
                     if (!confirmZero) {
-                        // User cancelled
                         submitBtn.innerText = "Add Product"; 
                         submitBtn.disabled = false;
-                        return; // Stop execution here
+                        return; 
                     }
                 }
 
@@ -281,7 +356,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 // 1. SAVE PRODUCT
                 await addDoc(collection(db, "products"), productData);
                 
-                isFormDirty = false; // Prevent beforeunload alert
+                isFormDirty = false; 
 
                 // 2. LOG ACTIVITY
                 await logActivity("Added Product", productData.name);

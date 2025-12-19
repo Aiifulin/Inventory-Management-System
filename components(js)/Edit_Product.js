@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
-// FIXED: Added addDoc and serverTimestamp to imports
+// FIXED: Added addDoc, serverTimestamp, doc, getDoc for role check
 import { getFirestore, doc, getDoc, updateDoc, collection, getDocs, query, where, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 
@@ -17,9 +17,45 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app); 
 
-const ADMIN_UID = "eisTKTAY9LfdMpXZ7ebo0spRDAN2";
+// REMOVED HARDCODED ADMIN UID
 let currentBase64Image = "";
 let isFormDirty = false;
+
+// --- AUTH CHECK WITH ROLE VALIDATION ---
+onAuthStateChanged(auth, async (user) => {
+    if (user) {
+        // 1. Fetch User Role from 'users' collection
+        const isAdmin = await checkAdminRole(user.uid);
+
+        if (!isAdmin) {
+            alert("Access Denied: Only Admins can edit products.");
+            window.location.href = "Products.html";
+        } else {
+            // Only load page logic if admin is verified
+            initPage(); 
+        }
+    } else {
+        window.location.href = "Login.html";
+    }
+});
+
+// --- HELPER: CHECK ADMIN ROLE ---
+async function checkAdminRole(uid) {
+    try {
+        const userDocRef = doc(db, "users", uid);
+        const userSnap = await getDoc(userDocRef);
+        
+        if (userSnap.exists()) {
+            const userData = userSnap.data();
+            // Check if role is 'admin' (case-insensitive for safety)
+            return (userData.role && userData.role.toLowerCase() === 'admin');
+        }
+        return false;
+    } catch (error) {
+        console.error("Error checking role:", error);
+        return false; 
+    }
+}
 
 // --- HELPER: ACTIVITY LOGGING FUNCTION ---
 async function logActivity(action, targetName) {
@@ -66,18 +102,6 @@ function preventNegatives(input) {
         if (this.value < 0) this.value = 0; 
     });
 }
-
-// --- AUTH CHECK ---
-onAuthStateChanged(auth, (user) => {
-    if (!user) {
-        window.location.href = "Login.html";
-    } else if (user.uid !== ADMIN_UID) {
-        alert("Access Denied: Only Admin can edit products.");
-        window.location.href = "Products.html";
-    } else {
-        initPage(); 
-    }
-});
 
 function initPage() { 
     const urlParams = new URLSearchParams(window.location.search);
@@ -358,7 +382,7 @@ function addAttributeRow(name="", value="") {
 }
 
 function setupDynamicRows() {
-    const addVarBtn = document.getElementById("add-main-variation-btn"  );
+    const addVarBtn = document.getElementById("add-main-variation-btn");
     const addAttrBtn = document.getElementById("add-custom-attr-main-btn");
 
     if (addVarBtn) addVarBtn.addEventListener("click", () => addVariationRow());
