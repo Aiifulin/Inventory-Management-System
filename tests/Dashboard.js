@@ -5,7 +5,7 @@ import { initializeApp } from "firebase/app";
 import { getAuth, onAuthStateChanged, signOut } from "firebase/auth";
 import { 
     getFirestore, collection, getDocs, query, 
-    orderBy, limit, doc, getDoc 
+    orderBy, limit, doc, getDoc, onSnapshot 
 } from "firebase/firestore";
 
 // ==========================================
@@ -35,7 +35,7 @@ let barChartInstance = null;
 let pieChartInstance = null;
 
 // ==========================================
-// 3. EXPORTED LOGIC (Testable Functions)
+// 3. EXPORTED LOGIC (Testable Pure Functions)
 // ==========================================
 
 export async function checkAdminRole(uid, dbInstance = db) {
@@ -54,6 +54,7 @@ export async function checkAdminRole(uid, dbInstance = db) {
     }
 }
 
+// Pure function: takes data, returns stats. Used by both Real-time and Test functions.
 export function calculateStats(products) {
     let totalValue = 0;
     const lowStockItems = [];
@@ -92,6 +93,15 @@ export function calculateStats(products) {
     };
 }
 
+// ==========================================
+// 4. DATA FETCHING (Dual Strategy)
+// ==========================================
+
+/**
+ * STRATEGY 1: FETCH ONCE (For Tests)
+ * This function uses getDocs(). It returns a Promise that resolves when data is loaded.
+ * Your test suite calls this to verify the logic works.
+ */
 export async function loadDashboardStats(dbInstance = db) {
     try {
         const querySnapshot = await getDocs(collection(dbInstance, "products"));
@@ -100,18 +110,9 @@ export async function loadDashboardStats(dbInstance = db) {
 
         const stats = calculateStats(products);
 
+        // Update DOM if we are in a browser environment (JSDOM or Real Browser)
         if (typeof document !== 'undefined') {
-            updateStat("statTotalProducts", stats.totalProducts);
-            updateStat("statCategories", stats.categoriesCount);
-            updateStat("statLowStock", stats.lowStockCount);
-            
-            const formattedValue = stats.totalValue.toLocaleString('en-PH', {
-                style: 'currency', currency: 'PHP', minimumFractionDigits: 2
-            });
-            updateStat("statTotalValue", formattedValue);
-
-            if (typeof initCharts === 'function') initCharts(stats.categoryMap);
-            if (typeof renderLowStockTable === 'function') renderLowStockTable(stats.lowStockItems);
+            updateUI(stats);
         }
         return stats; 
     } catch (error) {
@@ -120,8 +121,44 @@ export async function loadDashboardStats(dbInstance = db) {
     }
 }
 
+/**
+ * STRATEGY 2: LISTEN CONTINUOUSLY (For Live App)
+ * This function uses onSnapshot(). It updates the UI instantly whenever DB changes.
+ */
+function setupDashboardStatsListener(dbInstance = db) {
+    if (typeof document === 'undefined') return;
+
+    const productsRef = collection(dbInstance, "products");
+
+    onSnapshot(productsRef, (querySnapshot) => {
+        const products = [];
+        querySnapshot.forEach((doc) => products.push(doc.data()));
+
+        const stats = calculateStats(products);
+        updateUI(stats);
+
+    }, (error) => {
+        console.error("Error listening to stats:", error);
+    });
+}
+
+// Helper to update DOM elements (Shared by both strategies)
+function updateUI(stats) {
+    updateStat("statTotalProducts", stats.totalProducts);
+    updateStat("statCategories", stats.categoriesCount);
+    updateStat("statLowStock", stats.lowStockCount);
+    
+    const formattedValue = stats.totalValue.toLocaleString('en-PH', {
+        style: 'currency', currency: 'PHP', minimumFractionDigits: 2
+    });
+    updateStat("statTotalValue", formattedValue);
+
+    if (typeof initCharts === 'function') initCharts(stats.categoryMap);
+    if (typeof renderLowStockTable === 'function') renderLowStockTable(stats.lowStockItems);
+}
+
 // ==========================================
-// 4. BROWSER HELPERS (UI Logic)
+// 5. BROWSER HELPERS (UI Logic)
 // ==========================================
 
 function updateStat(id, value) {
@@ -163,20 +200,19 @@ function renderLowStockTable(items) {
     tableBody.innerHTML = html;
 }
 
-async function loadRecentActivities() {
+// We keep this as Real-Time as well for the UI
+function setupRecentActivitiesListener(dbInstance = db) {
     if (typeof document === 'undefined') return;
     const activityContainer = document.querySelector('.activity-content');
     if (!activityContainer) return; 
 
-    try {
-        const q = query(
-            collection(db, "activities"), 
-            orderBy("timestamp", "desc"), 
-            limit(5)
-        );
+    const q = query(
+        collection(dbInstance, "activities"), 
+        orderBy("timestamp", "desc"), 
+        limit(5)
+    );
 
-        const querySnapshot = await getDocs(q);
-        
+    onSnapshot(q, (querySnapshot) => {
         if (querySnapshot.empty) {
             activityContainer.innerHTML = `
                 <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; color:#9ca3af;">
@@ -228,11 +264,9 @@ async function loadRecentActivities() {
 
         html += '</ul>';
         activityContainer.innerHTML = html;
-
-    } catch (error) {
-        console.error("Error fetching activities:", error);
-        activityContainer.innerHTML = `<div style="color:red; text-align:center; padding:20px;">Error: ${error.message}</div>`;
-    }
+    }, (error) => {
+        console.error("Error listening to activities:", error);
+    });
 }
 
 function initCharts(dataMap) {
@@ -317,7 +351,7 @@ function initCharts(dataMap) {
 }
 
 // ==========================================
-// 5. BROWSER INIT LOGIC
+// 6. BROWSER INIT LOGIC
 // ==========================================
 if (typeof window !== 'undefined') {
 
@@ -344,9 +378,9 @@ if (typeof window !== 'undefined') {
                 if (addBtn) addBtn.style.display = 'none';
             }
 
-            // Load Data
-            loadDashboardStats(db);
-            loadRecentActivities(); // RESTORED!
+            // --- REAL-TIME LISTENERS FOR BROWSER ---
+            setupDashboardStatsListener(db);
+            setupRecentActivitiesListener(db);
 
         } else {
             window.location.href = "Login.html";

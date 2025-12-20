@@ -1,7 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
 import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
-// FIXED: Merged all Firestore imports into one line
-import { getFirestore, collection, getDocs, query, orderBy, limit, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+// FIXED: Added onSnapshot for real-time updates, removed getDocs
+import { getFirestore, collection, query, orderBy, limit, doc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
 // --- CONFIG ---
 const firebaseConfig = {
@@ -38,9 +38,10 @@ onAuthStateChanged(auth, async (user) => {
             if (addBtn) addBtn.style.display = 'none';
         }
 
-        // 3. Load data
-        loadDashboardStats();
-        loadRecentActivities();
+        // 3. Listen for Real-Time Data
+        // We no longer 'await' these because they set up listeners that run in the background
+        setupDashboardStatsListener();
+        setupRecentActivitiesListener();
 
     } else {
         window.location.href = "Login.html";
@@ -88,13 +89,14 @@ async function checkAdminRole(uid) {
     }
 }
 
-// --- LOAD STATS & LOW STOCK LOGIC ---
-async function loadDashboardStats() {
-    try {
-        const querySnapshot = await getDocs(collection(db, "products"));
+// --- REAL-TIME STATS & LOW STOCK LISTENER ---
+function setupDashboardStatsListener() {
+    // onSnapshot listens for ANY change in the 'products' collection
+    const productsRef = collection(db, "products");
+
+    onSnapshot(productsRef, (querySnapshot) => {
         const products = [];
         const lowStockItems = []; 
-        
         const categoryMap = {}; 
 
         querySnapshot.forEach((doc) => {
@@ -107,12 +109,14 @@ async function loadDashboardStats() {
             const cat = p.category || "Uncategorized";
             const itemValue = stock * price;
 
+            // Aggregating Category Data
             if (!categoryMap[cat]) {
                 categoryMap[cat] = { count: 0, value: 0 };
             }
             categoryMap[cat].count += 1;        
             categoryMap[cat].value += itemValue; 
 
+            // Checking Low Stock
             if (stock <= threshold) {
                 lowStockItems.push({
                     name: p.name,
@@ -123,6 +127,7 @@ async function loadDashboardStats() {
             }
         });
 
+        // Calculations
         const totalProducts = products.length;
         const categoriesCount = Object.keys(categoryMap).length;
         const lowStockCount = lowStockItems.length;
@@ -131,6 +136,7 @@ async function loadDashboardStats() {
             return sum + ((Number(p.price) || 0) * (Number(p.stock) || 0));
         }, 0);
 
+        // Update UI Text
         updateStat("statTotalProducts", totalProducts);
         updateStat("statCategories", categoriesCount);
         updateStat("statLowStock", lowStockCount);
@@ -142,12 +148,13 @@ async function loadDashboardStats() {
         });
         updateStat("statTotalValue", formattedValue);
 
-        initCharts(categoryMap);
-        renderLowStockTable(lowStockItems);
+        // Update Visuals
+        initCharts(categoryMap); // This will re-draw charts with new data
+        renderLowStockTable(lowStockItems); // This will re-render the table
 
-    } catch (error) {
-        console.error("Error loading stats:", error);
-    }
+    }, (error) => {
+        console.error("Error listening to stats:", error);
+    });
 }
 
 // --- HELPER: RENDER LOW STOCK TABLE ---
@@ -193,20 +200,19 @@ function renderLowStockTable(items) {
     tableBody.innerHTML = html;
 }
 
-// --- LOAD RECENT ACTIVITIES ---
-async function loadRecentActivities() {
+// --- REAL-TIME RECENT ACTIVITIES LISTENER ---
+function setupRecentActivitiesListener() {
     const activityContainer = document.querySelector('.activity-content');
     if (!activityContainer) return; 
 
-    try {
-        const q = query(
-            collection(db, "activities"), 
-            orderBy("timestamp", "desc"), 
-            limit(5)
-        );
+    const q = query(
+        collection(db, "activities"), 
+        orderBy("timestamp", "desc"), 
+        limit(5)
+    );
 
-        const querySnapshot = await getDocs(q);
-        
+    // onSnapshot fires whenever a new activity is added
+    onSnapshot(q, (querySnapshot) => {
         if (querySnapshot.empty) {
             activityContainer.innerHTML = `
                 <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; color:#9ca3af;">
@@ -262,10 +268,10 @@ async function loadRecentActivities() {
         html += '</ul>';
         activityContainer.innerHTML = html;
 
-    } catch (error) {
-        console.error("Error fetching activities:", error);
+    }, (error) => {
+        console.error("Error listening to activities:", error);
         activityContainer.innerHTML = `<div style="color:red; text-align:center; padding:20px;">Error: ${error.message}</div>`;
-    }
+    });
 }
 
 // --- CHART RENDERING FUNCTION ---
@@ -278,6 +284,7 @@ function initCharts(dataMap) {
 
     const ctxBar = document.getElementById('barChart');
     if (ctxBar) {
+        // Destroy old instance before creating new one to allow animation updates
         if (barChartInstance) barChartInstance.destroy();
         barChartInstance = new Chart(ctxBar.getContext('2d'), {
             type: 'bar',
