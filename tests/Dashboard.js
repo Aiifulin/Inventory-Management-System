@@ -99,8 +99,6 @@ export function calculateStats(products) {
 
 /**
  * STRATEGY 1: FETCH ONCE (For Tests)
- * This function uses getDocs(). It returns a Promise that resolves when data is loaded.
- * Your test suite calls this to verify the logic works.
  */
 export async function loadDashboardStats(dbInstance = db) {
     try {
@@ -110,7 +108,6 @@ export async function loadDashboardStats(dbInstance = db) {
 
         const stats = calculateStats(products);
 
-        // Update DOM if we are in a browser environment (JSDOM or Real Browser)
         if (typeof document !== 'undefined') {
             updateUI(stats);
         }
@@ -123,7 +120,6 @@ export async function loadDashboardStats(dbInstance = db) {
 
 /**
  * STRATEGY 2: LISTEN CONTINUOUSLY (For Live App)
- * This function uses onSnapshot(). It updates the UI instantly whenever DB changes.
  */
 function setupDashboardStatsListener(dbInstance = db) {
     if (typeof document === 'undefined') return;
@@ -142,7 +138,7 @@ function setupDashboardStatsListener(dbInstance = db) {
     });
 }
 
-// Helper to update DOM elements (Shared by both strategies)
+// Helper to update DOM elements
 function updateUI(stats) {
     updateStat("statTotalProducts", stats.totalProducts);
     updateStat("statCategories", stats.categoriesCount);
@@ -200,7 +196,34 @@ function renderLowStockTable(items) {
     tableBody.innerHTML = html;
 }
 
-// We keep this as Real-Time as well for the UI
+// --- NEW HELPER: RELATIVE TIME FORMATTER ---
+function formatTimeAgo(date) {
+    const now = new Date();
+    const diffInSeconds = Math.floor((now - date) / 1000);
+
+    // If less than 60 seconds
+    if (diffInSeconds < 60) {
+        return "Just now";
+    }
+
+    // If less than 60 minutes
+    if (diffInSeconds < 3600) {
+        const minutes = Math.floor(diffInSeconds / 60);
+        return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
+    }
+
+    // If less than 2 hours (7200 seconds), show hours ago
+    if (diffInSeconds < 7200) {
+        const hours = Math.floor(diffInSeconds / 3600);
+        return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+    }
+
+    // If more than 2 hours, return the exact date
+    return date.toLocaleString('en-US', { 
+        month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' 
+    });
+}
+
 function setupRecentActivitiesListener(dbInstance = db) {
     if (typeof document === 'undefined') return;
     const activityContainer = document.querySelector('.activity-content');
@@ -227,13 +250,14 @@ function setupRecentActivitiesListener(dbInstance = db) {
         querySnapshot.forEach((doc) => {
             const data = doc.data();
             
+            // --- UPDATED DATE LOGIC ---
             let timeString = "Just now";
             if (data.timestamp) {
                 const date = data.timestamp.toDate(); 
-                timeString = date.toLocaleString('en-US', { 
-                    month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' 
-                });
+                // Use the new helper function
+                timeString = formatTimeAgo(date);
             }
+            // --------------------------
 
             let iconClass = "fa-info";
             let colorClass = "";

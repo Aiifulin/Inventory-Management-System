@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
 import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
-// FIXED: Added onSnapshot for real-time updates, removed getDocs
+// FIXED: Added onSnapshot for real-time updates
 import { getFirestore, collection, query, orderBy, limit, doc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
 // --- CONFIG ---
@@ -39,7 +39,6 @@ onAuthStateChanged(auth, async (user) => {
         }
 
         // 3. Listen for Real-Time Data
-        // We no longer 'await' these because they set up listeners that run in the background
         setupDashboardStatsListener();
         setupRecentActivitiesListener();
 
@@ -47,6 +46,36 @@ onAuthStateChanged(auth, async (user) => {
         window.location.href = "Login.html";
     }
 });
+
+// --- HELPER: TIME FORMATTER (Relative vs Exact) ---
+function formatTimeAgo(date) {
+    const now = new Date();
+    const diffInSeconds = Math.floor((now - date) / 1000);
+
+    // Case 1: Less than 1 minute
+    if (diffInSeconds < 60) {
+        return "Just now";
+    }
+
+    const diffInMinutes = Math.floor(diffInSeconds / 60);
+
+    // Case 2: Less than 60 minutes
+    if (diffInMinutes < 60) {
+        return `${diffInMinutes} minute${diffInMinutes !== 1 ? 's' : ''} ago`;
+    }
+
+    const diffInHours = Math.floor(diffInMinutes / 60);
+
+    // Case 3: Less than 2 hours (Shows relative time)
+    if (diffInHours < 2) {
+        return `${diffInHours} hour${diffInHours !== 1 ? 's' : ''} ago`;
+    }
+
+    // Case 4: More than 2 hours (Shows exact date)
+    return date.toLocaleString('en-US', { 
+        month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' 
+    });
+}
 
 // --- HELPER: DISPLAY USER ROLE (UI) ---
 async function displayUserRole(uid) {
@@ -60,11 +89,10 @@ async function displayUserRole(uid) {
         if (docSnap.exists()) {
             const data = docSnap.data();
             let roleName = data.role || "User";
-            // Capitalize first letter (e.g. "admin" -> "Admin")
             roleName = roleName.charAt(0).toUpperCase() + roleName.slice(1);
             roleEl.textContent = roleName;
         } else {
-            roleEl.textContent = "User"; // Fallback
+            roleEl.textContent = "User"; 
         }
     } catch (error) {
         console.error("Error displaying role:", error);
@@ -91,7 +119,6 @@ async function checkAdminRole(uid) {
 
 // --- REAL-TIME STATS & LOW STOCK LISTENER ---
 function setupDashboardStatsListener() {
-    // onSnapshot listens for ANY change in the 'products' collection
     const productsRef = collection(db, "products");
 
     onSnapshot(productsRef, (querySnapshot) => {
@@ -149,8 +176,8 @@ function setupDashboardStatsListener() {
         updateStat("statTotalValue", formattedValue);
 
         // Update Visuals
-        initCharts(categoryMap); // This will re-draw charts with new data
-        renderLowStockTable(lowStockItems); // This will re-render the table
+        initCharts(categoryMap);
+        renderLowStockTable(lowStockItems);
 
     }, (error) => {
         console.error("Error listening to stats:", error);
@@ -230,9 +257,8 @@ function setupRecentActivitiesListener() {
             let timeString = "Just now";
             if (data.timestamp) {
                 const date = data.timestamp.toDate(); 
-                timeString = date.toLocaleString('en-US', { 
-                    month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' 
-                });
+                // --- USE NEW HELPER FUNCTION HERE ---
+                timeString = formatTimeAgo(date);
             }
 
             let iconClass = "fa-info";
@@ -284,7 +310,6 @@ function initCharts(dataMap) {
 
     const ctxBar = document.getElementById('barChart');
     if (ctxBar) {
-        // Destroy old instance before creating new one to allow animation updates
         if (barChartInstance) barChartInstance.destroy();
         barChartInstance = new Chart(ctxBar.getContext('2d'), {
             type: 'bar',
