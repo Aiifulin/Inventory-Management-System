@@ -405,4 +405,4 @@ window.logout = function() {
     sessionStorage.removeItem("user_uid");
     sessionStorage.removeItem("user_role");
     signOut(auth).then(() => window.location.replace("Login.html"));
-};
+};// --- END OF FILE ---
