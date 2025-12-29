@@ -94,4 +94,4 @@ window.register = async function () {
 
 window.goToLogin = function() {
     window.location.href = "Login.html";
-}
+};
