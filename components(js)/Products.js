@@ -211,12 +211,13 @@ function renderTable(productsToRender) {
         const docId = p.id;
         const shortId = "#" + docId.slice(0, 6); 
 
+        // UPDATED: Used var(--border-color) for inline borders
         let imageHtml = p.imageUrl 
-            ? `<img src="${p.imageUrl}" alt="${p.name}" style="width: 45px; height: 45px; border-radius: 8px; object-fit: cover; border: 1px solid #e5e7eb;">`
+            ? `<img src="${p.imageUrl}" alt="${p.name}" style="width: 45px; height: 45px; border-radius: 8px; object-fit: cover; border: 1px solid var(--border-color);">`
             : `<div class="product-img-placeholder"><i class="fa-regular fa-image"></i></div>`;
 
         let mobileImageHtml = p.imageUrl 
-            ? `<img src="${p.imageUrl}" alt="${p.name}" style="width: 60px; height: 60px; border-radius: 8px; object-fit: cover; border: 1px solid #e5e7eb;">`
+            ? `<img src="${p.imageUrl}" alt="${p.name}" style="width: 60px; height: 60px; border-radius: 8px; object-fit: cover; border: 1px solid var(--border-color);">`
             : `<div class="card-img"><i class="fa-regular fa-image"></i></div>`;
 
         let statusText = "In Stock";
@@ -236,7 +237,7 @@ function renderTable(productsToRender) {
         ).join('');
 
         let attributesHtml = (p.attributes || []).map(a => 
-            `<span class="v-tag" style="background-color: #e0f2fe; color: #0284c7; border: 1px solid #bae6fd;">
+            `<span class="v-tag" style="background-color: rgba(224, 242, 254, 0.2); color: #0284c7; border: 1px solid rgba(186, 230, 253, 0.3);">
                 ${a.name}: ${a.value}
              </span>`
         ).join('');

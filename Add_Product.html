@@ -7,11 +7,23 @@
             window.location.replace("Login.html");
         }
     </script>
+    
+    <script>
+        const savedTheme = localStorage.getItem('theme');
+        if (savedTheme === 'dark') {
+            document.documentElement.setAttribute('data-theme', 'dark');
+        }
+    </script>
+
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>Add New Product</title>
+    
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <link rel="stylesheet" href="components(css)/Theme.css">
     <link rel="stylesheet" href="components(css)/Add_Product.css" />
-    <script type="module" src="components(js)/Route_Guard.js"></script> <!--To prevent the user from accessing the dashboard without logging in -->
+    
+    <script type="module" src="components(js)/Route_Guard.js"></script>
 </head>
 <body>
 
@@ -19,12 +31,12 @@
         <div class="sidebar-content">
             <div class="sidebar-header">
                 <h2>Inventory MS</h2>
-                <span class="user-role">Admin User</span>
+                <span class="user-role" id="userRoleDisplay">Loading...</span>
             </div>
 
             <nav class="sidebar-nav">
                 <a href="Dashboard.html" class="nav-link"><i class="fas fa-chart-line"></i>Dashboard</a>
-                <a href="#" class="nav-link active"><i class="fas fa-box"></i>Products</a>
+                <a href="Products.html" class="nav-link active"><i class="fas fa-box"></i>Products</a>
                 <a href="#Placeholder" class="nav-link"><i class="fas fa-list"></i>Categories</a>
                 <a href="#Placeholder" class="nav-link"><i class="fas fa-history"></i>Activity Log</a>
                 <a href="#Placeholder" class="nav-link"><i class="fas fa-file-alt"></i>Reports</a>
@@ -58,10 +70,10 @@
                 <div class="basic-info-grid">
                     <div class="image-upload-box" onclick="document.getElementById('fileInput').click()">
                         <input type="file" id="fileInput" accept="image/*" style="display: none;">
-                                        
+                                            
                         <div id="uploadPlaceholder" style="text-align: center;">
-                            <i class="fas fa-cloud-upload-alt" style="font-size: 24px; margin-bottom: 8px; color: #6b7280;"></i>
-                            <span style="display: block; font-size: 13px; font-weight: 500; color: #374151;">Click to Upload Image</span>
+                            <i class="fas fa-cloud-upload-alt" style="font-size: 24px; margin-bottom: 8px; color: var(--text-secondary);"></i>
+                            <span style="display: block; font-size: 13px; font-weight: 500; color: var(--text-main);">Click to Upload Image</span>
                         </div>
                     
                         <img id="imagePreview" src="" alt="Preview" style="display: none; width: 100%; height: 100%; object-fit: contain; border-radius: 6px;">
@@ -115,9 +127,9 @@
                 <h3 class="section-title">Product Variations</h3>
             
                 <div class="grid-headers" style="display: flex; gap: 15px; margin-bottom: 5px; padding-right: 42px;">
-                    <label style="flex: 1; font-size: 13px; font-weight: 600; color: #374151;">Size *</label>
-                    <label style="flex: 1; font-size: 13px; font-weight: 600; color: #374151;">Color *</label>
-                    <label style="flex: 1; font-size: 13px; font-weight: 600; color: #374151;">Custom</label>
+                    <label style="flex: 1; font-size: 13px; font-weight: 600; color: var(--text-secondary);">Size *</label>
+                    <label style="flex: 1; font-size: 13px; font-weight: 600; color: var(--text-secondary);">Color *</label>
+                    <label style="flex: 1; font-size: 13px; font-weight: 600; color: var(--text-secondary);">Custom</label>
                 </div>
 
                 <div id="variation-container">
@@ -146,8 +158,8 @@
                 <h3 class="section-title">Custom Attributes</h3>
             
                 <div style="display: flex; gap: 15px; margin-bottom: 5px;">
-                    <label style="flex: 1; font-size: 13px; font-weight: 600; color: #374151;">Attribute Name</label>
-                    <label style="flex: 1; font-size: 13px; font-weight: 600; color: #374151;">Value</label>
+                    <label style="flex: 1; font-size: 13px; font-weight: 600; color: var(--text-secondary);">Attribute Name</label>
+                    <label style="flex: 1; font-size: 13px; font-weight: 600; color: var(--text-secondary);">Value</label>
                     <div style="width: 42px;"></div> </div>
 
                 <div id="custom-attributes-container">
@@ -179,6 +191,23 @@
     </main>
 
     <script type="module" src="components(js)/Add_Product.js"></script>
+    
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            const roleDisplay = document.getElementById("userRoleDisplay");
+            const sessionData = sessionStorage.getItem("user_session");
+            
+            if (sessionData && roleDisplay) {
+                try {
+                    const user = JSON.parse(sessionData);
+                    roleDisplay.textContent = user.role || user.username || "Loading...";
+                } catch (error) {
+                    console.error("Error parsing user session:", error);
+                    roleDisplay.textContent = "Loading...";
+                }
+            }
+        });
+    </script>
 
 </body>
 </html>

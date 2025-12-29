@@ -1,6 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
 import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
-// FIXED: Added onSnapshot for real-time updates
 import { getFirestore, collection, query, orderBy, limit, doc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
 // --- CONFIG ---
@@ -25,8 +24,6 @@ let pieChartInstance = null;
 // --- AUTH LISTENER ---
 onAuthStateChanged(auth, async (user) => {
     if (user) {
-        console.log("User Logged In:", user.uid);
-
         // 1. Update UI with User Role (Visual)
         displayUserRole(user.uid);
 
@@ -47,37 +44,29 @@ onAuthStateChanged(auth, async (user) => {
     }
 });
 
-// --- HELPER: TIME FORMATTER (Relative vs Exact) ---
+// --- HELPER: TIME FORMATTER ---
 function formatTimeAgo(date) {
     const now = new Date();
     const diffInSeconds = Math.floor((now - date) / 1000);
 
-    // Case 1: Less than 1 minute
-    if (diffInSeconds < 60) {
-        return "Just now";
-    }
+    if (diffInSeconds < 60) return "Just now";
 
     const diffInMinutes = Math.floor(diffInSeconds / 60);
-
-    // Case 2: Less than 60 minutes
     if (diffInMinutes < 60) {
         return `${diffInMinutes} minute${diffInMinutes !== 1 ? 's' : ''} ago`;
     }
 
     const diffInHours = Math.floor(diffInMinutes / 60);
-
-    // Case 3: Less than 2 hours (Shows relative time)
     if (diffInHours < 2) {
         return `${diffInHours} hour${diffInHours !== 1 ? 's' : ''} ago`;
     }
 
-    // Case 4: More than 2 hours (Shows exact date)
     return date.toLocaleString('en-US', { 
         month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' 
     });
 }
 
-// --- HELPER: DISPLAY USER ROLE (UI) ---
+// --- HELPER: DISPLAY USER ROLE ---
 async function displayUserRole(uid) {
     const roleEl = document.getElementById('userRoleDisplay');
     if (!roleEl) return;
@@ -100,7 +89,7 @@ async function displayUserRole(uid) {
     }
 }
 
-// --- HELPER: CHECK ADMIN ROLE (Logic) ---
+// --- HELPER: CHECK ADMIN ROLE ---
 async function checkAdminRole(uid) {
     try {
         const userDocRef = doc(db, "users", uid);
@@ -117,7 +106,7 @@ async function checkAdminRole(uid) {
     }
 }
 
-// --- REAL-TIME STATS & LOW STOCK LISTENER ---
+// --- REAL-TIME STATS LISTENER ---
 function setupDashboardStatsListener() {
     const productsRef = collection(db, "products");
 
@@ -136,14 +125,12 @@ function setupDashboardStatsListener() {
             const cat = p.category || "Uncategorized";
             const itemValue = stock * price;
 
-            // Aggregating Category Data
             if (!categoryMap[cat]) {
                 categoryMap[cat] = { count: 0, value: 0 };
             }
             categoryMap[cat].count += 1;        
             categoryMap[cat].value += itemValue; 
 
-            // Checking Low Stock
             if (stock <= threshold) {
                 lowStockItems.push({
                     name: p.name,
@@ -154,7 +141,6 @@ function setupDashboardStatsListener() {
             }
         });
 
-        // Calculations
         const totalProducts = products.length;
         const categoriesCount = Object.keys(categoryMap).length;
         const lowStockCount = lowStockItems.length;
@@ -163,7 +149,6 @@ function setupDashboardStatsListener() {
             return sum + ((Number(p.price) || 0) * (Number(p.stock) || 0));
         }, 0);
 
-        // Update UI Text
         updateStat("statTotalProducts", totalProducts);
         updateStat("statCategories", categoriesCount);
         updateStat("statLowStock", lowStockCount);
@@ -175,7 +160,6 @@ function setupDashboardStatsListener() {
         });
         updateStat("statTotalValue", formattedValue);
 
-        // Update Visuals
         initCharts(categoryMap);
         renderLowStockTable(lowStockItems);
 
@@ -184,7 +168,7 @@ function setupDashboardStatsListener() {
     });
 }
 
-// --- HELPER: RENDER LOW STOCK TABLE ---
+// --- HELPER: RENDER LOW STOCK ---
 function renderLowStockTable(items) {
     const tableBody = document.querySelector('#lowStockTable tbody');
     if (!tableBody) return;
@@ -227,7 +211,7 @@ function renderLowStockTable(items) {
     tableBody.innerHTML = html;
 }
 
-// --- REAL-TIME RECENT ACTIVITIES LISTENER ---
+// --- REAL-TIME ACTIVITIES LISTENER ---
 function setupRecentActivitiesListener() {
     const activityContainer = document.querySelector('.activity-content');
     if (!activityContainer) return; 
@@ -238,7 +222,6 @@ function setupRecentActivitiesListener() {
         limit(5)
     );
 
-    // onSnapshot fires whenever a new activity is added
     onSnapshot(q, (querySnapshot) => {
         if (querySnapshot.empty) {
             activityContainer.innerHTML = `
@@ -257,7 +240,6 @@ function setupRecentActivitiesListener() {
             let timeString = "Just now";
             if (data.timestamp) {
                 const date = data.timestamp.toDate(); 
-                // --- USE NEW HELPER FUNCTION HERE ---
                 timeString = formatTimeAgo(date);
             }
 
@@ -306,6 +288,15 @@ function initCharts(dataMap) {
     const counts = labels.map(cat => dataMap[cat].count);
     const values = labels.map(cat => dataMap[cat].value);
 
+    // --- DARK MODE DETECTION ---
+    // Check if the html tag has data-theme="dark"
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    
+    // Dynamic Colors for Charts
+    const barColor = isDark ? '#3b82f6' : '#0f172a'; // Bright Blue vs Dark Blue
+    const textColor = isDark ? '#e5e7eb' : '#374151'; // Light Grey vs Dark Grey
+    const gridColor = isDark ? '#374151' : '#e5e7eb'; // Darker Grid vs Lighter Grid
+
     const chartColors = ['#0f172a', '#3b82f6', '#64748b', '#cbd5e1', '#f59e0b', '#10b981', '#ef4444'];
 
     const ctxBar = document.getElementById('barChart');
@@ -318,7 +309,7 @@ function initCharts(dataMap) {
                 datasets: [{
                     label: 'Number of Products',
                     data: counts,
-                    backgroundColor: '#0f172a',
+                    backgroundColor: barColor,
                     borderRadius: 4
                 }]
             },
@@ -326,7 +317,17 @@ function initCharts(dataMap) {
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: { legend: { display: false } },
-                scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+                scales: { 
+                    y: { 
+                        beginAtZero: true, 
+                        ticks: { stepSize: 1, color: textColor },
+                        grid: { color: gridColor }
+                    },
+                    x: {
+                        ticks: { color: textColor },
+                        grid: { display: false }
+                    }
+                }
             }
         });
     }

@@ -1,0 +1,64 @@
+/* =========================================
+   components(css)/theme.css
+   Global Color Variables & Theme Logic
+   ========================================= */
+
+:root { 
+    /* --- DIMENSIONS --- */
+    --sidebar-width: 250px; 
+
+    /* --- LIGHT MODE (Default) --- */
+    --bg-body: #f9fafb;
+    --bg-card: #ffffff;
+    --bg-sidebar: #ffffff;
+    
+    --text-main: #111827;      /* Nearly black */
+    --text-secondary: #6b7280; /* Grey */
+    --text-highlight: #059669; /* Green for success */
+    
+    --primary-color: #0f172a;  /* Dark Blue */
+    --border-color: #e5e7eb;
+    --input-bg: #f9fafb;
+    
+    --shadow-color: rgba(0,0,0,0.05);
+    
+    /* Specific Element Colors */
+    --hover-bg: #f3f4f6;
+    --table-header-bg: #f9fafb;
+    --danger-color: #ef4444;
+}
+
+/* --- DARK MODE OVERRIDES --- */
+[data-theme="dark"] {
+    --bg-body: #111827;        /* Very dark blue-grey */
+    --bg-card: #1f2937;        /* Dark grey for cards */
+    --bg-sidebar: #1f2937;     /* Matching sidebar */
+    
+    --text-main: #f9fafb;      /* Off-white */
+    --text-secondary: #9ca3af; /* Light grey */
+    --text-highlight: #34d399; /* Brighter green */
+    
+    --primary-color: #3b82f6;  /* Brighter Blue for visibility */
+    --border-color: #374151;   /* Dark border */
+    --input-bg: #374151;       
+    
+    --shadow-color: rgba(0,0,0,0.5);
+
+    /* Specific Element Colors */
+    --hover-bg: #374151;
+    --table-header-bg: #1f2937;
+    /* Danger color usually stays the same, or gets slightly pastel */
+}
+
+/* --- GLOBAL APPLICATION --- */
+html { box-sizing: border-box; }
+*, *:before, *:after { box-sizing: inherit; }
+
+body {
+    background-color: var(--bg-body);
+    color: var(--text-main);
+    transition: background-color 0.3s ease, color 0.3s ease;
+    margin: 0;
+    min-height: 100vh;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}

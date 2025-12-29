@@ -8,9 +8,20 @@
             window.location.replace("Login.html");
         }
     </script>
+    
+    <script>
+        const savedTheme = localStorage.getItem('theme');
+        if (savedTheme === 'dark') {
+            document.documentElement.setAttribute('data-theme', 'dark');
+        }
+    </script>
+
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Products - Inventory MS</title>
+    
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <link rel="stylesheet" href="components(css)/Theme.css">
     <link rel="stylesheet" href="components(css)/Products.css">
 </head>
 
@@ -120,7 +131,7 @@
                 <table class="products-table">
                     <thead>
                         <tr>
-                            <th style="width: 35%;">Product</th>
+                            <th style="width: 80px;">ID</th> <th style="width: 35%;">Product</th>
                             <th>Category</th>
                             <th>Price</th>
                             <th>Stock</th>
@@ -142,7 +153,6 @@
     <script type="module" src="components(js)/Products.js"></script>
 
     <script>
-        // --- Sidebar Logic ---
         const hamburger = document.getElementById('hamburgerBtn');
         const sidebar = document.getElementById('sidebar');
         const overlay = document.getElementById('overlay');
@@ -157,7 +167,6 @@
         if(closeBtn) closeBtn.addEventListener('click', toggleSidebar);
         if(overlay) overlay.addEventListener('click', toggleSidebar);
 
-        // --- Dynamic User Display Logic ---
         document.addEventListener("DOMContentLoaded", () => {
             const roleDisplay = document.getElementById("userRoleDisplay");
             const sessionData = sessionStorage.getItem("user_session");

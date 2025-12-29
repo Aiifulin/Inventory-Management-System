@@ -21,10 +21,7 @@ const SETTINGS_DOC_ID = "global_config";
 // --- AUTH LISTENER & SECURITY CHECK ---
 onAuthStateChanged(auth, async (user) => {
     if (user) {
-        // 1. Update Sidebar Role (Dynamic) - ADDED THIS LINE
-        displayUserRole(user.uid);
-
-        // 2. Check if CURRENT user is Admin
+        // 1. Check if CURRENT user is Admin
         const isAdmin = await checkAdminAccess(user.uid);
         
         if (!isAdmin) {
@@ -33,38 +30,64 @@ onAuthStateChanged(auth, async (user) => {
             return;
         }
 
-        // 3. If Admin, load the page content
-        populateAdminInfo(user);
+        // 2. Fetch fresh user data from Firestore to get the name
+        const userDoc = await getDoc(doc(db, "users", user.uid));
+        const userData = userDoc.exists() ? userDoc.data() : {};
+        
+        // Merge Auth user with Firestore data for display
+        const fullUser = {
+            ...user,
+            displayName: userData.name || user.displayName || "Admin User",
+            role: userData.role || "User"
+        };
+
+        // 3. Update UI
+        displayUserRole(fullUser);
+        populateAdminInfo(fullUser);
         loadSettings();
         loadUserTable(); 
+        
+        // 4. Initialize Dark Mode
+        initDarkMode();
 
     } else {
         window.location.href = "Login.html";
     }
 });
 
-// --- HELPER: DISPLAY USER ROLE (From Dashboard) ---
-async function displayUserRole(uid) {
+// --- DARK MODE LOGIC ---
+function initDarkMode() {
+    const toggle = document.getElementById('darkModeToggle');
+    const currentTheme = localStorage.getItem('theme');
+
+    // Set initial toggle state based on storage
+    if (currentTheme === 'dark') {
+        if (toggle) toggle.checked = true;
+    }
+
+    // Listener
+    if (toggle) {
+        toggle.addEventListener('change', (e) => {
+            if (e.target.checked) {
+                document.documentElement.setAttribute('data-theme', 'dark');
+                localStorage.setItem('theme', 'dark');
+            } else {
+                document.documentElement.setAttribute('data-theme', 'light');
+                localStorage.setItem('theme', 'light');
+            }
+        });
+    }
+}
+
+// --- HELPER: DISPLAY USER ROLE (Sidebar) ---
+function displayUserRole(user) {
     const roleEl = document.getElementById('userRoleDisplay');
     if (!roleEl) return;
 
-    try {
-        const docRef = doc(db, "users", uid);
-        const docSnap = await getDoc(docRef);
-        
-        if (docSnap.exists()) {
-            const data = docSnap.data();
-            let roleName = data.role || "User";
-            // Capitalize first letter
-            roleName = roleName.charAt(0).toUpperCase() + roleName.slice(1);
-            roleEl.textContent = roleName;
-        } else {
-            roleEl.textContent = "User"; // Fallback
-        }
-    } catch (error) {
-        console.error("Error displaying role:", error);
-        roleEl.textContent = "User";
-    }
+    let roleName = user.role || "User";
+    // Capitalize first letter
+    roleName = roleName.charAt(0).toUpperCase() + roleName.slice(1);
+    roleEl.textContent = roleName;
 }
 
 // --- SECURITY CHECK FUNCTION ---
@@ -118,7 +141,7 @@ async function loadUserTable() {
                             </span>
                         </div>
                     </td>
-                    <td style="color:#4b5563;">${u.email}</td>
+                    <td style="color: var(--text-secondary);">${u.email}</td>
                     <td>
                         <select class="role-select" id="role-${userId}" ${disabledState}>
                             <option value="user" ${userSelected}>User</option>
@@ -126,7 +149,7 @@ async function loadUserTable() {
                         </select>
                     </td>
                     <td style="text-align: right;">
-                        ${!isSelf ? `<button class="btn-update" onclick="updateUserRole('${userId}')">Update</button>` : '<span style="font-size:12px; color:#9ca3af; font-style:italic;">Locked</span>'}
+                        ${!isSelf ? `<button class="btn-update" onclick="updateUserRole('${userId}')">Update</button>` : '<span style="font-size:12px; color: var(--text-secondary); font-style:italic;">Locked</span>'}
                     </td>
                 </tr>
             `;
@@ -164,13 +187,14 @@ window.updateUserRole = async function(userId) {
     }
 };
 
-// --- POPULATE ADMIN INFO ---
+// --- POPULATE ADMIN INFO (Profile Card) ---
 function populateAdminInfo(user) {
     const nameEl = document.getElementById('adminNameDisplay');
     const emailEl = document.getElementById('adminEmailDisplay');
     const idEl = document.getElementById('adminIdDisplay');
 
-    nameEl.textContent = user.displayName || "Admin User";
+    // Display Name: Prioritize DB name -> Auth DisplayName -> Default
+    nameEl.textContent = user.displayName;
     emailEl.textContent = user.email;
     idEl.textContent = user.uid;
 }

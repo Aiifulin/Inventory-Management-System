@@ -2,15 +2,25 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <script>
-        if (!sessionStorage.getItem("user_session")) {
-            window.location.replace("Login.html");
-        }
-    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Settings - Inventory MS</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="components(css)/Settings.css">
+    <link rel="stylesheet" href="components(css)/Theme.css">
+    
+    <script>
+        const savedTheme = localStorage.getItem('theme');
+        if (savedTheme === 'dark') {
+            document.documentElement.setAttribute('data-theme', 'dark');
+        }
+    </script>
+
+    <script>
+        // Route Guard
+        if (!sessionStorage.getItem("user_session")) {
+            window.location.replace("Login.html");
+        }
+    </script>
 </head>
 
 <body>
@@ -61,6 +71,24 @@
 
         <div class="settings-container">
             
+            <div class="settings-card">
+                <div class="card-header">
+                    <h3><i class="fas fa-paint-brush"></i> Appearance</h3>
+                </div>
+                <div class="card-body">
+                    <div class="form-group" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0;">
+                        <div>
+                            <label for="darkModeToggle" style="font-weight: 600; font-size: 15px; margin-bottom: 4px; display:block;">Dark Mode</label>
+                            <p class="help-text" style="margin: 0;">Switch between light and dark themes.</p>
+                        </div>
+                        <label class="switch">
+                            <input type="checkbox" id="darkModeToggle">
+                            <span class="slider round"></span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
             <div class="settings-card">
                 <div class="card-header">
                     <h3><i class="fas fa-sliders-h"></i> Inventory Settings</h3>
@@ -139,6 +167,7 @@
 
     <script>
         document.addEventListener("DOMContentLoaded", () => {
+            // Sidebar Logic
             const hamburger = document.getElementById('hamburgerBtn');
             const sidebar = document.getElementById('sidebar');
             const overlay = document.getElementById('overlay');
