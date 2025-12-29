@@ -255,8 +255,18 @@ if (saveBtn) {
 
 // --- LOGOUT ---
 window.logout = function() {
+    // Clear LOCAL storage now
+    localStorage.removeItem("user_session");
+    localStorage.removeItem("user_uid");
+    localStorage.removeItem("user_role");
+    
+    // Also clear session just in case
     sessionStorage.clear();
+
     signOut(auth).then(() => {
+        window.location.replace("Login.html");
+    }).catch((error) => {
+        console.error("Logout Error:", error);
         window.location.replace("Login.html");
     });
 };

@@ -347,9 +347,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
 // Logout Helper
 window.logout = function() {
-    sessionStorage.removeItem("user_session");
-    sessionStorage.removeItem("user_uid");
-    sessionStorage.removeItem("user_role");
+    // Clear LOCAL storage now
+    localStorage.removeItem("user_session");
+    localStorage.removeItem("user_uid");
+    localStorage.removeItem("user_role");
+    
+    // Also clear session just in case
+    sessionStorage.clear();
 
     signOut(auth).then(() => {
         window.location.replace("Login.html");

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <script>
-        if (!sessionStorage.getItem("user_session")) {
+        if (!localStorage.getItem("user_session")) {
             window.location.replace("Login.html");
         }
     </script>

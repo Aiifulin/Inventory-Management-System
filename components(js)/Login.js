@@ -38,8 +38,8 @@ const login = function () {
         .then((userCredential) => {
             // --- CRITICAL FIX: SAVE THE SESSION ---
             // Without this, the Dashboard will kick you out immediately.
-            sessionStorage.setItem("user_session", "true");
-            sessionStorage.setItem("user_uid", userCredential.user.uid);
+            localStorage.setItem("user_session", "true");
+            localStorage.setItem("user_uid", userCredential.user.uid);
 
             console.log("Logged in:", userCredential.user);
             window.location.href = "Dashboard.html";
