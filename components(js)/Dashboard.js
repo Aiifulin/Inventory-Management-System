@@ -21,15 +21,16 @@ const db = getFirestore(app);
 let barChartInstance = null;
 let pieChartInstance = null;
 
-// --- AUTH LISTENER ---
+// --- AUTH LISTENER ---(Abstracion Example)
 onAuthStateChanged(auth, async (user) => {
     if (user) {
-        // 1. Update UI with User Role (Visual)
+        // visual display of user role
         displayUserRole(user.uid);
 
-        // 2. Check Permission Logic
+        // handles decision for admin and non-admin users
         const isAdmin = await checkAdminRole(user.uid);
 
+        // if not admin then hide add button
         if (!isAdmin) {
             const addBtn = document.querySelector('.btn-add'); 
             if (addBtn) addBtn.style.display = 'none';
@@ -89,12 +90,13 @@ async function displayUserRole(uid) {
     }
 }
 
-// --- HELPER: CHECK ADMIN ROLE ---
+// --- role checker for admins ---(Encapsulation Example)
 async function checkAdminRole(uid) {
     try {
         const userDocRef = doc(db, "users", uid);
         const userSnap = await getDoc(userDocRef);
         
+        // basically if the role is admin return true 
         if (userSnap.exists()) {
             const userData = userSnap.data();
             return (userData.role && userData.role.toLowerCase() === 'admin');
@@ -149,6 +151,7 @@ function setupDashboardStatsListener() {
             return sum + ((Number(p.price) || 0) * (Number(p.stock) || 0));
         }, 0);
 
+        // to update and display stats by calling updateStat function
         updateStat("statTotalProducts", totalProducts);
         updateStat("statCategories", categoriesCount);
         updateStat("statLowStock", lowStockCount);
@@ -237,6 +240,7 @@ function setupRecentActivitiesListener() {
         querySnapshot.forEach((doc) => {
             const data = doc.data();
             
+            // handles time calculation and formatting
             let timeString = "Just now";
             if (data.timestamp) {
                 const date = data.timestamp.toDate(); 

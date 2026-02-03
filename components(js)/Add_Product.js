@@ -114,7 +114,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
-    // --- 2. SANITIZERS & HELPERS ---
+    // --- 2. SANITIZERS & HELPERS --- this prevents XSS attacks by sanitizing inputs using DOM methods
     function sanitizeInput(str) {
         if (!str) return "";
         if (typeof str !== 'string') return String(str);
@@ -270,7 +270,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     throw new Error("Price and Stock values cannot be negative.");
                 }
 
-                // VALIDATION 2: Check for 0 Price
+                // VALIDATION 2: Check for 0 Price with Confirmation
                 if (priceVal === 0) {
                     const confirmZero = confirm("⚠️ Warning: You are setting the Price to 0.00.\n\nAre you sure this product is free?");
                     if (!confirmZero) {
