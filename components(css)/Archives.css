@@ -1,0 +1,197 @@
+/* =========================================
+   components(css)/Archives.css
+   ========================================= */
+
+/* Inherits:
+   - Sidebar
+   - Main layout
+   - Card
+   - Table
+   From your Theme.css system
+*/
+
+/* --- Main Layout --- */
+body {
+    background-color: var(--bg-body);
+    color: var(--text-main);
+    display: flex;
+    min-height: 100vh;
+    overflow-x: hidden;
+}
+
+.main-content {
+    flex: 1;
+    padding: 30px;
+    max-width: 1100px;
+    width: 100%;
+}
+
+/* --- Page Header --- */
+.page-header {
+    margin-bottom: 25px;
+}
+
+.page-header h1 {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 700;
+}
+
+.page-header p {
+    margin-top: 4px;
+    font-size: 14px;
+    color: var(--text-secondary);
+}
+
+/* --- Card --- */
+.card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 1px 3px var(--shadow-color);
+}
+
+/* --- Table --- */
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+thead th {
+    text-align: left;
+    font-size: 13px;
+    color: var(--text-secondary);
+    font-weight: 600;
+    padding-bottom: 12px;
+}
+
+tbody tr {
+    border-top: 1px solid var(--border-color);
+}
+
+tbody td {
+    padding: 14px 0;
+    font-size: 14px;
+    vertical-align: middle;
+}
+
+/* --- Action Buttons --- */
+.btn-restore,
+.btn-delete {
+    padding: 6px 12px;
+    font-size: 13px;
+    border-radius: 6px;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    margin-right: 6px;
+}
+
+/* Restore Button */
+.btn-restore {
+    background-color: rgba(34, 197, 94, 0.1);
+    color: #16a34a;
+}
+
+.btn-restore:hover {
+    background-color: #16a34a;
+    color: white;
+}
+
+/* Permanent Delete Button */
+.btn-delete {
+    background-color: rgba(239, 68, 68, 0.1);
+    color: var(--danger-color);
+}
+
+.btn-delete:hover {
+    background-color: var(--danger-color);
+    color: white;
+}
+
+/* Empty State Row */
+tbody tr td[colspan] {
+    padding: 25px 0;
+    text-align: center;
+    color: var(--text-secondary);
+}
+
+/* --- Responsive --- */
+@media (max-width: 768px) {
+
+    .main-content {
+        padding: 20px;
+    }
+
+    table {
+        font-size: 13px;
+    }
+
+    .btn-restore,
+    .btn-delete {
+        padding: 5px 8px;
+        font-size: 12px;
+    }
+}
+
+/* --- Sidebar (Same Styling System) --- */
+.sidebar {
+    width: var(--sidebar-width);
+    min-width: var(--sidebar-width);
+    flex-shrink: 0;
+    background-color: var(--bg-sidebar);
+    padding: 20px 0;
+    height: 100vh;
+
+    position: sticky;
+    top: 0;
+
+    box-shadow: 2px 0 5px var(--shadow-color);
+    border-right: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+}
+
+.sidebar-header { padding: 0 20px 20px; border-bottom: 1px solid var(--border-color); margin-bottom: 20px; }
+.sidebar-header h2 { margin: 0 0 5px 0; font-size: 18px; color: var(--text-main); font-weight: 700; }
+.sidebar-header .user-role { font-size: 13px; color: var(--text-secondary); }
+
+.sidebar-content { display: flex; flex-direction: column; height: 100%; overflow-y: auto; }
+.sidebar-nav { display: flex; flex-direction: column; gap: 5px; flex-grow: 1; padding: 0 10px; }
+
+.sidebar a {
+    display: flex;
+    align-items: center;
+    padding: 12px 15px;
+    color: var(--text-secondary);
+    text-decoration: none;
+    transition: all 0.2s;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.sidebar a i { margin-right: 12px; width: 20px; text-align: center; }
+
+.sidebar a:hover {
+    background-color: var(--hover-bg);
+    color: var(--text-main);
+}
+
+.sidebar a.nav-link.active {
+    background-color: var(--hover-bg);
+    color: var(--text-main);
+    font-weight: 600;
+}
+
+.sidebar-footer { padding: 15px 20px; border-top: 1px solid var(--border-color); }
+.sidebar-footer .logout { color: var(--danger-color); font-weight: 500; }
+.sidebar-footer .logout:hover { background-color: rgba(239, 68, 68, 0.1); color: #dc2626; }
+
+.product-img {
+    width: 60px;
+    height: 60px;
+    object-fit: cover;
+    border-radius: 6px;
+}
