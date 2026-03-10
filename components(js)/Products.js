@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
-import { getFirestore, collection, getDocs, deleteDoc, doc, addDoc, serverTimestamp, getDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { getFirestore, collection, getDocs, doc, addDoc, serverTimestamp, getDoc, where, updateDoc    } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 
 // --- CONFIG ---
@@ -110,12 +110,22 @@ onAuthStateChanged(auth, async (user) => {
 // --- FETCH DATA ---
 async function fetchProducts() {
     try {
+
         const querySnapshot = await getDocs(collection(db, "products"));
+
         allProducts = [];
-        querySnapshot.forEach((doc) => {
-            allProducts.push({ id: doc.id, ...doc.data() });
+
+        querySnapshot.forEach((docSnap) => {
+            const data = docSnap.data();
+
+            // Hide archived manually
+            if (data.archived === true) return;
+
+            allProducts.push({ id: docSnap.id, ...data });
         });
+
         applyFilters();
+
     } catch (error) {
         console.error("Error loading products:", error);
     }
@@ -322,26 +332,40 @@ window.editProduct = function(id) {
 
 // --- DELETE FUNCTION WITH LOGGING ---
 function attachDeleteListeners() {
-    document.querySelectorAll('.delete-btn').forEach(btn => {
-        btn.addEventListener('click', async (e) => {
-            const target = e.target.closest('.delete-btn'); 
-            if(!target) return;
-            
-            const idToDelete = target.getAttribute('data-id');
-            const productToDelete = allProducts.find(p => p.id === idToDelete);
-            const nameToLog = productToDelete ? productToDelete.name : "Unknown Product";
 
-            if(confirm("Are you sure you want to delete this product?")) {
-                try {
-                    await deleteDoc(doc(db, "products", idToDelete));
-                    await logActivity("Deleted Product", nameToLog);
-                    allProducts = allProducts.filter(p => p.id !== idToDelete);
-                    applyFilters();
-                    alert("Product deleted!");
-                } catch(err) {
-                    console.error("Error deleting:", err);
-                    alert("Error deleting product: " + err.message);
-                }
+    if (!isAdmin) return;
+
+    document.querySelectorAll('.delete-btn').forEach(btn => {
+
+        btn.addEventListener('click', async (e) => {
+
+            const target = e.target.closest('.delete-btn');
+            if (!target) return;
+
+            const idToArchive = target.getAttribute('data-id');
+            const productToArchive = allProducts.find(p => p.id === idToArchive);
+            const nameToLog = productToArchive ? productToArchive.name : "Unknown Product";
+
+            if (!confirm("Move this product to Archive?")) return;
+
+            try {
+
+                await updateDoc(doc(db, "products", idToArchive), {
+                    archived: true,
+                    archivedAt: serverTimestamp()
+                });
+
+                await logActivity("Archived Product", nameToLog);
+
+                // Remove locally so no reload needed
+                allProducts = allProducts.filter(p => p.id !== idToArchive);
+                applyFilters();
+
+                alert("Product moved to Archive.");
+
+            } catch (err) {
+                console.error("Error archiving:", err);
+                alert("Error archiving product: " + err.message);
             }
         });
     });
