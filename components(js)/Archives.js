@@ -40,18 +40,34 @@ const auth = getAuth(app);
 
 let lastVisible = null;
 const pageSize = 25;
+let sortDirection = "desc"
 
 // ===============================
 // AUTH LISTENER
 // ===============================
 onAuthStateChanged(auth, async (user) => {
-    if (user) {
-        await displayUserRole(user.uid);
-        await checkAdminRole(user.uid);
-        loadArchivedProducts(true);
-    } else {
+
+    if (!user) {
         window.location.href = "Login.html";
+        return;
     }
+
+    await displayUserRole(user.uid);
+
+    const isAdmin = await checkAdminRole(user.uid);
+
+    if (!isAdmin) {
+        window.location.href = "Dashboard.html";
+        return;
+    }
+
+    // ✅ Reveal page immediately for admin
+    document.documentElement.style.visibility = "visible";
+
+    // THEN load content
+    loadArchivedProducts(true); 
+    // or loadLogs(true) on activity page
+
 });
 
 // ===============================
@@ -105,14 +121,14 @@ async function loadArchivedProducts(reset = true) {
         q = query(
             collection(db, "products"),
             where("archived", "==", true),
-            orderBy("archivedAt", "desc"),
+            orderBy("archivedAt", sortDirection),
             limit(pageSize)
         );
     } else {
         q = query(
             collection(db, "products"),
             where("archived", "==", true),
-            orderBy("archivedAt", "desc"),
+            orderBy("archivedAt", sortDirection),
             startAfter(lastVisible),
             limit(pageSize)
         );
@@ -242,3 +258,46 @@ async function logActivity(action, target) {
         timestamp: serverTimestamp()
     });
 }
+
+document.addEventListener("input", function(e){
+
+    if(e.target.id !== "archiveSearch") return;
+
+    const search = e.target.value.toLowerCase();
+
+    const rows = document.querySelectorAll("#archiveTable tr");
+
+    rows.forEach(row => {
+
+        const name = row.children[1]?.textContent.toLowerCase() || "";
+        const category = row.children[2]?.textContent.toLowerCase() || "";
+
+        if(name.includes(search) || category.includes(search)){
+            row.style.display = "";
+        } else {
+            row.style.display = "none";
+        }
+
+    });
+
+});
+
+document.addEventListener("DOMContentLoaded", () => {
+
+    const sortBtn = document.getElementById("sortArchivedDate");
+    if (!sortBtn) return;
+
+    sortBtn.addEventListener("click", () => {
+
+        sortDirection = sortDirection === "desc" ? "asc" : "desc";
+
+        lastVisible = null;
+        loadArchivedProducts(true);
+
+    });
+
+});
+
+window.addEventListener("load", () => {
+    document.documentElement.style.visibility = "visible";
+});

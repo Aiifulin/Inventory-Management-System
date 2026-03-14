@@ -134,3 +134,15 @@ tbody td {
         padding: 20px;
     }
 }
+
+.search-bar{
+    margin-bottom:15px;
+}
+
+.search-bar input{
+    width:300px;
+    padding:8px 12px;
+    border:1px solid #ccc;
+    border-radius:6px;
+    font-size:14px;
+}

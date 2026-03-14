@@ -36,22 +36,28 @@ const db = getFirestore(app);
 
 // --- AUTH LISTENER ---(Abstracion Example)
 onAuthStateChanged(auth, async (user) => {
-    if (user) {
-        // visual display of user role
-        displayUserRole(user.uid);
 
-        // handles decision for admin and non-admin users
-        const isAdmin = await checkAdminRole(user.uid);
-
-        // if not admin then hide add button
-        if (!isAdmin) {
-            const addBtn = document.querySelector('.btn-add'); 
-            if (addBtn) addBtn.style.display = 'none';
-        }
-
-    } else {
+    if (!user) {
         window.location.href = "Login.html";
+        return;
     }
+
+    await displayUserRole(user.uid);
+
+    const isAdmin = await checkAdminRole(user.uid);
+
+    if (!isAdmin) {
+        window.location.href = "Dashboard.html";
+        return;
+    }
+
+    // ✅ Reveal page immediately for admin
+    document.documentElement.style.visibility = "visible";
+
+    // THEN load content
+    loadArchivedProducts(true); 
+    // or loadLogs(true) on activity page
+
 });
 
 // --- HELPER: TIME FORMATTER ---
@@ -122,37 +128,12 @@ const pageSize = 50;
 
 async function loadLogs(reset = true) {
 
-    const selectedAction =
-        document.querySelector('input[name="actionFilter"]:checked')?.value;
-
     let q;
 
-    // FIRST PAGE
     if (reset || !lastVisible) {
-
-        if (selectedAction && selectedAction !== "all") {
-            q = query(
-                collection(db, "activities"),
-                where("action", "==", selectedAction),
-                orderBy("timestamp", "desc"),
-                limit(pageSize)
-            );
-        } else {
-            q = query(
-                collection(db, "activities"),
-                orderBy("timestamp", "desc"),
-                limit(pageSize)
-            );
-        }
-
-} else {
-
-    if (selectedAction && selectedAction !== "all") {
         q = query(
             collection(db, "activities"),
-            where("action", "==", selectedAction),
             orderBy("timestamp", "desc"),
-            startAfter(lastVisible),
             limit(pageSize)
         );
     } else {
@@ -163,10 +144,8 @@ async function loadLogs(reset = true) {
             limit(pageSize)
         );
     }
-}
 
     const snapshot = await getDocs(q);
-    console.log("Query result size:", snapshot.size);
 
     const table = document.getElementById("logTable");
     if (!table) return;
@@ -175,15 +154,16 @@ async function loadLogs(reset = true) {
 
     if (snapshot.empty) {
         table.innerHTML = `
-            <tr>
-                <td colspan="4" style="text-align:center;padding:20px;color:#999;">
-                    No activity logs found.
-                </td>
-            </tr>`;
+        <tr>
+            <td colspan="4" style="text-align:center;padding:20px;color:#999;">
+                No activity logs found.
+            </td>
+        </tr>`;
         return;
     }
 
     snapshot.forEach(doc => {
+
         const log = doc.data();
 
         const date = log.timestamp
@@ -197,12 +177,12 @@ async function loadLogs(reset = true) {
         if (action.includes("delete")) badgeClass = "red";
 
         table.innerHTML += `
-            <tr>
-                <td>${date}</td>
-                <td><span class="badge ${badgeClass}">${log.action || ""}</span></td>
-                <td class="product-name">${log.target || ""}</td>
-                <td>${log.user || ""}</td>
-            </tr>
+        <tr>
+            <td>${date}</td>
+            <td><span class="badge ${badgeClass}">${log.action || ""}</span></td>
+            <td class="product-name">${log.target || ""}</td>
+            <td>${log.user || ""}</td>
+        </tr>
         `;
     });
 
@@ -218,3 +198,29 @@ document.querySelectorAll('input[name="actionFilter"]').forEach(radio => {
     });
 });
 
+document.addEventListener("input", function(e){
+
+    if(e.target.id !== "logSearch") return;
+
+    const search = e.target.value.toLowerCase();
+
+    const rows = document.querySelectorAll("#logTable tr");
+
+    rows.forEach(row => {
+
+        const action = row.children[1]?.textContent.toLowerCase() || "";
+        const product = row.children[2]?.textContent.toLowerCase() || "";
+
+        if(action.includes(search) || product.includes(search)){
+            row.style.display = "";
+        } else {
+            row.style.display = "none";
+        }
+
+    });
+
+});
+
+window.addEventListener("load", () => {
+    document.documentElement.style.visibility = "visible";
+});
