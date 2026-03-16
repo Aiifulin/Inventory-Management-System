@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <script>
+        // Route Guard
+        if (!localStorage.getItem("user_session")) {
+            window.location.replace("Login.html");
+        }
+    </script>
+    
+    <script>
+        const savedTheme = localStorage.getItem('theme');
+        if (savedTheme === 'dark') {
+            document.documentElement.setAttribute('data-theme', 'dark');
+        }
+    </script>
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Categories - Inventory MS</title>
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <link rel="stylesheet" href="components(css)/Theme.css">
+    <link rel="stylesheet" href="components(css)/Products.css">
+</head>
+
+<body>
+
+    <button class="hamburger" id="hamburgerBtn">
+        <i class="fas fa-bars"></i>
+    </button>
+    
+    <div class="overlay" id="overlay"></div>
+
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-content">
+            <div class="sidebar-header">
+                <h2>Inventory MS</h2>
+                <span class="user-role" id="userRoleDisplay">Loading...</span>
+                <button class="close-btn" id="closeBtn"><i class="fas fa-times"></i></button>
+            </div>
+
+            <nav class="sidebar-nav">
+                <a href="Dashboard.html" class="nav-link"><i class="fas fa-chart-line"></i> Dashboard</a>
+                <a href="Products.html" class="nav-link"><i class="fas fa-box"></i> Products</a>
+                <a href="Categories.html" class="nav-link active"><i class="fas fa-tags"></i> Categories</a>
+                <a href="Activity_Logs.html" class="nav-link"><i class="fas fa-history"></i> Activity Log</a>
+                <a href="Reports.html" class="nav-link"><i class="fas fa-file-alt"></i> Reports</a>
+                <a href="Archives.html" class="nav-link"><i class="fas fa-archive"></i>Archived</a>
+                <a href="Settings.html" class="nav-link"><i class="fas fa-gear"></i> Settings</a>
+            </nav>
+
+            <div class="sidebar-footer">
+                <a href="#" onclick="logout()" class="logout" id="logoutBtn">
+                    <i class="fas fa-arrow-right-from-bracket"></i>Logout
+                </a>
+            </div>
+        </div>
+    </aside>
+
+    <main class="main-content">
+        <div class="page-header">
+            <div class="header-text">
+                <h1>Categories</h1>
+                <p>Manage product categories</p>
+            </div>
+            
+            <div class="header-actions">
+                <button class="btn-primary" onclick="location.href='Add_Category.html'">
+                    <i class="fas fa-plus"></i> <span class="btn-text">Add Category</span>
+                </button>
+            </div>
+        </div>
+
+        <div class="content-wrapper">
+            <div class="filters-container">
+                <div class="search-wrapper">
+                    <i class="fas fa-search"></i>
+                    <input type="text" id="searchInput" placeholder="Search categories...">
+                </div>
+            
+                <div class="filter-controls">   
+                    <select id="filterSort" class="control-input">
+                        <option value="name">Name</option>
+                        <option value="date">Date Added</option>
+                    </select>
+                
+                    <button id="sortDirBtn" class="btn-sort control-input">
+                        <span id="sortDirIcon">↑</span> <span id="sortDirText">Ascending</span>
+                    </button>
+                
+                    <button id="resetFiltersBtn" class="btn-outline control-input" style="color: #dc2626; border-color: #fca5a5;" title="Reset Filters">
+                        <i class="fas fa-undo"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div class="table-container desktop-only">
+                <table class="products-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 80px;">ID</th> 
+                            <th style="width: 50%;">Category Name</th>
+                            <th>Items</th>
+                            <th>Added</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="productTableBody">
+                        </tbody>
+                </table>
+            </div>
+
+            <div class="mobile-grid mobile-only" id="mobileProductList">
+                </div>
+        </div>
+    </main>
+
+    <script type="module" src="components(js)/Categories.js"></script>
+
+    <script>
+        const hamburger = document.getElementById('hamburgerBtn');
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('overlay');
+        const closeBtn = document.getElementById('closeBtn');
+
+        function toggleSidebar() {
+            sidebar.classList.toggle('open');
+            overlay.classList.toggle('show');
+        }
+
+        if(hamburger) hamburger.addEventListener('click', toggleSidebar);
+        if(closeBtn) closeBtn.addEventListener('click', toggleSidebar);
+        if(overlay) overlay.addEventListener('click', toggleSidebar);
+
+        document.addEventListener("DOMContentLoaded", () => {
+            const roleDisplay = document.getElementById("userRoleDisplay");
+            const sessionData = sessionStorage.getItem("user_session");
+            
+            if (sessionData && roleDisplay) {
+                try {
+                    const user = JSON.parse(sessionData);
+                    roleDisplay.textContent = user.role || user.username || "Loading...";
+                } catch (error) {
+                    console.error("Error parsing user session:", error);
+                    roleDisplay.textContent = "Loading...";
+                }
+            } else if (roleDisplay) {
+                roleDisplay.textContent = "Guest";
+            }
+        });
+    </script>
+</body>
+</html>
