@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
-import { getFirestore, collection, getDocs, doc, addDoc, serverTimestamp, getDoc, where, updateDoc    } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { getFirestore, collection, getDocs, doc, addDoc, serverTimestamp, getDoc, where, updateDoc, query} from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 
 // --- CONFIG ---
@@ -118,12 +118,18 @@ async function fetchCategories() {
             const data = docSnap.data();
             if (data.archived === true) continue;
 
-            // Count products in this category
-            const productsQuery = await getDocs(collection(db, "products"));
+            // Query products by category name
+            const productsQuery = query(
+                collection(db, "products"),
+                where("category", "==", data.name)
+            );
+            const productsSnapshot = await getDocs(productsQuery);
+
+            // Count only non-archived products
             let count = 0;
-            productsQuery.forEach(p => {
+            productsSnapshot.forEach(p => {
                 const pData = p.data();
-                if (pData.category === data.name && pData.archived !== true) count++;
+                if (pData.archived !== true) count++;
             });
 
             allCategories.push({ id: docSnap.id, ...data, itemCount: count });
@@ -135,6 +141,7 @@ async function fetchCategories() {
         console.error("Error loading categories:", error);
     }
 }
+
 
 // --- FILTER & SORT ---
 function applyFilters() {
