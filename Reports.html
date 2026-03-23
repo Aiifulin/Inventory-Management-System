@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Reports – Inventory MS</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+  <style>
+    
+  </style>
+</head>
+<body>
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-content">
+      <div class="sidebar-header">
+        <h2>Inventory MS</h2>
+        <div class="user-role">Admin</div>
+      </div>
+      <nav class="sidebar-nav">
+        <a href="Dashboard.html" class="nav-link"><i class="fa-solid fa-chart-line"></i> Dashboard</a>
+        <a href="Products.html" class="nav-link"><i class="fa-solid fa-box"></i> Products</a>
+        <a href="Categories.html" class="nav-link"><i class="fa-solid fa-list"></i> Categories</a>
+        <a href="Activity_Logs.html" class="nav-link"><i class="fa-solid fa-clock-rotate-left"></i> Activity Log</a>
+        <a href="Reports.html" class="nav-link active"><i class="fa-solid fa-file-lines"></i> Reports</a>
+        <a href="Archives.html" class="nav-link"><i class="fa-solid fa-box-archive"></i> Archived</a>
+        <a href="Settings.html" class="nav-link"><i class="fa-solid fa-gear"></i> Settings</a>
+      </nav>
+      <div class="sidebar-footer">
+        <a href="Login.html" class="logout"><i class="fa-solid fa-right-from-bracket"></i> Logout</a>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="main-content">
+    <div class="header-flex">
+      <div class="header-text">
+        <h1>Reports</h1>
+        <p>Generate and export inventory reports.</p>
+      </div>
+    </div>
+
+    <div class="reports-grid">
+
+      <!-- Inventory Report -->
+      <div class="report-card">
+        <div class="report-card-top">
+          <div class="report-icon icon-blue">
+            <i class="fa-solid fa-boxes-stacked"></i>
+          </div>
+          <div class="report-info">
+            <h3>Inventory Report</h3>
+            <p>A full overview of all products, their current stock levels, and total inventory value.</p>
+          </div>
+        </div>
+        <div class="report-card-footer">
+          <button class="btn-report">
+            <i class="fa-solid fa-download"></i> Generate Report
+          </button>
+        </div>
+      </div>
+
+      <!-- Category Report -->
+      <div class="report-card">
+        <div class="report-card-top">
+          <div class="report-icon icon-teal">
+            <i class="fa-solid fa-folder-open"></i>
+          </div>
+          <div class="report-info">
+            <h3>Category Report</h3>
+            <p>Breakdown of products and stock distribution grouped by category.</p>
+          </div>
+        </div>
+        <div class="report-card-footer">
+          <button class="btn-report">
+            <i class="fa-solid fa-download"></i> Generate Report
+          </button>
+        </div>
+      </div>
+
+      <!-- Low Stock Report -->
+      <div class="report-card">
+        <div class="report-card-top">
+          <div class="report-icon icon-red">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+          </div>
+          <div class="report-info">
+            <h3>Low Stock Report</h3>
+            <p>Lists all products that have fallen below their minimum stock threshold and require restocking.</p>
+          </div>
+        </div>
+        <div class="report-card-footer">
+          <button class="btn-report">
+            <i class="fa-solid fa-download"></i> Generate Report
+          </button>
+        </div>
+      </div>
+
+      <!-- Stock Movement Report -->
+      <div class="report-card">
+        <div class="report-card-top">
+          <div class="report-icon icon-gold">
+            <i class="fa-solid fa-arrow-right-arrow-left"></i>
+          </div>
+          <div class="report-info">
+            <h3>Stock Movement Report</h3>
+            <p>Tracks all stock-in and stock-out activity over a selected period, including adjustments.</p>
+          </div>
+        </div>
+        <div class="report-card-footer">
+          <button class="btn-report">
+            <i class="fa-solid fa-download"></i> Generate Report
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+</body>
+</html>
