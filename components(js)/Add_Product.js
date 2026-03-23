@@ -2,6 +2,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
 // Added doc and getDoc for role checking
 import { getFirestore, collection, addDoc, serverTimestamp, query, where, getDocs, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-storage.js";
 
 const firebaseConfig = {
     apiKey: "AIzaSyBeaF2VKovHASuzhvZHzOoE0yB7QnBDej0",
@@ -16,9 +17,12 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
+const storage = getStorage(app);
 
-let base64ImageString = "";
 let isFormDirty = false;
+let selectedImageFile = null;
+let draftProducts = [];       // array of queued product objects
+let isBulkMode = false;
 
 // --- AUTH CHECK WITH ROLE VALIDATION ---
 onAuthStateChanged(auth, async (user) => {
@@ -166,8 +170,8 @@ document.addEventListener("DOMContentLoaded", () => {
     function resetImage(e) {
         if(e) e.stopPropagation(); 
         fileInput.value = "";
-        base64ImageString = "";
         preview.src = "";
+        selectedImageFile = null; // stores the raw File object
         preview.style.display = "none";
         placeholder.style.display = "block";
         removeBtn.style.display = "none"; 
@@ -176,26 +180,34 @@ document.addEventListener("DOMContentLoaded", () => {
 
     removeBtn.addEventListener('click', resetImage);
 
-    if(fileInput) {
-        fileInput.addEventListener('change', function(e) {
+    if (fileInput) {
+        fileInput.addEventListener('change', function (e) {
             const file = e.target.files[0];
             if (!file) return;
 
-            if (file.size > 750000) { 
-                alert("File is too large! Please select an image under 750KB.");
-                fileInput.value = ""; 
+            if (!file.type.startsWith('image/')) {// Basic MIME type check for images
+                alert("Please select a valid image file (PNG, JPG, etc.)");
+                fileInput.value = "";
                 return;
             }
-
+    
+            if (file.size > 5000000) { // 5MB limit for raw file size
+                alert("File is too large! Please select an image under 5mb.");
+                fileInput.value = "";
+                return;
+            }
+    
+            // Store the file reference instead of converting to base64
+            selectedImageFile = file;
+    
             const reader = new FileReader();
-            reader.onloadend = function() {
-                base64ImageString = reader.result;
-                preview.src = reader.result;
+            reader.onloadend = function () {
+                preview.src = reader.result;       // preview still works locally
                 preview.style.display = "block";
                 placeholder.style.display = "none";
-                removeBtn.style.display = "flex"; 
+                removeBtn.style.display = "flex";
                 isFormDirty = true;
-            }
+            };
             reader.readAsDataURL(file);
         });
     }
@@ -256,6 +268,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if(form) {
         form.addEventListener("submit", async (e) => {
             e.preventDefault(); 
+            if (isBulkMode) return;
 
             submitBtn.innerText = "Saving...";
             submitBtn.disabled = true;
@@ -291,16 +304,28 @@ document.addEventListener("DOMContentLoaded", () => {
                     throw new Error(`Product name "${rawName}" already exists!`);
                 }
 
+                // --- UPLOAD IMAGE TO FIREBASE STORAGE ---
+                let imageUrl = "";
+                
+                if (selectedImageFile) {
+                    submitBtn.innerText = "Uploading Image...";
+                
+                    // Creates a unique path: products/images/<timestamp>_<filename>
+                    const storageRef = ref(storage, `products/images/${Date.now()}_${selectedImageFile.name}`);
+                    const snapshot = await uploadBytes(storageRef, selectedImageFile);
+                    imageUrl = await getDownloadURL(snapshot.ref);
+                }                
+
                 const productData = {
-                    name: sanitizeInput(rawName), 
-                    description: sanitizeInput(rawDesc), 
-                    category: document.querySelector('select').value, 
-                    price: priceVal, 
+                    name: sanitizeInput(rawName),
+                    description: sanitizeInput(rawDesc),
+                    category: document.querySelector('select').value,
+                    price: priceVal,
                     stock: stockVal,
                     lowStockThreshold: thresholdVal,
-                    imageUrl: base64ImageString, 
+                    imageUrl: imageUrl,          // <-- now a real hosted URL, or "" if none
                     createdAt: serverTimestamp(),
-                    createdBy: auth.currentUser.uid, 
+                    createdBy: auth.currentUser.uid,
                     variations: [],
                     attributes: []
                 };
@@ -343,6 +368,289 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         });
     }
+
+    // ================================================
+    // --- BULK MODE SETUP ---
+    // ================================================
+    const urlParams = new URLSearchParams(window.location.search);
+    isBulkMode = urlParams.get('mode') === 'bulk';
+    
+    const bulkBanner     = document.getElementById('bulkModeBanner');
+    const singleSubmitBtn = document.getElementById('singleSubmitBtn');
+    const nextBtn        = document.getElementById('nextBtn');
+    const finalizeBtn    = document.getElementById('finalizeBtn');
+    const finalizeBadge  = document.getElementById('finalizeBadge');
+    const queueCount     = document.getElementById('queueCount');
+    
+    if (isBulkMode) {
+        bulkBanner.style.display      = 'flex';
+        singleSubmitBtn.style.display = 'none';
+        nextBtn.style.display         = 'flex';
+        finalizeBtn.style.display     = 'flex';
+    }
+    
+    function updateBulkUI() {
+        const count = draftProducts.length;
+        if (queueCount) queueCount.textContent = count;
+        if (finalizeBadge) finalizeBadge.textContent = count;
+        if (finalizeBtn) finalizeBtn.disabled = (count === 0);
+    }
+    
+    // --- COLLECT FORM DATA (no upload yet) ---
+    async function collectFormDraft() {
+        const rawName = document.querySelector('input[placeholder="Enter product name"]').value.trim();
+    
+        if (!rawName) throw new Error("Product Name is required.");
+    
+        const priceVal    = parseFloat(document.querySelector('input[type="number"][step="0.01"]').value) || 0;
+        const stockVal    = parseInt(document.querySelector('input[placeholder="0"]').value) || 0;
+        const thresholdVal = parseInt(document.querySelector('input[placeholder="10"]').value) || 10;
+    
+        if (priceVal < 0 || stockVal < 0 || thresholdVal < 0)
+            throw new Error("Price and Stock values cannot be negative.");
+    
+        // Duplicate check against already-queued names
+        const alreadyQueued = draftProducts.some(p => p.name.toLowerCase() === rawName.toLowerCase());
+        if (alreadyQueued) throw new Error(`"${rawName}" is already in your queue.`);
+    
+        // Duplicate check against Firestore
+        const q = query(collection(db, "products"), where("name", "==", rawName));
+        const snap = await getDocs(q);
+        if (!snap.empty) throw new Error(`Product "${rawName}" already exists in the database.`);
+    
+        const variations = [];
+        document.querySelectorAll('.variations-row').forEach(row => {
+            const size   = sanitizeInput(row.querySelector('.var-size').value);
+            const color  = sanitizeInput(row.querySelector('.var-color').value);
+            const custom = sanitizeInput(row.querySelector('.var-custom').value);
+            if (size && color) variations.push({ size, color, custom });
+        });
+        if (variations.length === 0) throw new Error("Add at least one valid variation.");
+    
+        const attributes = [];
+        document.querySelectorAll('.custom-attr-row').forEach(row => {
+            const name  = sanitizeInput(row.querySelector('.attr-name').value);
+            const value = sanitizeInput(row.querySelector('.attr-value').value);
+            if (name && value) attributes.push({ name, value });
+        });
+    
+        return {
+            name:              sanitizeInput(rawName),
+            description:       sanitizeInput(document.querySelector('textarea').value),
+            category:          document.querySelector('select').value,
+            price:             priceVal,
+            stock:             stockVal,
+            lowStockThreshold: thresholdVal,
+            imageFile:         selectedImageFile,          // raw File — uploaded at Finalize
+            imagePreviewUrl:   preview.src || null,        // blob URL for preview card
+            variations,
+            attributes
+        };
+    }
+    
+    // --- RESET FORM FOR NEXT PRODUCT ---
+    function resetFormForNext() {
+        form.reset();
+        resetImage();
+    
+        // Reset variations to one empty row
+        if (variationContainer) {
+            variationContainer.innerHTML = `
+                <div class="variations-row">
+                    <div class="input-group"><input type="text" class="var-size" placeholder="Ex: Large" required></div>
+                    <div class="input-group"><input type="text" class="var-color" placeholder="Ex: Red" required></div>
+                    <div class="input-group"><input type="text" class="var-custom" placeholder="Optional"></div>
+                    <button type="button" class="btn-delete remove-row-btn" title="Remove"><i class="fas fa-trash"></i></button>
+                </div>`;
+            variationContainer.querySelectorAll('input').forEach(inp => applyCharLimit(inp));
+        }
+    
+        // Reset attributes to one empty row
+        if (attrContainer) {
+            attrContainer.innerHTML = `
+                <div class="custom-attr-row">
+                    <div class="input-group"><input type="text" class="attr-name" placeholder="Ex: Material"></div>
+                    <div class="input-group"><input type="text" class="attr-value" placeholder="Ex: Cotton"></div>
+                    <button type="button" class="btn-delete remove-attr-btn" title="Remove"><i class="fas fa-trash"></i></button>
+                </div>`;
+            attrContainer.querySelectorAll('input').forEach(inp => applyCharLimit(inp));
+        }
+    
+        isFormDirty = false;
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+    
+    // --- NEXT BUTTON ---
+    if (nextBtn) {
+        nextBtn.addEventListener('click', async () => {
+            nextBtn.disabled = true;
+            nextBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Validating...';
+    
+            try {
+                const draft = await collectFormDraft();
+                draftProducts.push(draft);
+                updateBulkUI();
+                resetFormForNext();
+    
+                // Brief success feedback on banner
+                bulkBanner.style.background = 'linear-gradient(135deg, #dcfce7, #bbf7d0)';
+                bulkBanner.style.borderColor = '#86efac';
+                setTimeout(() => {
+                    bulkBanner.style.background = '';
+                    bulkBanner.style.borderColor = '';
+                }, 800);
+    
+            } catch (err) {
+                alert("⚠️ " + err.message);
+            } finally {
+                nextBtn.disabled = false;
+                nextBtn.innerHTML = '<i class="fas fa-arrow-right"></i> Next Product';
+            }
+        });
+    }
+    
+    // ================================================
+    // --- PREVIEW MODAL ---
+    // ================================================
+    const overlay        = document.getElementById('bulkPreviewOverlay');
+    const previewGrid    = document.getElementById('bulkPreviewGrid');
+    const previewCountLbl = document.getElementById('previewCountLabel');
+    const confirmSaveBtn = document.getElementById('confirmSaveBtn');
+    
+    function renderPreviewCards() {
+        previewGrid.innerHTML = '';
+        previewCountLbl.textContent = `${draftProducts.length} product(s) ready to save`;
+    
+        if (draftProducts.length === 0) {
+            previewGrid.innerHTML = `
+                <div class="bulk-preview-empty">
+                    <i class="fas fa-box-open"></i>
+                    <p>No products queued. Go back and add some.</p>
+                </div>`;
+            confirmSaveBtn.disabled = true;
+            return;
+        }
+    
+        confirmSaveBtn.disabled = false;
+    
+        draftProducts.forEach((product, index) => {
+            const card = document.createElement('div');
+            card.className = 'preview-card';
+            card.dataset.index = index;
+    
+            const imgHtml = product.imagePreviewUrl && product.imagePreviewUrl !== ''
+                ? `<div class="preview-card-img"><img src="${product.imagePreviewUrl}" alt="preview"></div>`
+                : `<div class="preview-card-img no-image"><i class="fas fa-image"></i></div>`;
+    
+            card.innerHTML = `
+                ${imgHtml}
+                <div class="preview-card-body">
+                    <div class="preview-card-name">${product.name}</div>
+                    <div class="preview-card-meta"><i class="fas fa-tag" style="width:14px"></i> ${product.category || 'No category'}</div>
+                    <div class="preview-card-meta"><i class="fas fa-cubes" style="width:14px"></i> Stock: ${product.stock}</div>
+                    <div class="preview-card-meta"><i class="fas fa-layer-group" style="width:14px"></i> ${product.variations.length} variation(s)</div>
+                    <div class="preview-card-price">₱${product.price.toFixed(2)}</div>
+                </div>
+                <button class="btn-remove-card" title="Remove from queue" data-index="${index}">
+                    <i class="fas fa-times"></i>
+                </button>`;
+    
+            previewGrid.appendChild(card);
+        });
+    }
+    
+    // Open preview
+    if (finalizeBtn) {
+        finalizeBtn.addEventListener('click', () => {
+            renderPreviewCards();
+            overlay.style.display = 'flex';
+        });
+    }
+    
+    // Close preview
+    document.getElementById('closePreviewBtn')?.addEventListener('click', () => {
+        overlay.style.display = 'none';
+    });
+    document.getElementById('backToEditBtn')?.addEventListener('click', () => {
+        overlay.style.display = 'none';
+    });
+    
+    // Remove a card from queue
+    previewGrid?.addEventListener('click', (e) => {
+        const btn = e.target.closest('.btn-remove-card');
+        if (!btn) return;
+        const idx = parseInt(btn.dataset.index);
+        draftProducts.splice(idx, 1);
+        updateBulkUI();
+        renderPreviewCards();
+    });
+    
+    // --- CONFIRM SAVE ALL ---
+    if (confirmSaveBtn) {
+        confirmSaveBtn.addEventListener('click', async () => {
+            if (draftProducts.length === 0) return;
+    
+            confirmSaveBtn.disabled = true;
+            confirmSaveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+    
+            // Add a progress bar
+            const footer = document.querySelector('.bulk-preview-footer');
+            const progressWrap = document.createElement('div');
+            progressWrap.className = 'bulk-progress-bar-wrap';
+            const progressBar = document.createElement('div');
+            progressBar.className = 'bulk-progress-bar';
+            progressWrap.appendChild(progressBar);
+            footer.prepend(progressWrap);
+    
+            let saved = 0;
+            const errors = [];
+    
+            for (const product of draftProducts) {
+                try {
+                    // 1. Upload image if exists
+                    let imageUrl = "";
+                    if (product.imageFile) {
+                        const storageRef = ref(storage, `products/images/${Date.now()}_${product.imageFile.name}`);
+                        const snapshot = await uploadBytes(storageRef, product.imageFile);
+                        imageUrl = await getDownloadURL(snapshot.ref);
+                    }
+    
+                    // 2. Save to Firestore
+                    const productData = {
+                        name:              product.name,
+                        description:       product.description,
+                        category:          product.category,
+                        price:             product.price,
+                        stock:             product.stock,
+                        lowStockThreshold: product.lowStockThreshold,
+                        imageUrl:          imageUrl,
+                        createdAt:         serverTimestamp(),
+                        createdBy:         auth.currentUser.uid,
+                        variations:        product.variations,
+                        attributes:        product.attributes
+                    };
+                    await addDoc(collection(db, "products"), productData);
+                    await logActivity("Added Product", product.name);
+    
+                    saved++;
+                    progressBar.style.width = `${(saved / draftProducts.length) * 100}%`;
+    
+                } catch (err) {
+                    errors.push(`${product.name}: ${err.message}`);
+                }
+            }
+    
+            isFormDirty = false;
+    
+            if (errors.length > 0) {
+                alert(`Saved ${saved} product(s).\n\n⚠️ Errors:\n${errors.join('\n')}`);
+            } else {
+                alert(`✅ All ${saved} product(s) saved successfully!`);
+            }
+    
+            window.location.href = "Products.html";
+        });
+    }    
 });
 
 // Logout Helper
