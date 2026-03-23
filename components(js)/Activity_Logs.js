@@ -186,7 +186,6 @@ async function loadLogs(reset = true) {
     }
 
     snapshot.forEach(doc => {
-
         const log = doc.data();
 
         const date = log.timestamp
