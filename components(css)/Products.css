@@ -217,3 +217,122 @@ body {
         font-size: 12px; color: var(--text-secondary); margin-bottom: 8px; border-bottom: 1px solid var(--border-color); padding-bottom: 4px;
     }
 }
+
+.toast-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 10000;
+}
+
+.toast {
+    background: #333;
+    color: white;
+    padding: 12px 24px;
+    border-radius: 8px;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    animation: slideIn 0.3s ease forwards;
+    min-width: 250px;
+}
+
+.toast.success { border-left: 5px solid #2ecc71; }
+.toast.error { border-left: 5px solid #e74c3c; }
+
+.toast i { font-size: 1.2rem; }
+.toast.success i { color: #2ecc71; }
+.toast.error i { color: #e74c3c; }
+
+@keyframes slideIn {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes fadeOut {
+    to { transform: translateX(20px); opacity: 0; }
+}
+
+.confirm-modal {
+    max-width: 380px;
+    padding: 30px;
+}
+
+.confirm-icon {
+    font-size: 50px;
+    color: #e67e22; /* Warning orange */
+    margin-bottom: 15px;
+}
+
+.confirm-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 25px;
+}
+
+.btn-cancel, .btn-danger-confirm {
+    flex: 1;
+    padding: 12px;
+    border-radius: 6px;
+    border: none;
+    font-weight: 600;
+    cursor: pointer;
+    transition: 0.2s;
+}
+
+.btn-cancel {
+    background: #f1f1f1;
+    color: #555;
+}
+
+.btn-danger-confirm {
+    background: #e74c3c;
+    color: white;
+}
+
+.btn-cancel:hover { background: #e0e0e0; }
+.btn-danger-confirm:hover { background: #c0392b; }
+
+/* This centers the modal and makes it cover the whole screen */
+.modal-overlay {
+    position: fixed; /* Crucial: Keeps it in the center even if you scroll */
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5); /* Semi-transparent background */
+    display: flex; /* Helps center the content */
+    align-items: center;
+    justify-content: center;
+    z-index: 9999; /* Higher than the sidebar and table */
+    backdrop-filter: blur(4px); /* Optional: blurs the background for focus */
+}
+
+/* The actual white box inside the overlay */
+.modal-content.confirm-modal {
+    background: var(--bg-color, white); 
+    padding: 2rem;
+    border-radius: 12px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+    text-align: center;
+    width: 90%;
+    max-width: 400px;
+}
+
+/* Dark mode override */
+[data-theme="dark"] .modal-content.confirm-modal {
+    background-color: #1e1e1e; 
+    color: #ffffff;            
+    border: 1px solid #333;    
+}
+
+[data-theme="dark"] .modal-content.confirm-modal p {
+    color: #d1d5db; 
+}
+
+/* Keep the product name bold and bright in dark mode */
+[data-theme="dark"] #archive-product-name {
+    color: #fbbf24; 
+}

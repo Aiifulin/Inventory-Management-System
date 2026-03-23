@@ -15,6 +15,7 @@
             document.documentElement.setAttribute('data-theme', 'dark');
         }
     </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Products - Inventory MS</title>
@@ -58,6 +59,7 @@
             </div>
         </div>
     </aside>
+    <div id="toast-container" class="toast-container"></div>
 
     <main class="main-content">
         <div class="page-header">
@@ -67,7 +69,7 @@
             </div>
             
             <div class="header-actions">
-                <button class="btn-outline">
+                <button class="btn-outline" id="exportBtn">
                     <i class="fas fa-download"></i> <span class="btn-text">Export</span>
                 </button>
                 <button class="btn-outline" onclick="window.location.href='Add_Product.html?mode=bulk'">
@@ -148,7 +150,23 @@
             <div class="mobile-grid mobile-only" id="mobileProductList">
                 </div>
         </div>
+        
     </main>
+    <div id="confirmModal" class="modal-overlay" style="display: none;">
+        <div class="modal-content confirm-modal">
+            <div class="confirm-icon">
+                <i class="fas fa-archive"></i>
+            </div>
+            <h2>Archive Product?</h2>
+            <p>This will move <strong id="archive-product-name">the product</strong> to the archive. It will no longer show in the active inventory.</p>
+            
+            <div class="confirm-actions">
+                <button id="cancel-archive-btn" class="btn-cancel">Cancel</button>
+                <button id="confirm-archive-btn" class="btn-danger-confirm">Yes, Archive</button>
+            </div>
+        </div>
+    </div>
+    
 
     <script type="module" src="components(js)/Products.js"></script>
 

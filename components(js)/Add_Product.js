@@ -357,8 +357,28 @@ document.addEventListener("DOMContentLoaded", () => {
                 // 2. LOG ACTIVITY
                 await logActivity("Added Product", productData.name);
 
-                alert("Product Saved Successfully!");
-                window.location.href = "Dashboard.html";
+                // Replace the alert with this:
+                showSuccessAndRedirect();
+                
+                // Define this function inside or outside your DOMContentLoaded
+                function showSuccessAndRedirect() {
+                    const modal = document.getElementById('successModal');
+                    const progressBar = document.getElementById('redirectProgress');
+                    
+                    modal.style.display = 'flex';
+                
+                    // Animate the progress bar over 2.5 seconds
+                    let width = 0;
+                    const interval = setInterval(() => {
+                        if (width >= 100) {
+                            clearInterval(interval);
+                            window.location.href = "Dashboard.html";
+                        } else {
+                            width += 1;
+                            progressBar.style.width = width + '%';
+                        }
+                    }, 25); // 25ms * 100 steps = 2500ms (2.5 seconds)
+                }                
 
             } catch (error) {
                 console.error("Error:", error);
@@ -642,13 +662,58 @@ document.addEventListener("DOMContentLoaded", () => {
     
             isFormDirty = false;
     
-            if (errors.length > 0) {
-                alert(`Saved ${saved} product(s).\n\n⚠️ Errors:\n${errors.join('\n')}`);
-            } else {
-                alert(`✅ All ${saved} product(s) saved successfully!`);
+            // REPLACE YOUR ALERT BLOCK WITH THIS:
+            showBatchResult(saved, errors);
+            
+            // THE FUNCTION:
+            function showBatchResult(savedCount, errorsArray) {
+                const modal = document.getElementById('successModal');
+                const modalTitle = document.getElementById('modalTitle');
+                const modalMessage = document.getElementById('modalMessage');
+                const modalIcon = document.getElementById('modalIcon');
+                const errorLog = document.getElementById('errorLog');
+                const errorList = document.getElementById('errorList');
+                const progressBar = document.getElementById('redirectProgress');
+            
+                modal.style.display = 'flex';
+                errorList.innerHTML = ""; // Clear old errors
+            
+                if (errorsArray.length > 0) {
+                    // CASE: Partial Success / Errors
+                    modalTitle.innerText = "Batch Completed with Issues";
+                    modalIcon.innerHTML = '<i class="fas fa-exclamation-triangle warning-icon"></i>';
+                    modalMessage.innerText = `Saved ${savedCount} product(s), but ${errorsArray.length} failed.`;
+                    
+                    errorLog.style.display = 'block';
+                    errorsArray.forEach(err => {
+                        const li = document.createElement('li');
+                        li.innerText = err;
+                        errorList.appendChild(li);
+                    });
+                } else {
+                    // CASE: Perfect Success
+                    modalTitle.innerText = "Success!";
+                    modalIcon.innerHTML = '<i class="fas fa-check-circle"></i>';
+                    modalMessage.innerText = `All ${savedCount} products have been saved successfully.`;
+                    errorLog.style.display = 'none';
+                }
+            
+                // Redirect Logic
+                let width = 0;
+                const duration = errorsArray.length > 0 ? 5000 : 2500; // Give them 5s to read errors, 2.5s for success
+                const stepTime = duration / 100;
+            
+                const interval = setInterval(() => {
+                    width++;
+                    progressBar.style.width = width + '%';
+                    if (width >= 100) {
+                        clearInterval(interval);
+                        window.location.href = "Dashboard.html";
+                    }
+                }, stepTime);
             }
     
-            window.location.href = "Products.html";
+            
         });
     }    
 });

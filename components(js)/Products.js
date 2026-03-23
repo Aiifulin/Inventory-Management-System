@@ -330,6 +330,27 @@ window.editProduct = function(id) {
     }
 }
 
+function confirmAction(productName) {
+    const modal = document.getElementById('confirmModal');
+    const nameSpan = document.getElementById('archive-product-name');
+    const confirmBtn = document.getElementById('confirm-archive-btn');
+    const cancelBtn = document.getElementById('cancel-archive-btn');
+    
+    nameSpan.innerText = productName;
+    modal.style.display = 'flex';
+
+    return new Promise((resolve) => {
+        confirmBtn.onclick = () => {
+            modal.style.display = 'none';
+            resolve(true); // User clicked Yes
+        };
+        cancelBtn.onclick = () => {
+            modal.style.display = 'none';
+            resolve(false); // User clicked No
+        };
+    });
+}
+
 // --- DELETE FUNCTION WITH LOGGING ---
 function attachDeleteListeners() {
 
@@ -346,7 +367,8 @@ function attachDeleteListeners() {
             const productToArchive = allProducts.find(p => p.id === idToArchive);
             const nameToLog = productToArchive ? productToArchive.name : "Unknown Product";
 
-            if (!confirm("Move this product to Archive?")) return;
+            const isConfirmed = await confirmAction(nameToLog);
+            if (!isConfirmed) return; // Exit if user cancels
 
             try {
 
@@ -361,11 +383,11 @@ function attachDeleteListeners() {
                 allProducts = allProducts.filter(p => p.id !== idToArchive);
                 applyFilters();
 
-                alert("Product moved to Archive.");
+                showToast("Product moved to Archive", "success");
 
             } catch (err) {
                 console.error("Error archiving:", err);
-                alert("Error archiving product: " + err.message);
+                showToast("Error: " + err.message, "error");
             }
         });
     });
@@ -411,6 +433,8 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 });
 
+document.getElementById('exportBtn').addEventListener('click', exportToExcel);
+
 // --- LOGOUT FUNCTION ---
 window.logout = function() {
     // Clear LOCAL storage now
@@ -428,3 +452,55 @@ window.logout = function() {
         window.location.replace("Login.html");
     });
 };
+
+function showToast(message, type = 'success') {
+    const container = document.getElementById('toast-container');
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    
+    const icon = type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle';
+    
+    toast.innerHTML = `
+        <i class="fas ${icon}"></i>
+        <span>${message}</span>
+    `;
+    
+    container.appendChild(toast);
+
+    // Auto-remove after 3 seconds
+    setTimeout(() => {
+        toast.style.animation = 'fadeOut 0.3s ease forwards';
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
+}
+
+function exportToExcel() {
+    if (!allProducts || allProducts.length === 0) {
+        showToast("No products available to export", "error");
+        return;
+    }
+
+    // 1. Map the data to the specific columns you want
+    const dataToExport = allProducts.map(p => ({
+        "ID": p.id,
+        "Product Name": p.name,
+        "Category": p.category,
+        "Price": `₱${p.price}`,
+        "Stock": p.stock,
+        "Status": p.stock <= 0 ? "Out of Stock" : (p.stock <= 10 ? "Low Stock" : "In Stock"),
+        "Date Added": p.createdAt ? new Date(p.createdAt.seconds * 1000).toLocaleDateString() : "N/A"
+    }));
+
+    // 2. Create a worksheet from the data
+    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+
+    // 3. Create a new workbook and append the worksheet
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Products");
+
+    // 4. Trigger the download
+    const fileName = `Inventory_Report_${new Date().toISOString().split('T')[0]}.xlsx`;
+    XLSX.writeFile(workbook, fileName);
+    
+    showToast("Exporting Excel file...", "success");
+}
