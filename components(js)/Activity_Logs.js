@@ -122,9 +122,32 @@ async function checkAdminRole(uid) {
         return false; 
     }
 }
-
+let sortDirection = "desc"; // default (newest first)
 let lastVisible = null;
 const pageSize = 50;
+
+
+const dateHeader = document.getElementById("dateHeader");
+
+dateHeader.addEventListener("click", () => {
+
+    sortDirection = (sortDirection === "desc") ? "asc" : "desc";
+
+    lastVisible = null;
+
+    updateDateHeader();
+
+    loadLogs(true);
+});
+
+function updateDateHeader() {
+    const header = document.getElementById("dateHeader");
+
+    header.textContent = sortDirection === "desc"
+        ? "Date ↓"
+        : "Date ↑";
+}
+
 
 async function loadLogs(reset = true) {
 
@@ -133,13 +156,13 @@ async function loadLogs(reset = true) {
     if (reset || !lastVisible) {
         q = query(
             collection(db, "activities"),
-            orderBy("timestamp", "desc"),
+            orderBy("timestamp", sortDirection),
             limit(pageSize)
         );
     } else {
         q = query(
             collection(db, "activities"),
-            orderBy("timestamp", "desc"),
+            orderBy("timestamp", sortDirection),
             startAfter(lastVisible),
             limit(pageSize)
         );
