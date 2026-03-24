@@ -1,6 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
-// Added doc and getDoc for role checking
-import { getFirestore, collection, addDoc, serverTimestamp, query, where, getDocs, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { 
+    getFirestore, collection, doc, getDoc, setDoc, updateDoc, serverTimestamp, query, where, getDocs, addDoc
+} from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 
 const firebaseConfig = {
@@ -17,20 +18,13 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
 
-let base64ImageString = "";
-let isFormDirty = false;
-
 // --- AUTH CHECK WITH ROLE VALIDATION ---
 onAuthStateChanged(auth, async (user) => {
     if (user) {
-        // 1. Fetch User Role from 'users' collection
         const isAdmin = await checkAdminRole(user.uid);
-
         if (!isAdmin) {
             alert("Access Denied: Only Admins can add categories.");
             window.location.href = "Categories.html";
-        } else {
-            console.log("Admin verified.");
         }
     } else {
         window.location.href = "Login.html";
@@ -42,14 +36,10 @@ async function checkAdminRole(uid) {
     try {
         const userDocRef = doc(db, "users", uid);
         const userSnap = await getDoc(userDocRef);
-        
         if (userSnap.exists()) {
             const userData = userSnap.data();
-            // Check if role is 'admin' (case-insensitive for safety)
             return (userData.role && userData.role.toLowerCase() === 'admin');
         }
-        
-        // Fallback: If user not found in DB (legacy accounts), assume NOT admin
         return false;
     } catch (error) {
         console.error("Error checking role:", error);
@@ -61,34 +51,55 @@ async function checkAdminRole(uid) {
 async function logActivity(action, targetName) {
     try {
         const userEmail = auth.currentUser ? auth.currentUser.email : "Admin"; 
-        
         await addDoc(collection(db, "activities"), {
-            action: action,          // e.g., "Added Product"
-            target: targetName,      // e.g., "Gaming Chair"
-            user: userEmail,         // Logs who performed the action
+            action,
+            target: targetName,
+            user: userEmail,
             timestamp: serverTimestamp()
         });
-        console.log("Activity logged successfully");
     } catch (e) {
         console.error("Error logging activity", e);
     }
 }
 
+// --- SANITIZER ---
+function sanitizeInput(str) {
+    if (!str) return "";
+    if (typeof str !== 'string') return String(str);
+    const div = document.createElement('div');
+    div.innerText = str; 
+    return div.innerHTML;
+}
 
+// --- ADD CATEGORY WITH NUMERIC ID ---
+async function addCategory(categoryData) {
+    const counterRef = doc(db, "counters", "categories");
+    const counterSnap = await getDoc(counterRef);
 
-document.addEventListener("DOMContentLoaded", () => {
-
-    // --- SANITIZER ---
-    function sanitizeInput(str) {
-        if (!str) return "";
-        if (typeof str !== 'string') return String(str);
-        const div = document.createElement('div');
-        div.innerText = str; 
-        return div.innerHTML;
+    let newIdNum = 1;
+    if (counterSnap.exists()) {
+        newIdNum = counterSnap.data().lastId + 1;
+        await updateDoc(counterRef, { lastId: newIdNum });
+    } else {
+        // First category ever
+        await setDoc(counterRef, { lastId: 1 });
     }
 
-    // --- FORM SUBMISSION ---
-    const form = document.querySelector('form');
+    const newId = String(newIdNum);
+
+    await setDoc(doc(db, "categories", newId), {
+        ...categoryData,
+        createdAt: serverTimestamp(),
+        archived: false,
+        itemCount: 0   // 👈 new field added here
+    });
+
+    return newId;
+}
+
+// --- FORM SUBMISSION ---
+document.addEventListener("DOMContentLoaded", () => {
+    const form = document.querySelector('#categoryForm');
     const submitBtn = document.querySelector('.btn-submit');
 
     if(form) {
@@ -102,33 +113,26 @@ document.addEventListener("DOMContentLoaded", () => {
                 const rawName = document.getElementById('categoryNameInput').value.trim();
                 const rawDesc = document.getElementById('categoryDescInput').value.trim();
 
-                if (!rawName) {
-                    throw new Error("Category name is required.");
-                }
+                if (!rawName) throw new Error("Category name is required.");
 
-                // DUPLICATE CHECK
-                const q = query(collection(db, "categories"), where("name", "==", rawName));
+                // Duplicate check (case-insensitive)
+                const normalizedName = rawName.toLowerCase();
+                const q = query(collection(db, "categories"), where("normalizedName", "==", normalizedName));
                 const querySnapshot = await getDocs(q);
 
-                if (!querySnapshot.empty) {
-                    throw new Error(`Category "${rawName}" already exists!`);
-                }
+                if (!querySnapshot.empty) throw new Error(`Category "${rawName}" already exists!`);
 
                 const categoryData = {
-                    name: sanitizeInput(rawName), 
-                    description: sanitizeInput(rawDesc), 
-                    createdAt: serverTimestamp(),
-                    createdBy: auth.currentUser.uid,
-                    archived: false
+                    name: sanitizeInput(rawName),
+                    normalizedName,
+                    description: sanitizeInput(rawDesc),
+                    createdBy: auth.currentUser ? auth.currentUser.uid : "unknown"
                 };
 
-                // 1. SAVE CATEGORY
-                await addDoc(collection(db, "categories"), categoryData);
-
-                // 2. LOG ACTIVITY
+                const newId = await addCategory(categoryData);
                 await logActivity("Added Category", categoryData.name);
 
-                alert("Category Saved Successfully!");
+                alert(`Category Saved Successfully with ID ${newId}!`);
                 window.location.href = "Categories.html";
 
             } catch (error) {
@@ -136,19 +140,16 @@ document.addEventListener("DOMContentLoaded", () => {
                 alert("Error saving: " + error.message);
                 submitBtn.innerText = "Add Category"; 
                 submitBtn.disabled = false;
-            }
+            }   
         });
     }
 });
 
-// Logout Helper
+// --- LOGOUT HELPER ---
 window.logout = function() {
-    // Clear LOCAL storage now
     localStorage.removeItem("user_session");
     localStorage.removeItem("user_uid");
     localStorage.removeItem("user_role");
-    
-    // Also clear session just in case
     sessionStorage.clear();
 
     signOut(auth).then(() => {
