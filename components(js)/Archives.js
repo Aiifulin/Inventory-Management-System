@@ -40,7 +40,7 @@ const auth = getAuth(app);
 
 let lastVisible = null;
 const pageSize = 25;
-let sortDirection = "desc"
+let sortDirection = "desc";
 
 // ===============================
 // AUTH LISTENER
@@ -61,25 +61,19 @@ onAuthStateChanged(auth, async (user) => {
         return;
     }
 
-    // ✅ Reveal page immediately for admin
     document.documentElement.style.visibility = "visible";
-
-    // THEN load content
-    loadArchivedProducts(true); 
-    // or loadLogs(true) on activity page
-
+    loadArchivedProducts(true);
 });
 
 // ===============================
-// 👤 DISPLAY ROLE
+// DISPLAY ROLE
 // ===============================
 async function displayUserRole(uid) {
     const roleEl = document.getElementById('userRoleDisplay');
     if (!roleEl) return;
 
     try {
-        const docRef = doc(db, "users", uid);
-        const snap = await getDoc(docRef);
+        const snap = await getDoc(doc(db, "users", uid));
 
         if (snap.exists()) {
             let role = snap.data().role || "User";
@@ -88,32 +82,28 @@ async function displayUserRole(uid) {
         } else {
             roleEl.textContent = "User";
         }
-    } catch (err) {
+    } catch {
         roleEl.textContent = "User";
     }
 }
 
 // ===============================
-// 🛡 ADMIN CHECK
+// ADMIN CHECK
 // ===============================
 async function checkAdminRole(uid) {
     const snap = await getDoc(doc(db, "users", uid));
     if (!snap.exists()) return false;
 
-    const isAdmin = snap.data().role?.toLowerCase() === "admin";
-
-    if (!isAdmin) {
-        document.querySelectorAll(".admin-only")
-            .forEach(el => el.style.display = "none");
-    }
-
-    return isAdmin;
+    return snap.data().role?.toLowerCase() === "admin";
 }
 
 // ===============================
-//  LOAD ARCHIVED PRODUCTS
+// LOAD ARCHIVED PRODUCTS
 // ===============================
 async function loadArchivedProducts(reset = true) {
+
+    // 🔥 STOP if logged out mid-process
+    if (!auth.currentUser) return;
 
     let q;
 
@@ -136,6 +126,9 @@ async function loadArchivedProducts(reset = true) {
 
     const snapshot = await getDocs(q);
 
+    // 🔥 STOP if logged out during fetch
+    if (!auth.currentUser) return;
+
     const table = document.getElementById("archiveTable");
     if (!table) return;
 
@@ -144,7 +137,7 @@ async function loadArchivedProducts(reset = true) {
     if (snapshot.empty) {
         table.innerHTML = `
             <tr>
-                <td colspan="4" style="text-align:center;padding:20px;color:#999;">
+                <td colspan="5" style="text-align:center;padding:20px;color:#999;">
                     No archived products found.
                 </td>
             </tr>`;
@@ -152,17 +145,17 @@ async function loadArchivedProducts(reset = true) {
     }
 
     snapshot.forEach(docSnap => {
-    const product = docSnap.data();
-    const id = docSnap.id;
+        const product = docSnap.data();
+        const id = docSnap.id;
 
-    const archivedDate = product.archivedAt
-        ? product.archivedAt.toDate().toLocaleString()
-        : "—";
+        const archivedDate = product.archivedAt
+            ? product.archivedAt.toDate().toLocaleString()
+            : "—";
 
-    const imageUrl = product.imageUrl || "placeholder.png";
+        const imageUrl = product.imageUrl || "placeholder.png";
 
-    table.innerHTML += `
-        <tr>
+        const row = document.createElement("tr");
+        row.innerHTML = `
             <td>
                 <img src="${imageUrl}" 
                      alt="${product.name}" 
@@ -172,26 +165,51 @@ async function loadArchivedProducts(reset = true) {
             <td>${product.category || ""}</td>
             <td>${archivedDate}</td>
             <td>
-                <button class="btn-restore" data-id="${id}">
-                    Restore
-                </button>
-                <button class="btn-delete admin-only" data-id="${id}">
-                    Delete Permanently
-                </button>
-            </td>
-        </tr>
-    `;
-});
+    <div class="action-buttons">
+        <button class="btn-restore" data-id="${id}">
+            Restore
+        </button>
+        <button class="btn-delete admin-only" data-id="${id}">
+            Delete Permanently
+        </button>
+    </div>
+</td>
+        `;
+
+        table.appendChild(row);
+    });
 
     lastVisible = snapshot.docs[snapshot.docs.length - 1];
-
-    attachArchiveEvents();
 }
+
+// ===============================
+// EVENT DELEGATION (FIXED)
+// ===============================
+document.getElementById("archiveTable").addEventListener("click", (e) => {
+
+    const restoreBtn = e.target.closest(".btn-restore");
+    const deleteBtn = e.target.closest(".btn-delete");
+
+    if (restoreBtn) {
+        if (!auth.currentUser) return;
+        restoreProduct(restoreBtn.dataset.id);
+    }
+
+    if (deleteBtn) {
+        if (!auth.currentUser) return;
+        permanentlyDelete(deleteBtn.dataset.id);
+    }
+});
 
 // ===============================
 // RESTORE PRODUCT
 // ===============================
 async function restoreProduct(id) {
+
+    if (!auth.currentUser) return;
+
+    const confirmRestore = confirm("Restore this product?");
+    if (!confirmRestore) return;
 
     const docRef = doc(db, "products", id);
     const snap = await getDoc(docRef);
@@ -208,11 +226,13 @@ async function restoreProduct(id) {
 }
 
 // ===============================
-//  PERMANENT DELETE
+// DELETE PRODUCT
 // ===============================
 async function permanentlyDelete(id) {
 
-    const confirmDelete = confirm("This will permanently delete the product. Continue?");
+    if (!auth.currentUser) return;
+
+    const confirmDelete = confirm("Delete permanently?");
     if (!confirmDelete) return;
 
     const docRef = doc(db, "products", id);
@@ -227,77 +247,105 @@ async function permanentlyDelete(id) {
 }
 
 // ===============================
-//  EVENT BINDING
-// ===============================
-function attachArchiveEvents() {
-
-    document.querySelectorAll(".btn-restore").forEach(btn => {
-        btn.addEventListener("click", () => {
-            restoreProduct(btn.dataset.id);
-        });
-    });
-
-    document.querySelectorAll(".btn-delete").forEach(btn => {
-        btn.addEventListener("click", () => {
-            permanentlyDelete(btn.dataset.id);
-        });
-    });
-}
-
-// ===============================
-//  ACTIVITY LOGGER
+// ACTIVITY LOGGER
 // ===============================
 async function logActivity(action, target) {
 
-    const user = auth.currentUser;
+    if (!auth.currentUser) return;
 
     await addDoc(collection(db, "activities"), {
-        action: action,
-        target: target,
-        user: user?.email || "Unknown",
+        action,
+        target,
+        user: auth.currentUser.email || "Unknown",
         timestamp: serverTimestamp()
     });
 }
 
+// ===============================
+// SEARCH
+// ===============================
 document.addEventListener("input", function(e){
 
     if(e.target.id !== "archiveSearch") return;
 
     const search = e.target.value.toLowerCase();
 
-    const rows = document.querySelectorAll("#archiveTable tr");
-
-    rows.forEach(row => {
+    document.querySelectorAll("#archiveTable tr").forEach(row => {
 
         const name = row.children[1]?.textContent.toLowerCase() || "";
         const category = row.children[2]?.textContent.toLowerCase() || "";
 
-        if(name.includes(search) || category.includes(search)){
-            row.style.display = "";
-        } else {
-            row.style.display = "none";
-        }
-
+        row.style.display =
+            (name.includes(search) || category.includes(search))
+            ? ""
+            : "none";
     });
-
 });
 
+// ===============================
+// SORT
+// ===============================
 document.addEventListener("DOMContentLoaded", () => {
 
     const sortBtn = document.getElementById("sortArchivedDate");
-    if (!sortBtn) return;
 
-    sortBtn.addEventListener("click", () => {
-
+    sortBtn?.addEventListener("click", () => {
         sortDirection = sortDirection === "desc" ? "asc" : "desc";
-
         lastVisible = null;
         loadArchivedProducts(true);
-
     });
-
 });
 
-window.addEventListener("load", () => {
-    document.documentElement.style.visibility = "visible";
+// ===============================
+// LOGOUT (FIXED)
+// ===============================
+
+document.addEventListener("DOMContentLoaded", () => {
+    const hamburgerBtn = document.getElementById('hamburgerBtn');
+    const closeBtn = document.getElementById('closeBtn');
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('overlay');
+
+    function toggleSidebar() {
+        sidebar.classList.toggle('open');
+        overlay.classList.toggle('show');
+    }
+
+    function closeSidebar() {
+        sidebar.classList.remove('open');
+        overlay.classList.remove('show');
+    }
+
+    if (hamburgerBtn) {
+        hamburgerBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleSidebar();
+        });
+    }
+
+    if (closeBtn) {
+        closeBtn.addEventListener('click', closeSidebar);
+    }
+
+    if (overlay) {
+        overlay.addEventListener('click', closeSidebar);
+    }
 });
+
+// Logout Helper
+window.logout = function() {
+    // Clear LOCAL storage now
+    localStorage.removeItem("user_session");
+    localStorage.removeItem("user_uid");
+    localStorage.removeItem("user_role");
+    
+    // Also clear session just in case
+    sessionStorage.clear();
+
+    signOut(auth).then(() => {
+        window.location.replace("Login.html");
+    }).catch((error) => {
+        console.error("Logout Error:", error);
+        window.location.replace("Login.html");
+    });
+};

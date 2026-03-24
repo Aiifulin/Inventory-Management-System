@@ -34,12 +34,21 @@ html {
 
 <body>
 
+    <button class="hamburger" id="hamburgerBtn">
+    <i class="fas fa-bars"></i>
+</button>
+
+<div class="overlay" id="overlay"></div>
+
 <!-- Sidebar -->
 <aside class="sidebar" id="sidebar">
     <div class="sidebar-content">
         <div class="sidebar-header">
             <h2>Inventory MS</h2>
             <span class="user-role" id="userRoleDisplay">Loading...</span>
+
+            <button class="close-btn" id="closeBtn">
+        <i class="fas fa-times"></i></button>
         </div>
 
         <nav class="sidebar-nav">
@@ -88,28 +97,32 @@ html {
         <h1>Archived Products</h1>
         <p>Restore or permanently delete archived items</p>
         
-</th>
     </div>
 
     <div class="card">
 
-        <div class="search-bar">
-    <input 
-        type="text" 
-        id="archiveSearch" 
-        placeholder="Search Archive..."
-    >
-</div>
+    <div class="search-bar">
+        <input type="text" id="archiveSearch" placeholder="Search Archive...">
+    </div>
+
+    <div class="table-container">
 
         <table>
-            <thead>
-                <tr>
-                    <th>Image</th>
-                    <th>Product Name</th>
-                    <th>Category</th>
-                    <th id="sortArchivedDate" style="cursor:pointer;">
-                     Archived Date <i class="fas fa-sort"></i></th>
-                    <th>Actions</th>
+           <thead>
+    <tr>
+        <th>Image</th>
+        <th>Product Name</th>
+        <th>Category</th>
+        <th id="sortArchivedDate" style="cursor:pointer;">
+            Archived Date <i class="fas fa-sort"></i>
+        </th>
+        <th>Actions</th>
+        <td>
+</td>
+    </tr>
+</thead>
+    </div>
+
                 </tr>
             </thead>
 
