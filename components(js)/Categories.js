@@ -142,7 +142,6 @@ async function fetchCategories() {
     }
 }
 
-
 // --- FILTER & SORT ---
 function applyFilters() {
     const searchVal = document.getElementById("searchInput").value.trim().toLowerCase();
@@ -256,13 +255,10 @@ window.editCategory = function(id) {
 
 // --- DELETE FUNCTION WITH LOGGING ---
 function attachDeleteListeners() {
-
     if (!isAdmin) return;
 
     document.querySelectorAll('.delete-btn').forEach(btn => {
-
         btn.addEventListener('click', async (e) => {
-
             const target = e.target.closest('.delete-btn');
             if (!target) return;
 
@@ -270,30 +266,29 @@ function attachDeleteListeners() {
             const categoryToDelete = allCategories.find(c => c.id === idToDelete);
             const nameToLog = categoryToDelete ? categoryToDelete.name : "Unknown Category";
 
-            if (!confirm("Delete this category? Products in this category will remain.")) return;
+            if (!confirm("Archive this category? Products in this category will remain.")) return;
 
             try {
-
                 await updateDoc(doc(db, "categories", idToDelete), {
                     archived: true,
                     archivedAt: serverTimestamp()
                 });
 
-                await logActivity("Deleted Category", nameToLog);
+                await logActivity("Archived Category", nameToLog);
 
                 // Remove locally so no reload needed
                 allCategories = allCategories.filter(c => c.id !== idToDelete);
                 applyFilters();
 
-                alert("Category deleted.");
-
+                alert("Category archived successfully.");
             } catch (err) {
-                console.error("Error deleting:", err);
-                alert("Error deleting category: " + err.message);
+                console.error("Error archiving:", err);
+                alert("Error archiving category: " + err.message);
             }
         });
     });
 }
+
 
 // --- EVENT LISTENERS ---
 document.addEventListener("DOMContentLoaded", () => {
