@@ -76,6 +76,23 @@ tbody td {
     vertical-align: middle;
 }
 
+.archive-table-wrapper {
+    max-height: 500px;   /* adjust based on row height */
+    overflow-y: auto;    /* scroll when exceeding height */
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+}
+
+/* Sticky header that fully covers rows underneath */
+.archive-table-wrapper thead th {
+    position: sticky;
+    top: 0;
+    background-color: var(--bg-card); /* solid background from your theme */
+    padding: 14px 16px;               /* match body cell padding */
+    z-index: 10;                      /* higher than body cells */
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1); /* subtle shadow for separation */
+}
+
 /* --- Action Buttons --- */
 .btn-restore,
 .btn-delete {

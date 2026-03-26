@@ -82,9 +82,9 @@
         <p>Restore or permanently delete archived items</p>
     </div>
 
-    <div class="card">
+    <div class="card archive-table-wrapper">
 
-        <table>
+        <table id="archiveTableProduct">
             <thead>
                 <tr>
                     <th>Image</th>
@@ -95,7 +95,26 @@
                 </tr>
             </thead>
 
-            <tbody id="archiveTable">
+            <tbody id="archiveTableProductsBody">
+                <!-- JS will populate -->
+            </tbody>
+
+        </table>
+    </div>
+
+    <br><br>
+
+    <div class="card">
+        <table>
+            <thead>
+                <tr>
+                    <th>Category</th>
+                    <th>Archived Date</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+
+            <tbody id="archiveTableCategories">
                 <!-- JS will populate -->
             </tbody>
 

@@ -289,7 +289,6 @@ function attachDeleteListeners() {
     });
 }
 
-
 // --- EVENT LISTENERS ---
 document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("searchInput").addEventListener("input", applyFilters);
