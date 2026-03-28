@@ -84,6 +84,20 @@
 </form>
 
     </main>
+    <!-- SUCCESS MODAL -->
+    <div class="modal-overlay" id="successModal" style="display:none;">
+        <div class="modal-content">
+            <div class="success-icon">
+                <i class="fas fa-check-circle"></i>
+            </div>
+            <h2 style="margin: 0 0 8px; font-size: 20px; color: var(--text-main);">Category Saved!</h2>
+            <p style="margin: 0 0 4px; color: var(--text-secondary); font-size: 14px;" id="successCategoryName"></p>
+            <p style="margin: 0; color: var(--text-secondary); font-size: 13px;">Redirecting you back to Categories...</p>
+            <div class="progress-bar-container">
+                <div class="progress-bar" id="successProgressBar"></div>
+            </div>
+        </div>
+    </div>    
 
     <script type="module" src="components(js)/Add_Categories.js"></script>
     

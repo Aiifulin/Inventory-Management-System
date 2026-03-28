@@ -132,8 +132,8 @@ document.addEventListener("DOMContentLoaded", () => {
                 const newId = await addCategory(categoryData);
                 await logActivity("Added Category", categoryData.name);
 
-                alert(`Category Saved Successfully with ID ${newId}!`);
-                window.location.href = "Categories.html";
+                showSuccessModal(categoryData.name);
+                
 
             } catch (error) {
                 console.error("Error:", error);
@@ -159,3 +159,24 @@ window.logout = function() {
         window.location.replace("Login.html");
     });
 };
+
+// --- SUCCESS MODAL ---
+function showSuccessModal(categoryName) {
+    const modal = document.getElementById('successModal');
+    const bar   = document.getElementById('successProgressBar');
+    const label = document.getElementById('successCategoryName');
+
+    if (label) label.textContent = `"${categoryName}" has been added.`;
+    if (modal) modal.style.display = 'flex';
+
+    // Animate progress bar over 2 seconds then redirect
+    let width = 0;
+    const interval = setInterval(() => {
+        width += 2;
+        if (bar) bar.style.width = width + '%';
+        if (width >= 100) {
+            clearInterval(interval);
+            window.location.href = "Categories.html";
+        }
+    }, 40); // 40ms × 50 steps = 2 seconds
+}

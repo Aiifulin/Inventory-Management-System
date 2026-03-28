@@ -188,8 +188,7 @@ function initPage() {
                 await logActivity("Updated Category", updatedData.name);
 
                 isFormDirty = false;
-                alert("Category Updated!");
-                window.location.href = "Categories.html";
+                showSuccessModal(updatedData.name);
 
             } catch (error) {
                 console.error("Error updating:", error);
@@ -215,3 +214,16 @@ window.logout = function() {
         window.location.replace("Login.html");
     });
 };
+
+// --- SUCCESS MODAL ---
+function showSuccessModal(categoryName) {
+    const modal = document.getElementById('successModal');
+    const label = document.getElementById('successCategoryName');
+
+    if (label) label.textContent = `"${categoryName}" has been updated.`;
+    if (modal) modal.style.display = 'flex';
+
+    setTimeout(() => {
+        window.location.href = "Categories.html";
+    }, 2000);
+}

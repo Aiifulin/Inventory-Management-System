@@ -328,8 +328,7 @@ function initPage() {
                 await logActivity("Updated Product", updatedData.name);
 
                 isFormDirty = false;
-                alert("Product Updated!");
-                window.location.href = "Products.html";
+                showSuccessModal(updatedData.name);
 
             } catch (error) {
                 console.error("Error updating:", error);
@@ -441,5 +440,19 @@ async function loadCategories() {
     }
 }
 
+// --- SUCCESS MODAL ---
+function showSuccessModal(productName) {
+    const modal = document.getElementById('successModal');
+    const label = document.getElementById('successProductName');
+
+    if (label) label.textContent = `"${productName}" has been updated.`;
+    if (modal) modal.style.display = 'flex';
+
+    setTimeout(() => {
+        window.location.href = "Products.html";
+    }, 2000);
+}
+
 // Run on page load
 document.addEventListener("DOMContentLoaded", loadCategories);
+

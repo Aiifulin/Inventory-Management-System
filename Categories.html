@@ -23,6 +23,7 @@
     
     <link rel="stylesheet" href="components(css)/Theme.css">
     <link rel="stylesheet" href="components(css)/Products.css">
+    <link rel="stylesheet" href="components(css)/Categories.css">
 </head>
 
 <body>
@@ -58,6 +59,7 @@
             </div>
         </div>
     </aside>
+    <div id="toast-container" class="toast-container"></div>
 
     <main class="main-content">
         <div class="page-header">
@@ -115,7 +117,27 @@
             <div class="mobile-grid mobile-only" id="mobileProductList">
                 </div>
         </div>
+          
     </main>
+    <!-- DELETE CONFIRMATION MODAL -->
+    <div class="delete-modal-overlay" id="deleteModalOverlay" style="display:none;">
+        <div class="delete-modal">
+            <div class="delete-modal-icon">
+                <i class="fas fa-archive"></i>
+            </div>
+            <h3 class="delete-modal-title">Archive Category?</h3>
+            <p class="delete-modal-message">
+                You're about to archive <strong id="deleteCategoryName"></strong>. 
+                Products in this category will remain. You can restore it from Archives.
+            </p>
+            <div class="delete-modal-actions">
+                <button class="btn-modal-cancel" id="modalCancelBtn">Cancel</button>
+                <button class="btn-modal-confirm" id="modalConfirmBtn">
+                    <i class="fas fa-archive"></i> Archive
+                </button>
+            </div>
+        </div>
+    </div>    
 
     <script type="module" src="components(js)/Categories.js"></script>
 

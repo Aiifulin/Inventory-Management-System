@@ -249,16 +249,83 @@ window.editCategory = function(id) {
     if (isAdmin) {
         window.location.href = `Edit_Category.html?id=${id}`;
     } else {
-        alert("Access Denied: Only Admin can edit categories.");
+        showToast("Access Denied: Only Admin can edit categories.", "error");
     }
 }
 
-// --- DELETE FUNCTION WITH LOGGING ---
+// --- MODAL STATE ---
+let pendingDeleteId = null;
+let pendingDeleteName = null;
+
+// --- MODAL HELPERS ---
+function openDeleteModal(id, name) {
+    pendingDeleteId = id;
+    pendingDeleteName = name;
+    document.getElementById('deleteCategoryName').textContent = `"${name}"`;
+    document.getElementById('deleteModalOverlay').style.display = 'flex';
+}
+
+function closeDeleteModal() {
+    pendingDeleteId = null;
+    pendingDeleteName = null;
+    document.getElementById('deleteModalOverlay').style.display = 'none';
+    const confirmBtn = document.getElementById('modalConfirmBtn');
+    confirmBtn.disabled = false;
+    confirmBtn.innerHTML = '<i class="fas fa-archive"></i> Archive';
+}
+
+// Wire up modal buttons once on load
+document.addEventListener("DOMContentLoaded", () => {
+    document.getElementById('modalCancelBtn')?.addEventListener('click', closeDeleteModal);
+
+    // Close on backdrop click
+    document.getElementById('deleteModalOverlay')?.addEventListener('click', (e) => {
+        if (e.target === document.getElementById('deleteModalOverlay')) closeDeleteModal();
+    });
+
+    document.getElementById('modalConfirmBtn')?.addEventListener('click', async () => {
+        if (!pendingDeleteId) return;
+    
+        // 1. Capture the name in a local constant so it doesn't get wiped
+        const categoryName = pendingDeleteName; 
+        const confirmBtn = document.getElementById('modalConfirmBtn');
+        
+        confirmBtn.disabled = true;
+        confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Archiving...';
+    
+        try {
+            await updateDoc(doc(db, "categories", pendingDeleteId), {
+                archived: true,
+                archivedAt: serverTimestamp()
+            });
+    
+            await logActivity("Archived Category", categoryName);
+    
+            // 2. Update the UI
+            allCategories = allCategories.filter(c => c.id !== pendingDeleteId);
+            applyFilters();
+            
+            // 3. Close the modal (which sets pendingDeleteName to null)
+            closeDeleteModal();
+    
+            // 4. Use the LOCAL constant categoryName here instead
+            showToast(`Category "${categoryName}" archived successfully!`, 'success');
+    
+        } catch (err) {
+            console.error("Error archiving:", err);
+            showToast("Failed to archive category.", "error");
+            confirmBtn.disabled = false;
+            confirmBtn.innerHTML = '<i class="fas fa-archive"></i> Archive';
+        }
+    });
+});
+
+// --- ATTACH DELETE LISTENERS (updated) ---
 function attachDeleteListeners() {
     if (!isAdmin) return;
 
     document.querySelectorAll('.delete-btn').forEach(btn => {
-        btn.addEventListener('click', async (e) => {
+        btn.addEventListener('click', (e) => {
             const target = e.target.closest('.delete-btn');
             if (!target) return;
 
@@ -266,25 +333,7 @@ function attachDeleteListeners() {
             const categoryToDelete = allCategories.find(c => c.id === idToDelete);
             const nameToLog = categoryToDelete ? categoryToDelete.name : "Unknown Category";
 
-            if (!confirm("Archive this category? Products in this category will remain.")) return;
-
-            try {
-                await updateDoc(doc(db, "categories", idToDelete), {
-                    archived: true,
-                    archivedAt: serverTimestamp()
-                });
-
-                await logActivity("Archived Category", nameToLog);
-
-                // Remove locally so no reload needed
-                allCategories = allCategories.filter(c => c.id !== idToDelete);
-                applyFilters();
-
-                alert("Category archived successfully.");
-            } catch (err) {
-                console.error("Error archiving:", err);
-                alert("Error archiving category: " + err.message);
-            }
+            openDeleteModal(idToDelete, nameToLog);
         });
     });
 }
@@ -340,3 +389,25 @@ window.logout = function() {
         window.location.replace("Login.html");
     });
 };
+
+
+function showToast(message, type = 'success') {
+    const container = document.getElementById('toast-container');
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    
+    const icon = type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle';
+    
+    toast.innerHTML = `
+        <i class="fas ${icon}"></i>
+        <span>${message}</span>
+    `;
+    
+    container.appendChild(toast);
+
+    // Auto-remove after 3 seconds
+    setTimeout(() => {
+        toast.style.animation = 'fadeOut 0.3s ease forwards';
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
+}

@@ -19,6 +19,7 @@ body {
     overflow-x: hidden;
 }
 
+
 .main-content {
     flex: 1;
     width: 0; 
@@ -28,8 +29,6 @@ body {
     background-color: var(--bg-body);
     transition: background-color 0.3s ease;
 }
-
-
 
 /* --- Page Header --- */
 .page-header {
