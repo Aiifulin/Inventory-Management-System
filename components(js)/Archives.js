@@ -296,11 +296,6 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 });
 
-<<<<<<< HEAD
-window.addEventListener("load", () => {
-    document.documentElement.style.visibility = "visible";
-});
-=======
 // ===============================
 // LOGOUT (FIXED)
 // ===============================
@@ -354,4 +349,3 @@ window.logout = function() {
         window.location.replace("Login.html");
     });
 };
->>>>>>> origin/feature-archivesandlogs-LATEST-
