@@ -37,6 +37,7 @@ let lastVisibleCategories = null;
 const pageSize = 25;
 let sortDirectionProducts = "desc";
 let sortDirectionCategories = "desc";
+let pendingAction = null; // { type: 'restore'|'delete', itemType: 'product'|'category', id, name }
 
 // --- AUTH CHECK WITH ROLE VALIDATION ---
 onAuthStateChanged(auth, async (user) => {
@@ -260,143 +261,81 @@ async function loadArchivedCategories(reset = true) {
 // ===============================
 // EVENT DELEGATION FOR PRODUCTS & CATEGORIES
 // ===============================
-document.addEventListener("click", (e) => {
-
+document.addEventListener("click", async (e) => {
     const restoreBtn = e.target.closest(".btn-restore");
-    const deleteBtn = e.target.closest(".btn-delete");
+    const deleteBtn  = e.target.closest(".btn-delete");
+
+    if (!auth.currentUser) return;
 
     if (restoreBtn) {
-        if (!auth.currentUser) return;
-        const id = restoreBtn.dataset.id;
+        const id   = restoreBtn.dataset.id;
         const type = restoreBtn.dataset.type;
-        
-        if (type === "product") {
-            restoreProduct(id);
-        } else if (type === "category") {
-            restoreCategory(id);
-        }
+        const collection_name = type === 'product' ? 'products' : 'categories';
+
+        const snap = await getDoc(doc(db, collection_name, id));
+        const name = snap.exists() ? snap.data().name : id;
+        openRestoreModal(id, type, name);
     }
 
     if (deleteBtn) {
-        if (!auth.currentUser) return;
-        const id = deleteBtn.dataset.id;
+        const id   = deleteBtn.dataset.id;
         const type = deleteBtn.dataset.type;
-        
-        if (type === "product") {
-            permanentlyDeleteProduct(id);
-        } else if (type === "category") {
-            permanentlyDeleteCategory(id);
-        }
+        const collection_name = type === 'product' ? 'products' : 'categories';
+
+        const snap = await getDoc(doc(db, collection_name, id));
+        const name = snap.exists() ? snap.data().name : id;
+        openDeleteModal(id, type, name);
     }
 });
 
 // ===============================
 // RESTORE PRODUCT
 // ===============================
-async function restoreProduct(id) {
-
-    if (!auth.currentUser) return;
-
-    const confirmRestore = confirm("Restore this product?");
-    if (!confirmRestore) return;
-
+async function restoreProduct(id, name) {
     try {
-        const docRef = doc(db, "products", id);
-        const snap = await getDoc(docRef);
-        const product = snap.data();
-
-        await updateDoc(docRef, {
-            archived: false,
-            archivedAt: null
-        });
-
-        await logActivity("Restore Product", product.name);
+        await updateDoc(doc(db, "products", id), { archived: false, archivedAt: null });
+        await logActivity("Restore Product", name);
         loadArchivedProducts(true);
-        alert("Product restored successfully.");
+        showToast(`"${name}" has been restored to inventory.`, 'success');
     } catch (error) {
         console.error("Error restoring product:", error);
-        alert("Error restoring product.");
+        showToast("Failed to restore product.", "error");
     }
 }
 
-// ===============================
-// DELETE PRODUCT PERMANENTLY
-// ===============================
-async function permanentlyDeleteProduct(id) {
-
-    if (!auth.currentUser) return;
-
-    const confirmDelete = confirm("Delete permanently? This cannot be undone.");
-    if (!confirmDelete) return;
-
+async function permanentlyDeleteProduct(id, name) {
     try {
-        const docRef = doc(db, "products", id);
-        const snap = await getDoc(docRef);
-        const product = snap.data();
-
-        await deleteDoc(docRef);
-
-        await logActivity("Delete Product Permanently", product.name);
+        await deleteDoc(doc(db, "products", id));
+        await logActivity("Delete Product Permanently", name);
         loadArchivedProducts(true);
-        alert("Product permanently deleted.");
+        showToast(`"${name}" deleted forever.`, 'success');
     } catch (error) {
         console.error("Error deleting product:", error);
-        alert("Error deleting product.");
+        showToast("Error during permanent deletion.", "error");
     }
 }
 
-// ===============================
-// RESTORE CATEGORY
-// ===============================
-async function restoreCategory(id) {
-
-    if (!auth.currentUser) return;
-
-    const confirmRestore = confirm("Restore this category?");
-    if (!confirmRestore) return;
-
+async function restoreCategory(id, name) {
     try {
-        const docRef = doc(db, "categories", id);
-        const snap = await getDoc(docRef);
-        const category = snap.data();
-
-        await updateDoc(docRef, {
-            archived: false,
-            archivedAt: null
-        });
-
-        await logActivity("Restore Category", category.name);
+        await updateDoc(doc(db, "categories", id), { archived: false, archivedAt: null });
+        await logActivity("Restore Category", name);
         loadArchivedCategories(true);
-        alert("Category restored successfully.");
+        showToast(`Category "${name}" is now active again.`, 'success');
     } catch (error) {
         console.error("Error restoring category:", error);
-        alert("Error restoring category.");
+        showToast("Failed to restore category.", "error");
     }
 }
 
-// ===============================
-// DELETE CATEGORY PERMANENTLY
-// ===============================
-async function permanentlyDeleteCategory(id) {
-
-    if (!auth.currentUser) return;
-
-    const confirmDelete = confirm("Delete permanently? This cannot be undone.");
-    if (!confirmDelete) return;
-
+async function permanentlyDeleteCategory(id, name) {
     try {
-        const docRef = doc(db, "categories", id);
-        const snap = await getDoc(docRef);
-        const category = snap.data();
-
-        await deleteDoc(docRef);
-
-        await logActivity("Delete Category Permanently", category.name);
+        await deleteDoc(doc(db, "categories", id));
+        await logActivity("Delete Category Permanently", name);
         loadArchivedCategories(true);
-        alert("Category permanently deleted.");
+        showToast(`Category "${name}" has been deleted permanently.`, 'success');
     } catch (error) {
         console.error("Error deleting category:", error);
-        alert("Error deleting category.");
+        showToast("Failed to delete category permanently.", "error");
     }
 }
 
@@ -532,3 +471,117 @@ window.logout = function() {
         window.location.replace("Login.html");
     });
 };
+
+// ===============================
+// MODAL HELPERS
+// ===============================
+function openRestoreModal(id, type, name) {
+    pendingAction = { action: 'restore', itemType: type, id, name };
+    document.getElementById('restoreItemName').textContent = `"${name}"`;
+    document.getElementById('restoreModalOverlay').style.display = 'flex';
+}
+
+function openDeleteModal(id, type, name) {
+    pendingAction = { action: 'delete', itemType: type, id, name };
+    document.getElementById('deleteItemName').textContent = `"${name}"`;
+    document.getElementById('deleteModalOverlay').style.display = 'flex';
+}
+
+function closeAllModals() {
+    document.getElementById('restoreModalOverlay').style.display = 'none';
+    document.getElementById('deleteModalOverlay').style.display = 'none';
+
+    // Reset buttons
+    const restoreBtn = document.getElementById('restoreConfirmBtn');
+    const deleteBtn  = document.getElementById('deleteConfirmBtn');
+    restoreBtn.disabled = false;
+    restoreBtn.innerHTML = '<i class="fas fa-rotate-left"></i> Restore';
+    deleteBtn.disabled = false;
+    deleteBtn.innerHTML = '<i class="fas fa-trash"></i> Delete Forever';
+
+    pendingAction = null;
+}
+
+function showSuccessModal(title, message) {
+    document.getElementById('successModalTitle').textContent   = title;
+    document.getElementById('successModalMessage').textContent = message;
+    document.getElementById('successModalOverlay').style.display = 'flex';
+
+    setTimeout(() => {
+        document.getElementById('successModalOverlay').style.display = 'none';
+    }, 2000);
+}
+
+// Wire modal buttons on DOMContentLoaded
+document.addEventListener("DOMContentLoaded", () => {
+
+    // Backdrop clicks
+    document.getElementById('restoreModalOverlay')?.addEventListener('click', (e) => {
+        if (e.target === document.getElementById('restoreModalOverlay')) closeAllModals();
+    });
+    document.getElementById('deleteModalOverlay')?.addEventListener('click', (e) => {
+        if (e.target === document.getElementById('deleteModalOverlay')) closeAllModals();
+    });
+
+    document.getElementById('restoreCancelBtn')?.addEventListener('click', closeAllModals);
+    document.getElementById('deleteCancelBtn')?.addEventListener('click',  closeAllModals);
+
+    // Restore confirm
+    document.getElementById('restoreConfirmBtn')?.addEventListener('click', async () => {
+        if (!pendingAction) return;
+        const btn = document.getElementById('restoreConfirmBtn');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Restoring...';
+
+        const { itemType, id, name } = pendingAction;
+        try {
+            if (itemType === 'product') {
+                await restoreProduct(id, name);
+            } else {
+                await restoreCategory(id, name);
+            }
+        } finally {
+            closeAllModals();
+        }
+    });
+
+    // Delete confirm
+    document.getElementById('deleteConfirmBtn')?.addEventListener('click', async () => {
+        if (!pendingAction) return;
+        const btn = document.getElementById('deleteConfirmBtn');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Deleting...';
+
+        const { itemType, id, name } = pendingAction;
+        try {
+            if (itemType === 'product') {
+                await permanentlyDeleteProduct(id, name);
+            } else {
+                await permanentlyDeleteCategory(id, name);
+            }
+        } finally {
+            closeAllModals();
+        }
+    });
+});
+
+function showToast(message, type = 'success') {
+    const container = document.getElementById('toast-container');
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    
+    const icon = type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle';
+    
+    toast.innerHTML = `
+        <i class="fas ${icon}"></i>
+        <span>${message}</span>
+    `;
+    
+    container.appendChild(toast);
+
+    // Auto-remove after 3 seconds
+    setTimeout(() => {
+        toast.style.animation = 'fadeOut 0.3s ease forwards';
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
+}

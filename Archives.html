@@ -90,6 +90,7 @@ html {
             </div>
         </div>
     </aside>
+    <div id="toast-container" class="toast-container"></div>
 
     <!-- Main Content -->
     <main class="main-content">
@@ -157,6 +158,54 @@ html {
         </div>
 
     </main>
+    <!-- RESTORE CONFIRMATION MODAL -->
+    <div class="archive-modal-overlay" id="restoreModalOverlay" style="display:none;">
+        <div class="archive-modal">
+            <div class="archive-modal-icon restore-icon">
+                <i class="fas fa-rotate-left"></i>
+            </div>
+            <h3 class="archive-modal-title">Restore Item?</h3>
+            <p class="archive-modal-message">
+                <strong id="restoreItemName"></strong> will be moved back to active inventory.
+            </p>
+            <div class="archive-modal-actions">
+                <button class="btn-modal-cancel" id="restoreCancelBtn">Cancel</button>
+                <button class="btn-modal-restore" id="restoreConfirmBtn">
+                    <i class="fas fa-rotate-left"></i> Restore
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- DELETE PERMANENTLY CONFIRMATION MODAL -->
+    <div class="archive-modal-overlay" id="deleteModalOverlay" style="display:none;">
+        <div class="archive-modal">
+            <div class="archive-modal-icon delete-icon">
+                <i class="fas fa-triangle-exclamation"></i>
+            </div>
+            <h3 class="archive-modal-title">Delete Permanently?</h3>
+            <p class="archive-modal-message">
+                <strong id="deleteItemName"></strong> will be gone forever. This cannot be undone.
+            </p>
+            <div class="archive-modal-actions">
+                <button class="btn-modal-cancel" id="deleteCancelBtn">Cancel</button>
+                <button class="btn-modal-delete" id="deleteConfirmBtn">
+                    <i class="fas fa-trash"></i> Delete Forever
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- SUCCESS MODAL -->
+    <div class="archive-modal-overlay" id="successModalOverlay" style="display:none;">
+        <div class="archive-modal">
+            <div class="archive-modal-icon success-icon-wrap">
+                <i class="fas fa-check"></i>
+            </div>
+            <h3 class="archive-modal-title" id="successModalTitle">Done!</h3>
+            <p class="archive-modal-message" id="successModalMessage"></p>
+        </div>
+    </div>
 
     <script type="module" src="components(js)/Archives.js"></script>
 
