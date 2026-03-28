@@ -9,7 +9,7 @@ html {
 </style>
 
 <meta charset="UTF-8">
-<title>Acitivity Logs</title>
+<title>Activity Logs</title>
 
 <script>
         if (!localStorage.getItem("user_session")) {
@@ -34,12 +34,21 @@ html {
     <link rel="stylesheet" href="components(css)/Activity_Logs.css" />
 <body>
 
+    <button class="hamburger" id="hamburgerBtn">
+        <i class="fas fa-bars"></i>
+</button>
+
+<div class="overlay" id="overlay"></div>
+
     <!-- Sidebar -->
     <aside class="sidebar" id="sidebar">
         <div class="sidebar-content">
             <div class="sidebar-header">
                 <h2>Inventory MS</h2>
+                
                 <span class="user-role" id="userRoleDisplay">Loading...</span>
+                <button class="close-btn" id="closeBtn">
+        <i class="fas fa-times"></i>
             </div>
 
             <nav class="sidebar-nav">

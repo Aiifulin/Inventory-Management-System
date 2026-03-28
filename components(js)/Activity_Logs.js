@@ -246,3 +246,53 @@ document.addEventListener("input", function(e){
 window.addEventListener("load", () => {
     document.documentElement.style.visibility = "visible";
 });
+
+document.addEventListener("DOMContentLoaded", () => {
+    const hamburgerBtn = document.getElementById('hamburgerBtn');
+    const closeBtn = document.getElementById('closeBtn');
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('overlay');
+
+    function toggleSidebar() {
+        sidebar.classList.toggle('open');
+        overlay.classList.toggle('show');
+    }
+
+    function closeSidebar() {
+        sidebar.classList.remove('open');
+        overlay.classList.remove('show');
+    }
+
+    if (hamburgerBtn) {
+        hamburgerBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleSidebar();
+        });
+    }
+
+    if (closeBtn) {
+        closeBtn.addEventListener('click', closeSidebar);
+    }
+
+    if (overlay) {
+        overlay.addEventListener('click', closeSidebar);
+    }
+});
+
+// Logout Helper
+window.logout = function() {
+    // Clear LOCAL storage now
+    localStorage.removeItem("user_session");
+    localStorage.removeItem("user_uid");
+    localStorage.removeItem("user_role");
+    
+    // Also clear session just in case
+    sessionStorage.clear();
+
+    signOut(auth).then(() => {
+        window.location.replace("Login.html");
+    }).catch((error) => {
+        console.error("Logout Error:", error);
+        window.location.replace("Login.html");
+    });
+};
