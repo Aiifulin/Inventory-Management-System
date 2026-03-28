@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
-import { getFirestore, collection, getDocs, doc, addDoc, serverTimestamp, getDoc, where, updateDoc    } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { getFirestore, collection, getDocs, doc, addDoc, serverTimestamp, getDoc, where, updateDoc, query} from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 
 // --- CONFIG ---
@@ -118,12 +118,18 @@ async function fetchCategories() {
             const data = docSnap.data();
             if (data.archived === true) continue;
 
-            // Count products in this category
-            const productsQuery = await getDocs(collection(db, "products"));
+            // Query products by category name
+            const productsQuery = query(
+                collection(db, "products"),
+                where("category", "==", data.name)
+            );
+            const productsSnapshot = await getDocs(productsQuery);
+
+            // Count only non-archived products
             let count = 0;
-            productsQuery.forEach(p => {
+            productsSnapshot.forEach(p => {
                 const pData = p.data();
-                if (pData.category === data.name && pData.archived !== true) count++;
+                if (pData.archived !== true) count++;
             });
 
             allCategories.push({ id: docSnap.id, ...data, itemCount: count });
@@ -249,13 +255,10 @@ window.editCategory = function(id) {
 
 // --- DELETE FUNCTION WITH LOGGING ---
 function attachDeleteListeners() {
-
     if (!isAdmin) return;
 
     document.querySelectorAll('.delete-btn').forEach(btn => {
-
         btn.addEventListener('click', async (e) => {
-
             const target = e.target.closest('.delete-btn');
             if (!target) return;
 
@@ -263,26 +266,24 @@ function attachDeleteListeners() {
             const categoryToDelete = allCategories.find(c => c.id === idToDelete);
             const nameToLog = categoryToDelete ? categoryToDelete.name : "Unknown Category";
 
-            if (!confirm("Delete this category? Products in this category will remain.")) return;
+            if (!confirm("Archive this category? Products in this category will remain.")) return;
 
             try {
-
                 await updateDoc(doc(db, "categories", idToDelete), {
                     archived: true,
                     archivedAt: serverTimestamp()
                 });
 
-                await logActivity("Deleted Category", nameToLog);
+                await logActivity("Archived Category", nameToLog);
 
                 // Remove locally so no reload needed
                 allCategories = allCategories.filter(c => c.id !== idToDelete);
                 applyFilters();
 
-                alert("Category deleted.");
-
+                alert("Category archived successfully.");
             } catch (err) {
-                console.error("Error deleting:", err);
-                alert("Error deleting category: " + err.message);
+                console.error("Error archiving:", err);
+                alert("Error archiving category: " + err.message);
             }
         });
     });

@@ -1,5 +1,4 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
-// Added doc and getDoc for role checking
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js"
 import { getFirestore, collection, addDoc, serverTimestamp, query, where, getDocs, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-storage.js";
@@ -100,6 +99,33 @@ async function loadDefaultThreshold() {
         console.log("Could not load default settings, using hardcoded fallback.");
     }
 }
+
+// --- LOAD CATEGORIES INTO SELECT ---
+async function loadCategories() {
+    const select = document.getElementById("categorySelect");
+    if (!select) return;
+
+    // Clear existing options except the placeholder
+    select.innerHTML = '<option value="" disabled selected>Select a category</option>';
+
+    try {
+        const snapshot = await getDocs(collection(db, "categories"));
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            if (data.name) {
+                const option = document.createElement("option");
+                option.value = data.name;
+                option.textContent = data.name;
+                select.appendChild(option);
+            }
+        });
+    } catch (error) {
+        console.error("Error loading categories:", error);
+    }
+}
+
+// Call this once DOM is ready
+document.addEventListener("DOMContentLoaded", loadCategories);
 
 document.addEventListener("DOMContentLoaded", () => {
 
@@ -317,10 +343,10 @@ document.addEventListener("DOMContentLoaded", () => {
                 }                
 
                 const productData = {
-                    name: sanitizeInput(rawName),
-                    description: sanitizeInput(rawDesc),
-                    category: document.querySelector('select').value,
-                    price: priceVal,
+                    name: sanitizeInput(rawName), 
+                    description: sanitizeInput(rawDesc), 
+                    category: document.getElementById('categorySelect').value, 
+                    price: priceVal, 
                     stock: stockVal,
                     lowStockThreshold: thresholdVal,
                     imageUrl: imageUrl,          // <-- now a real hosted URL, or "" if none

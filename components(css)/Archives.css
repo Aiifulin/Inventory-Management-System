@@ -76,6 +76,50 @@ tbody td {
     vertical-align: middle;
 }
 
+.archive-table-wrapper {
+    max-height: 500px;   /* enough for ~10 rows */
+    overflow-y: auto;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+}
+
+/* Sticky header that fully covers rows underneath */
+.archive-table-wrapper thead th {
+    position: sticky;
+    top: 0;
+    background-color: var(--bg-card); /* solid background from your theme */
+    padding: 14px 16px;               /* match body cell padding */
+    z-index: 10;                      /* higher than body cells */
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1); /* subtle shadow for separation */
+}
+
+.archive-table-wrapper {
+    max-height: 400px;   /* enough for ~10 rows */
+    overflow-y: auto;    /* scroll only when needed */
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+}
+
+/* Hide scrollbar when not needed */
+.archive-table-wrapper::-webkit-scrollbar {
+    width: 8px;
+}
+
+.archive-table-wrapper::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.archive-table-wrapper::-webkit-scrollbar-thumb {
+    background-color: var(--border-color);
+    border-radius: 4px;
+}
+
+/* For Firefox */
+.archive-table-wrapper {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-color) transparent;
+}
+
 /* --- Action Buttons --- */
 .btn-restore,
 .btn-delete {

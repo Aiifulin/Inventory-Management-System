@@ -39,6 +39,8 @@ onAuthStateChanged(auth, async (user) => {
         // 3. Listen for Real-Time Data
         setupDashboardStatsListener();
         setupRecentActivitiesListener();
+        setupCategoryCountListener();
+
 
     } else {
         window.location.href = "Login.html";
@@ -283,6 +285,19 @@ function setupRecentActivitiesListener() {
     }, (error) => {
         console.error("Error listening to activities:", error);
         activityContainer.innerHTML = `<div style="color:red; text-align:center; padding:20px;">Error: ${error.message}</div>`;
+    });
+}
+
+// --- REAL-TIME CATEGORY COUNT LISTENER ---
+function setupCategoryCountListener() {
+    const categoriesRef = collection(db, "categories");
+
+    onSnapshot(categoriesRef, (querySnapshot) => {
+        const count = querySnapshot.size; // number of category docs
+        updateStat("statCategories", count);
+    }, (error) => {
+        console.error("Error listening to categories:", error);
+        updateStat("statCategories", "Error");
     });
 }
 
