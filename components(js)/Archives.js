@@ -111,9 +111,7 @@ async function loadArchivedProducts(reset = true) {
         );
     }
 
-    // ✅ Make sure snapshot is defined
     const snapshot = await getDocs(q);
-
     const tableBody = document.getElementById("archiveTableProductsBody");
     if (!tableBody) return;
     if (reset) tableBody.innerHTML = "";
@@ -175,24 +173,27 @@ async function loadArchivedCategories(reset = true) {
     }
 
     const snapshot = await getDocs(q);
-    const table = document.getElementById("archiveTableCategories");
-    if (!table) return;
-    if (reset) table.innerHTML = "";
+    const tableBody = document.getElementById("archiveTableCategoriesBody");
+    if (!tableBody) return;
+    if (reset) tableBody.innerHTML = "";
 
     if (snapshot.empty) {
-        table.innerHTML = `
-            <tr><td colspan="5" style="text-align:center;padding:20px;color:#999;">
+        tableBody.innerHTML = `
+            <tr><td colspan="4" style="text-align:center;padding:20px;color:#999;">
                 No archived categories found.
             </td></tr>`;
         return;
     }
 
-    snapshot.forEach(docSnap => {
+    // ✅ Limit to 10 rows
+    const docsToRender = snapshot.docs.slice(0, 10);
+
+    docsToRender.forEach(docSnap => {
         const category = docSnap.data();
         const id = docSnap.id;
         const archivedDate = category.archivedAt ? category.archivedAt.toDate().toLocaleString() : "—";
 
-        table.innerHTML += `
+        tableBody.innerHTML += `
             <tr>
                 <td>${category.name || ""}</td>
                 <td>${category.description || ""}</td>
@@ -244,19 +245,19 @@ async function permanentlyDeleteCategory(id) {
 // EVENT BINDING
 // ===============================
 function attachProductEvents() {
-    document.querySelectorAll(".btn-restore-product").forEach(btn => {
+    document.querySelectorAll(".btn-restore").forEach(btn => {
         btn.addEventListener("click", () => restoreProduct(btn.dataset.id));
     });
-    document.querySelectorAll(".btn-delete-product").forEach(btn => {
+    document.querySelectorAll(".btn-delete").forEach(btn => {
         btn.addEventListener("click", () => permanentlyDeleteProduct(btn.dataset.id));
     });
 }
 
 function attachCategoryEvents() {
-    document.querySelectorAll(".btn-restore-category").forEach(btn => {
+    document.querySelectorAll(".btn-restore").forEach(btn => {
         btn.addEventListener("click", () => restoreCategory(btn.dataset.id));
     });
-    document.querySelectorAll(".btn-delete-category").forEach(btn => {
+    document.querySelectorAll(".btn-delete").forEach(btn => {
         btn.addEventListener("click", () => permanentlyDeleteCategory(btn.dataset.id));
     });
 }

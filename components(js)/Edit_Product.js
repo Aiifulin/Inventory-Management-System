@@ -416,3 +416,30 @@ window.logout = function() {
         window.location.replace("Login.html");
     });
 };
+
+// --- LOAD CATEGORIES FOR SELECT ---
+async function loadCategories() {
+    const categorySelect = document.getElementById("inpCategory");
+    if (!categorySelect) return;
+
+    // Clear existing options except the first placeholder
+    categorySelect.innerHTML = `<option value="" disabled selected>Select Category</option>`;
+
+    try {
+        const snapshot = await getDocs(collection(db, "categories"));
+        snapshot.forEach(docSnap => {
+            const category = docSnap.data();
+            if (category.archived !== true) { // skip archived categories
+                const option = document.createElement("option");
+                option.value = category.name;
+                option.textContent = category.name;
+                categorySelect.appendChild(option);
+            }
+        });
+    } catch (err) {
+        console.error("Error loading categories:", err);
+    }
+}
+
+// Run on page load
+document.addEventListener("DOMContentLoaded", loadCategories);
