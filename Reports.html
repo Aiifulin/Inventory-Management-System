@@ -6,6 +6,8 @@
   <title>Reports – Inventory MS</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
   <link rel="stylesheet" href="components(css)/Reports.css"/>
+  <!-- ✅ SheetJS for Excel export -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
 
@@ -14,16 +16,16 @@
     <div class="sidebar-content">
       <div class="sidebar-header">
         <h2>Inventory MS</h2>
-        <div class="user-role">Admin</div>
+        <div class="user-role" id="userRoleDisplay">Loading...</div>
       </div>
       <nav class="sidebar-nav">
-        <a href="#" class="nav-link"><i class="fa-solid fa-chart-line"></i> Dashboard</a>
-        <a href="#" class="nav-link"><i class="fa-solid fa-box"></i> Products</a>
-        <a href="#" class="nav-link"><i class="fa-solid fa-list"></i> Categories</a>
-        <a href="#" class="nav-link"><i class="fa-solid fa-clock-rotate-left"></i> Activity Log</a>
-        <a href="#" class="nav-link active"><i class="fa-solid fa-file-lines"></i> Reports</a>
-        <a href="#" class="nav-link"><i class="fa-solid fa-box-archive"></i> Archived</a>
-        <a href="#" class="nav-link"><i class="fa-solid fa-gear"></i> Settings</a>
+        <a href="Dashboard.html" class="nav-link"><i class="fa-solid fa-chart-line"></i> Dashboard</a>
+        <a href="Products.html" class="nav-link"><i class="fa-solid fa-box"></i> Products</a>
+        <a href="Categories.html" class="nav-link"><i class="fa-solid fa-list"></i> Categories</a>
+        <a href="Activity_Logs.html" class="nav-link"><i class="fa-solid fa-clock-rotate-left"></i> Activity Log</a>
+        <a href="Reports.html" class="nav-link active"><i class="fa-solid fa-file-lines"></i> Reports</a>
+        <a href="Archives.html" class="nav-link"><i class="fa-solid fa-box-archive"></i> Archived</a>
+        <a href="Settings.html" class="nav-link"><i class="fa-solid fa-gear"></i> Settings</a>
       </nav>
       <div class="sidebar-footer">
         <a href="#" class="logout"><i class="fa-solid fa-right-from-bracket"></i> Logout</a>
@@ -40,8 +42,16 @@
       </div>
     </div>
 
-    <div class="reports-grid">
+    <!-- Export Options -->
+    <div class="export-options">
+      <label for="exportFormat">Export as:</label>
+      <select id="exportFormat">
+        <option value="csv">CSV</option>
+        <option value="excel">Excel</option>
+      </select>
+    </div>
 
+    <div class="reports-grid">
       <!-- Inventory Report -->
       <div class="report-card">
         <div class="report-card-top">
@@ -54,7 +64,7 @@
           </div>
         </div>
         <div class="report-card-footer">
-          <button class="btn-report">
+          <button class="btn-report" id="btnInventory">
             <i class="fa-solid fa-download"></i> Generate Report
           </button>
         </div>
@@ -72,7 +82,7 @@
           </div>
         </div>
         <div class="report-card-footer">
-          <button class="btn-report">
+          <button class="btn-report" id="btnCategory">
             <i class="fa-solid fa-download"></i> Generate Report
           </button>
         </div>
@@ -90,7 +100,7 @@
           </div>
         </div>
         <div class="report-card-footer">
-          <button class="btn-report">
+          <button class="btn-report" id="btnLowStock">
             <i class="fa-solid fa-download"></i> Generate Report
           </button>
         </div>
@@ -108,14 +118,15 @@
           </div>
         </div>
         <div class="report-card-footer">
-          <button class="btn-report">
+          <button class="btn-report" id="btnStockMovement">
             <i class="fa-solid fa-download"></i> Generate Report
           </button>
         </div>
       </div>
-
     </div>
   </main>
 
+  <!-- ✅ Script -->
+  <script type="module" src="components(js)/Reports.js"></script>
 </body>
 </html>
