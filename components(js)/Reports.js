@@ -46,27 +46,38 @@ async function checkAdminRole(uid) {
 
 onAuthStateChanged(auth, async (user) => {
   if (user) {
-    const isAdmin = await checkAdminRole(user.uid);
+      const userData = await getCachedUserData(user.uid);
+      const isAdmin  = userData?.role?.toLowerCase() === 'admin';
 
-    // Display role in sidebar
-    const userData = await getCachedUserData(user.uid);
-    const roleEl   = document.getElementById('userRoleDisplay');
-    if (roleEl && userData?.role) {
-      roleEl.textContent = userData.role.charAt(0).toUpperCase() + userData.role.slice(1);
-    }
+      // Display role
+      const roleEl = document.getElementById('userRoleDisplay');
+      if (roleEl && userData?.role) {
+          roleEl.textContent = userData.role.charAt(0).toUpperCase() + userData.role.slice(1);
+      }
 
-    if (!isAdmin) {
-      document.querySelector(".main-content").innerHTML = `
-        <div class="access-denied">
-          <i class="fas fa-lock" style="font-size:40px; margin-bottom:16px; color:var(--text-secondary);"></i>
-          <h2>Access Denied</h2>
-          <p>You do not have permission to view reports.</p>
-        </div>`;
-    } else {
-      attachReportListeners();
-    }
+      const main = document.getElementById('mainContent');
+
+      if (!isAdmin) {
+          // Replace content BEFORE revealing so non-admins never see the reports UI
+          main.innerHTML = `
+          <div style="display:flex; flex-direction:column; align-items:center; 
+                      justify-content:center; height:60vh; text-align:center; 
+                      color:var(--text-secondary);">
+              <i class="fas fa-lock" style="font-size:48px; margin-bottom:16px;"></i>
+              <h2 style="margin:0 0 8px; color:var(--text-main); font-size:20px;">Access Denied</h2>
+              <p style="margin:0; font-size:14px;">You do not have permission to view Settings.</p>
+              
+          </div>`;
+      main.style.visibility = 'visible';
+      } else {
+          attachReportListeners();
+      }
+
+      // Reveal only after content is ready — no flicker either way
+      main.style.visibility = 'visible';
+
   } else {
-    window.location.href = "Login.html";
+      window.location.href = "Login.html";
   }
 });
 

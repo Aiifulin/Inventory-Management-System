@@ -69,13 +69,15 @@
             </div>
             
             <div class="header-actions">
-                <button class="btn-outline" id="exportBtn">
+                <button class="btn-outline" id="exportBtn" style="display:none;">
                     <i class="fas fa-download"></i> <span class="btn-text">Export</span>
                 </button>
-                <button class="btn-outline" onclick="window.location.href='Add_Product.html?mode=bulk'">
+                <button class="btn-outline admin-only" id="bulkUploadBtn" style="display:none;"
+                        onclick="window.location.href='Add_Product.html?mode=bulk'">
                     <i class="fas fa-upload"></i> <span class="btn-text">Bulk Upload</span>
                 </button>
-                <button class="btn-primary" onclick="location.href='Add_Product.html'">
+                <button class="btn-primary admin-only" id="addProductBtn" style="display:none;"
+                        onclick="location.href='Add_Product.html'">
                     <i class="fas fa-plus"></i> <span class="btn-text">Add Product</span>
                 </button>
             </div>
@@ -185,22 +187,7 @@
         if(closeBtn) closeBtn.addEventListener('click', toggleSidebar);
         if(overlay) overlay.addEventListener('click', toggleSidebar);
 
-        document.addEventListener("DOMContentLoaded", () => {
-            const roleDisplay = document.getElementById("userRoleDisplay");
-            const sessionData = sessionStorage.getItem("user_session");
-            
-            if (sessionData && roleDisplay) {
-                try {
-                    const user = JSON.parse(sessionData);
-                    roleDisplay.textContent = user.role || user.username || "Loading...";
-                } catch (error) {
-                    console.error("Error parsing user session:", error);
-                    roleDisplay.textContent = "Loading...";
-                }
-            } else if (roleDisplay) {
-                roleDisplay.textContent = "Loading...";
-            }
-        });
+        
     </script>
 </body>
 </html>

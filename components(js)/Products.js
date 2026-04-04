@@ -24,51 +24,36 @@ let currentSortDir = 'asc';
 let currentUser = null;
 let isAdmin = false; 
 
+async function getCachedUserData(uid) {
+    const key    = `user_data_${uid}`;
+    const cached = sessionStorage.getItem(key);
+    if (cached) return JSON.parse(cached);
+
+    try {
+        const snap = await getDoc(doc(db, "users", uid));
+        if (snap.exists()) {
+            sessionStorage.setItem(key, JSON.stringify(snap.data()));
+            return snap.data();
+        }
+    } catch (err) {
+        console.error("Error fetching user data:", err);
+    }
+    return null;
+}
+
 // --- HELPER: CHECK ADMIN ROLE (Dynamic) ---
 async function checkAdminRole(uid) {
-    try {
-        const userDocRef = doc(db, "users", uid);
-        const userSnap = await getDoc(userDocRef);
-        
-        if (userSnap.exists()) {
-            const userData = userSnap.data();
-            return (userData.role && userData.role.toLowerCase() === 'admin');
-        }
-        return false;
-    } catch (error) {
-        console.error("Error checking role:", error);
-        return false; 
-    }
+    const data = await getCachedUserData(uid);
+    return data?.role?.toLowerCase() === 'admin';
 }
 
 // --- HELPER: DISPLAY USER ROLE (UI) ---
 async function displayUserRole(uid) {
     const roleEl = document.getElementById('userRoleDisplay');
-
-    if (!roleEl) {
-        const sidebarRole = document.querySelector('.sidebar-header .user-role');
-        if (sidebarRole) {
-            sidebarRole.id = 'userRoleDisplay';
-            return displayUserRole(uid);
-        }
-        return;
-    }
-
-    try {
-        const docRef = doc(db, "users", uid);
-        const docSnap = await getDoc(docRef);
-
-        if (docSnap.exists()) {
-            let role = docSnap.data().role || "User";
-            role = role.charAt(0).toUpperCase() + role.slice(1);
-            roleEl.textContent = role;
-        } else {
-            roleEl.textContent = "User";
-        }
-    } catch (error) {
-        console.error("Error displaying role:", error);
-        roleEl.textContent = "User";
-    }
+    if (!roleEl) return;
+    const data = await getCachedUserData(uid);
+    const role = data?.role || "User";
+    roleEl.textContent = role.charAt(0).toUpperCase() + role.slice(1);
 }
 
 // --- HELPER: ACTIVITY LOGGING FUNCTION ---
@@ -93,19 +78,23 @@ onAuthStateChanged(auth, async (user) => {
     if (user) {
         currentUser = user;
 
-        displayUserRole(user.uid);
-
+        // Both calls now share one cached Firestore read
+        await displayUserRole(user.uid);
         isAdmin = await checkAdminRole(user.uid);
 
-        // saves the role locally for quick access in other components/pages without extra calls
-        localStorage.setItem("user_uid", user.uid);
+        localStorage.setItem("user_uid",  user.uid);
         localStorage.setItem("user_role", isAdmin ? "admin" : "user");
 
-
-        const addBtn = document.querySelector('.btn-primary');
-        if (addBtn) {
-            addBtn.style.display = isAdmin ? "flex" : "none";
+        // Reveal admin buttons ONLY after role is confirmed — no flash
+        if (isAdmin) {
+            const bulkBtn = document.getElementById('bulkUploadBtn');
+            const addBtn  = document.getElementById('addProductBtn');
+            if (bulkBtn) bulkBtn.style.display = 'flex';
+            if (addBtn)  addBtn.style.display  = 'flex';
         }
+        // Export is visible to everyone — show it now
+        const exportBtn = document.getElementById('exportBtn');
+        if (exportBtn) exportBtn.style.display = 'flex';
 
         fetchProducts();
 

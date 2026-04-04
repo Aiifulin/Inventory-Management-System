@@ -86,15 +86,15 @@ async function checkAdminRole(uid) {
 // ================================================
 onAuthStateChanged(auth, async (user) => {
     if (user) {
-        // These now share the same cached data/request
+        // Both share the same single cached Firestore read
         displayUserRole(user.uid);
         const isAdmin = await checkAdminRole(user.uid);
 
-        // UI adjustment based on role
-        const addBtn = document.querySelector('.btn-add');
+        // Only reveal after role is confirmed — no flash
+        const addBtn = document.getElementById('addProductBtn');
         if (addBtn) addBtn.style.display = isAdmin ? 'flex' : 'none';
 
-        await loadDashboard(); 
+        await loadDashboard();
 
     } else {
         window.location.href = "Login.html";

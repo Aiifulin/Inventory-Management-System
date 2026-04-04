@@ -99,25 +99,28 @@ function sanitizeInput(str) {
 
 // --- ADD CATEGORY WITH NUMERIC ID ---
 async function addCategory(categoryData) {
-    const counterRef = doc(db, "counters", "categories");
-    const counterSnap = await getDoc(counterRef);
+    // Query ALL categories (including archived) to find the true highest ID
+    const snapshot = await getDocs(collection(db, "categories"));
 
-    let newIdNum = 1;
-    if (counterSnap.exists()) {
-        newIdNum = counterSnap.data().lastId + 1;
-        await updateDoc(counterRef, { lastId: newIdNum });
-    } else {
-        // First category ever
-        await setDoc(counterRef, { lastId: 1 });
-    }
+    let maxId = 0;
+    snapshot.forEach(docSnap => {
+        const numericId = parseInt(docSnap.id);
+        if (!isNaN(numericId) && numericId > maxId) {
+            maxId = numericId;
+        }
+    });
 
-    const newId = String(newIdNum);
+    const newIdNum = maxId + 1;
+    const newId    = String(newIdNum);
+
+    // Also update the counter doc to stay in sync (optional but keeps it consistent)
+    await setDoc(doc(db, "counters", "categories"), { lastId: newIdNum });
 
     await setDoc(doc(db, "categories", newId), {
         ...categoryData,
         createdAt: serverTimestamp(),
-        archived: false,
-        itemCount: 0  
+        archived:  false,
+        itemCount: 0
     });
 
     return newId;
@@ -143,13 +146,17 @@ document.addEventListener("DOMContentLoaded", () => {
 
                 // Duplicate check (case-insensitive)
                 const normalizedName = rawName.toLowerCase();
-                const q = query(collection(db, "categories"), where("normalizedName", "==", normalizedName));
+                const q = query(
+                    collection(db, "categories"),
+                    where("normalizedName", "==", normalizedName),
+                    where("archived", "==", false)
+                );
                 const querySnapshot = await getDocs(q);
-
+                
                 if (!querySnapshot.empty) throw new Error(`Category "${rawName}" already exists!`);
 
                 const categoryData = {
-                    name: sanitizeInput(rawName),
+                    name: rawName,
                     normalizedName,
                     description: sanitizeInput(rawDesc),
                     createdBy: auth.currentUser ? auth.currentUser.uid : "unknown"

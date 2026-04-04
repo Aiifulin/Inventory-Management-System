@@ -17,38 +17,77 @@ const db = getFirestore(app);
 const auth = getAuth(app);
 
 const SETTINGS_DOC_ID = "global_config"; 
+async function getCachedUserData(uid) {
+    const key    = `user_data_${uid}`;
+    const cached = sessionStorage.getItem(key);
+    if (cached) return JSON.parse(cached);
+
+    try {
+        const snap = await getDoc(doc(db, "users", uid));
+        if (snap.exists()) {
+            sessionStorage.setItem(key, JSON.stringify(snap.data()));
+            return snap.data();
+        }
+    } catch (err) {
+        console.error("Error fetching user data:", err);
+    }
+    return null;
+}
+
+async function checkAdminRole(uid) {
+    const data = await getCachedUserData(uid);
+    return data?.role?.toLowerCase() === 'admin';
+}
+
+async function displayUserRole(uid) {
+    const roleEl = document.getElementById('userRoleDisplay');
+    if (!roleEl) return;
+
+    const data = await getCachedUserData(uid);
+    const role = data?.role || "User";
+
+    roleEl.textContent = role.charAt(0).toUpperCase() + role.slice(1);
+}
 
 // --- AUTH LISTENER & SECURITY CHECK ---
 onAuthStateChanged(auth, async (user) => {
     if (user) {
-        // 1. Check if CURRENT user is Admin
-        const isAdmin = await checkAdminAccess(user.uid);
-        
+        const main = document.getElementById('mainContent');
+
+        // ✅ SHOW ROLE FIRST (instant UI)
+        await displayUserRole(user.uid);
+
+        // ✅ GET ADMIN STATUS (from cache)
+        const isAdmin = await checkAdminRole(user.uid);
+
         if (!isAdmin) {
-            alert("Access Denied: You do not have permission to view Settings.");
-            window.location.href = "Dashboard.html";
+            main.innerHTML = `
+                <div style="display:flex; flex-direction:column; align-items:center; 
+                            justify-content:center; height:60vh; text-align:center; 
+                            color:var(--text-secondary);">
+                    <i class="fas fa-lock" style="font-size:48px; margin-bottom:16px;"></i>
+                    <h2 style="margin:0 0 8px; color:var(--text-main); font-size:20px;">Access Denied</h2>
+                    <p style="margin:0; font-size:14px;">You do not have permission to view Settings.</p>
+                </div>`;
+            main.style.visibility = 'visible';
             return;
         }
 
-        // 2. Fetch fresh user data from Firestore to get the name
-        const userDoc = await getDoc(doc(db, "users", user.uid));
-        const userData = userDoc.exists() ? userDoc.data() : {};
-        
-        // Merge Auth user with Firestore data for display
+        // ✅ GET USER DATA (cached)
+        const data = await getCachedUserData(user.uid);
+
         const fullUser = {
             ...user,
-            displayName: userData.name || user.displayName || "Admin User",
-            role: userData.role || "User"
+            displayName: data?.name || user.displayName || "Admin User",
+            role: data?.role || "User"
         };
 
-        // 3. Update UI
-        displayUserRole(fullUser);
         populateAdminInfo(fullUser);
         loadSettings();
-        loadUserTable(); 
-        
-        // 4. Initialize Dark Mode
+        loadUserTable();
         initDarkMode();
+
+        main.style.visibility = 'visible';
 
     } else {
         window.location.href = "Login.html";
@@ -79,36 +118,7 @@ function initDarkMode() {
     }
 }
 
-// --- HELPER: DISPLAY USER ROLE (Sidebar) ---
-function displayUserRole(user) {
-    const roleEl = document.getElementById('userRoleDisplay');
-    if (!roleEl) return;
 
-    let roleName = user.role || "User";
-    // Capitalize first letter
-    roleName = roleName.charAt(0).toUpperCase() + roleName.slice(1);
-    roleEl.textContent = roleName;
-}
-
-// --- SECURITY CHECK FUNCTION ---
-async function checkAdminAccess(uid) {
-    try {
-        const userDoc = await getDoc(doc(db, "users", uid));
-        if (userDoc.exists()) {
-            const userData = userDoc.data();
-            // Check if role is admin
-            return userData.role === 'admin';
-        }
-        // Fallback for hardcoded Admin ID (Legacy support)
-        const HARDCODED_ADMIN_ID = "eisTKTAY9LfdMpXZ7ebo0spRDAN2";
-        if (uid === HARDCODED_ADMIN_ID) return true;
-
-        return false;
-    } catch (e) {
-        console.error("Error checking admin:", e);
-        return false;
-    }
-}
 
 // --- LOAD USERS TABLE ---
 async function loadUserTable() {

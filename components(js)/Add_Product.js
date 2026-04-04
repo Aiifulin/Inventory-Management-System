@@ -62,22 +62,28 @@ onAuthStateChanged(auth, async (user) => {
     }
 
     const userData = await getCachedUserData(user.uid);
-
-    const isAdmin = userData?.role?.toLowerCase() === 'admin';
+    const isAdmin  = userData?.role?.toLowerCase() === 'admin';
+    const main     = document.getElementById('mainContent');
 
     if (!isAdmin) {
-        alert("Access Denied: Only Admins can add products.");
-        window.location.href = "Products.html";
+        // Swap content while still hidden — non-admins never see the form
+        main.innerHTML = `
+            <div style="display:flex; flex-direction:column; align-items:center;
+                        justify-content:center; height:60vh; text-align:center;
+                        color:var(--text-secondary);">
+                <i class="fas fa-lock" style="font-size:48px; margin-bottom:16px;"></i>
+                <h2 style="margin:0 0 8px; color:var(--text-main); font-size:20px;">Access Denied</h2>
+                <p style="margin:0; font-size:14px;">Only admins can add products.</p>
+                
+            </div>`;
+        main.style.visibility = 'visible';
         return;
     }
 
-    console.log("Admin verified (cached).");
-
-    // Optional UI
+    // Admin path — reveal form and load page
     displayUserRole(user.uid);
-
-    // Load rest
     loadDefaultThreshold();
+    main.style.visibility = 'visible';
 });
 
 async function checkAdminRole(uid) {
@@ -141,13 +147,14 @@ async function loadCategories() {
     const select = document.getElementById("categorySelect");
     if (!select) return;
 
-    // Clear existing options except the placeholder
     select.innerHTML = '<option value="" disabled selected>Select a category</option>';
 
     try {
         const snapshot = await getDocs(collection(db, "categories"));
-        snapshot.forEach(doc => {
-            const data = doc.data();
+        snapshot.forEach(docSnap => {
+            const data = docSnap.data();
+            // Skip archived categories
+            if (data.archived === true) return;
             if (data.name) {
                 const option = document.createElement("option");
                 option.value = data.name;

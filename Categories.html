@@ -69,7 +69,8 @@
             </div>
             
             <div class="header-actions">
-                <button class="btn-primary" onclick="location.href='Add_Category.html'">
+                <button class="btn-primary" id="addCategoryBtn" style="display:none;"
+                        onclick="location.href='Add_Category.html'">
                     <i class="fas fa-plus"></i> <span class="btn-text">Add Category</span>
                 </button>
             </div>
@@ -156,22 +157,6 @@
         if(closeBtn) closeBtn.addEventListener('click', toggleSidebar);
         if(overlay) overlay.addEventListener('click', toggleSidebar);
 
-        document.addEventListener("DOMContentLoaded", () => {
-            const roleDisplay = document.getElementById("userRoleDisplay");
-            const sessionData = sessionStorage.getItem("user_session");
-            
-            if (sessionData && roleDisplay) {
-                try {
-                    const user = JSON.parse(sessionData);
-                    roleDisplay.textContent = user.role || user.username || "Loading...";
-                } catch (error) {
-                    console.error("Error parsing user session:", error);
-                    roleDisplay.textContent = "Loading...";
-                }
-            } else if (roleDisplay) {
-                roleDisplay.textContent = "Guest";
-            }
-        });
     </script>
 </body>
 </html>
