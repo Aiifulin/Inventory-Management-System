@@ -86,33 +86,38 @@ async function displayUserRole(uid) {
 
 // --- AUTH CHECK WITH ROLE VALIDATION ---
 onAuthStateChanged(auth, async (user) => {
-    if (!user) {
+    if (user) {
+        const main = document.getElementById('mainContent');
+
+        await displayUserRole(user.uid);
+
+        const isAdmin = await checkAdminRole(user.uid);
+
+        if (!isAdmin) {
+            main.innerHTML = `
+                <div style="display:flex; flex-direction:column; align-items:center; 
+                            justify-content:center; height:60vh; text-align:center; 
+                            color:var(--text-secondary);">
+                    <i class="fas fa-lock" style="font-size:48px; margin-bottom:16px;"></i>
+                    <h2 style="margin:0 0 8px; color:var(--text-main); font-size:20px;">Access Denied</h2>
+                    <p style="margin:0; font-size:14px;">You do not have permission to view Settings.</p>
+                </div>`;
+            
+            main.style.visibility = 'visible';
+            document.documentElement.style.visibility = 'visible'; // ✅ ADD THIS
+            return;
+        }
+
+        // Load content
+        loadArchivedProducts(true);
+        loadArchivedCategories(true);
+
+        main.style.visibility = 'visible';
+        document.documentElement.style.visibility = 'visible'; // ✅ ADD THIS
+
+    } else {
         window.location.href = "Login.html";
-        return;
     }
-
-    const userData = await getCachedUserData(user.uid);
-
-    const isAdmin = userData?.role?.toLowerCase() === "admin";
-
-    if (!isAdmin) {
-        alert("Access Denied: Only Admins can access archives.");
-        window.location.href = "Products.html";
-        return;
-    }
-
-    console.log("Admin verified (cached).");
-
-    // Display role WITHOUT extra read
-    let role = userData?.role || "User";
-    role = role.charAt(0).toUpperCase() + role.slice(1);
-    const roleEl = document.getElementById('userRoleDisplay');
-    if (roleEl) roleEl.textContent = role;
-
-    // Load page
-    loadArchivedProducts(true);
-    loadArchivedCategories(true);
-    document.documentElement.style.visibility = "visible";
 });
 
 
