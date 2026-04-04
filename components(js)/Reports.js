@@ -1,34 +1,92 @@
 // Reports.js
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
-import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
-import { 
-  getFirestore, collection, getDocs, query, where, orderBy, limit 
+import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+import {
+  getFirestore, collection, getDocs, query,
+  orderBy, limit, doc, getDoc
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
 // --- CONFIG ---
 const firebaseConfig = {
-    apiKey: "AIzaSyBeaF2VKovHASuzhvZHzOoE0yB7QnBDej0",
-    authDomain: "inventory-management-sys-baccc.firebaseapp.com",
-    projectId: "inventory-management-sys-baccc",
-    storageBucket: "inventory-management-sys-baccc.firebasestorage.app",
-    messagingSenderId: "304433839568",
-    appId: "1:304433839568:web:50dafae1296e6bb0d30dd5",
-    measurementId: "G-68CR9JCJV8"
+  apiKey: "AIzaSyBeaF2VKovHASuzhvZHzOoE0yB7QnBDej0",
+  authDomain: "inventory-management-sys-baccc.firebaseapp.com",
+  projectId: "inventory-management-sys-baccc",
+  storageBucket: "inventory-management-sys-baccc.firebasestorage.app",
+  messagingSenderId: "304433839568",
+  appId: "1:304433839568:web:50dafae1296e6bb0d30dd5",
+  measurementId: "G-68CR9JCJV8"
 };
 
-// ✅ Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+const app  = initializeApp(firebaseConfig);
+const db   = getFirestore(app);
 const auth = getAuth(app);
 
 // ===============================
-//  EXPORT HELPERS
+// USER / AUTH
 // ===============================
+async function getCachedUserData(uid) {
+  const key    = `user_data_${uid}`;
+  const cached = sessionStorage.getItem(key);
+  if (cached) return JSON.parse(cached);
+  try {
+    const snap = await getDoc(doc(db, "users", uid));
+    if (snap.exists()) {
+      sessionStorage.setItem(key, JSON.stringify(snap.data()));
+      return snap.data();
+    }
+  } catch (e) { console.error(e); }
+  return null;
+}
+
+async function checkAdminRole(uid) {
+  const data = await getCachedUserData(uid);
+  return data?.role?.toLowerCase() === 'admin';
+}
+
+onAuthStateChanged(auth, async (user) => {
+  if (user) {
+    const isAdmin = await checkAdminRole(user.uid);
+
+    // Display role in sidebar
+    const userData = await getCachedUserData(user.uid);
+    const roleEl   = document.getElementById('userRoleDisplay');
+    if (roleEl && userData?.role) {
+      roleEl.textContent = userData.role.charAt(0).toUpperCase() + userData.role.slice(1);
+    }
+
+    if (!isAdmin) {
+      document.querySelector(".main-content").innerHTML = `
+        <div class="access-denied">
+          <i class="fas fa-lock" style="font-size:40px; margin-bottom:16px; color:var(--text-secondary);"></i>
+          <h2>Access Denied</h2>
+          <p>You do not have permission to view reports.</p>
+        </div>`;
+    } else {
+      attachReportListeners();
+    }
+  } else {
+    window.location.href = "Login.html";
+  }
+});
+
+// ===============================
+// EXPORT HELPERS
+// ===============================
+function getSelectedFormat() {
+  return document.getElementById("exportFormat")?.value || "csv";
+}
+
 function convertToCSV(data) {
   if (!data.length) return "";
-  const headers = Object.keys(data[0]).join(",");
-  const rows = data.map(obj => Object.values(obj).join(","));
+  const escape = (val) => {
+    const str = String(val ?? "");
+    return str.includes(",") || str.includes('"') || str.includes('\n')
+      ? `"${str.replace(/"/g, '""')}"`
+      : str;
+  };
+  const headers = Object.keys(data[0]).map(escape).join(",");
+  const rows    = data.map(obj => Object.values(obj).map(escape).join(","));
   return [headers, ...rows].join("\n");
 }
 
@@ -38,152 +96,281 @@ function downloadCSV(filename, data) {
   link.href = URL.createObjectURL(blob);
   link.download = filename;
   link.click();
+  URL.revokeObjectURL(link.href);
 }
 
 function downloadExcel(filename, data) {
-  const worksheet = XLSX.utils.json_to_sheet(data);
-  const workbook = XLSX.utils.book_new();
+  const worksheet  = XLSX.utils.json_to_sheet(data);
+  const workbook   = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, "Report");
   XLSX.writeFile(workbook, filename);
 }
 
 function exportData(filename, data) {
-  const format = document.getElementById("exportFormat").value;
+  if (!data || data.length === 0) {
+    alert("No data found to export for this report.");
+    return;
+  }
+  const format = getSelectedFormat();
   if (format === "csv") {
-    const csv = convertToCSV(data);
-    downloadCSV(filename + ".csv", csv);
+    downloadCSV(filename + ".csv", convertToCSV(data));
   } else {
     downloadExcel(filename + ".xlsx", data);
   }
 }
 
-// ===============================
-//  ADMIN RESTRICTION
-// ===============================
-onAuthStateChanged(auth, async (user) => {
-  if (user) {
-    const isAdmin = await checkAdminRole(user.uid);
-    if (!isAdmin) {
-      document.querySelector(".main-content").innerHTML = `
-        <div class="access-denied">
-          <h2>Access Denied</h2>
-          <p>You do not have permission to view reports.</p>
-        </div>
-      `;
-    } else {
-      attachReportListeners();
-    }
+function setButtonLoading(btn, loading) {
+  if (!btn) return;
+  if (loading) {
+    btn.disabled = true;
+    btn.dataset.originalHtml = btn.innerHTML;
+    btn.innerHTML = '<i class="fa-solid fa-spinner"></i> Generating...';
   } else {
-    window.location.href = "Login.html";
+    btn.disabled = false;
+    btn.innerHTML = btn.dataset.originalHtml || '<i class="fa-solid fa-download"></i> Generate Report';
   }
-});
-
-// Dummy role checker (replace with Firestore users collection logic)
-async function checkAdminRole(uid) {
-  // TODO: fetch user doc and check role === 'admin'
-  return true; // placeholder
 }
 
 // ===============================
-//  REPORT FUNCTIONS
+// REPORT 1: INVENTORY REPORT
 // ===============================
+async function loadInventoryReport(btn) {
+  setButtonLoading(btn, true);
+  try {
+    const snapshot = await getDocs(collection(db, "products"));
+    const reportData = [];
 
-// Inventory Report
-async function loadInventoryReport() {
-  const snapshot = await getDocs(collection(db, "products"));
-  const reportData = [];
+    snapshot.forEach(docSnap => {
+      const p = docSnap.data();
+      if (p.archived === true) return; // skip archived
+      const stock = Number(p.stock) || 0;
+      const price = Number(p.price) || 0;
+      const threshold = Number(p.lowStockThreshold) || 10;
 
-  snapshot.forEach(docSnap => {
-    const data = docSnap.data();
-    reportData.push({
-      Name: data.name || docSnap.id,
-      Stock: data.stock || 0,
-      Price: data.price || 0,
-      Value: (data.stock || 0) * (data.price || 0)
-    });
-  });
+      let status = "In Stock";
+      if (stock === 0)          status = "Out of Stock";
+      else if (stock <= threshold) status = "Low Stock";
 
-  exportData("InventoryReport", reportData);
-}
-
-// Category Report
-async function loadCategoryReport() {
-  const snapshot = await getDocs(collection(db, "products"));
-  const categoryMap = {};
-
-  snapshot.forEach(docSnap => {
-    const data = docSnap.data();
-    const cat = data.category || "Uncategorized";
-    if (!categoryMap[cat]) categoryMap[cat] = { Count: 0, Stock: 0 };
-    categoryMap[cat].Count++;
-    categoryMap[cat].Stock += data.stock || 0;
-  });
-
-  const reportData = Object.entries(categoryMap).map(([cat, stats]) => ({
-    Category: cat,
-    Items: stats.Count,
-    Stock: stats.Stock
-  }));
-
-  exportData("CategoryReport", reportData);
-}
-
-// Low Stock Report
-async function loadLowStockReport() {
-  const snapshot = await getDocs(collection(db, "products"));
-  const reportData = [];
-
-  snapshot.forEach(docSnap => {
-    const data = docSnap.data();
-    const threshold = data.lowStockThreshold || 10;
-    if ((data.stock || 0) <= threshold) {
       reportData.push({
-        Name: data.name || docSnap.id,
-        Stock: data.stock || 0,
-        Threshold: threshold
+        "Product ID":       docSnap.id,
+        "Product Name":     p.name || "",
+        "Category":         p.category || "",
+        "Price (₱)":        price.toFixed(2),
+        "Stock":            stock,
+        "Low Stock Threshold": threshold,
+        "Status":           status,
+        "Inventory Value (₱)": (stock * price).toFixed(2),
+        "Date Added":       p.createdAt ? new Date(p.createdAt.seconds * 1000).toLocaleDateString() : "N/A"
       });
-    }
-  });
-
-  exportData("LowStockReport", reportData);
-}
-
-// Stock Movement Report
-async function loadStockMovementReport() {
-  const q = query(
-    collection(db, "activities"),
-    where("action", "in", ["stock-in", "stock-out"]),
-    orderBy("timestamp", "desc"),
-    limit(20)
-  );
-
-  const snapshot = await getDocs(q);
-  const reportData = [];
-
-  snapshot.forEach(docSnap => {
-    const log = docSnap.data();
-    reportData.push({
-      Action: log.action,
-      Target: log.target,
-      User: log.user,
-      Timestamp: log.timestamp?.toDate().toLocaleString()
     });
-  });
 
-  exportData("StockMovementReport", reportData);
+    exportData(`InventoryReport_${getDateStamp()}`, reportData);
+  } catch (err) {
+    console.error("Inventory report error:", err);
+    alert("Error generating report: " + err.message);
+  } finally {
+    setButtonLoading(btn, false);
+  }
 }
 
 // ===============================
-//  EVENT LISTENERS
+// REPORT 2: CATEGORY REPORT
+// ===============================
+async function loadCategoryReport(btn) {
+  setButtonLoading(btn, true);
+  try {
+    const [productsSnap, categoriesSnap] = await Promise.all([
+      getDocs(collection(db, "products")),
+      getDocs(collection(db, "categories"))
+    ]);
+
+    // Build a map of all active categories
+    const categoryMap = {};
+    categoriesSnap.forEach(docSnap => {
+      const c = docSnap.data();
+      if (c.archived !== true && c.name) {
+        categoryMap[c.name] = {
+          "Category Name": c.name,
+          "Total Products": 0,
+          "Total Stock":    0,
+          "Total Value (₱)": 0,
+          "Out of Stock":   0,
+          "Low Stock":      0,
+          "In Stock":       0,
+          "Date Created":   c.createdAt ? new Date(c.createdAt.seconds * 1000).toLocaleDateString() : "N/A"
+        };
+      }
+    });
+
+    // Tally products per category
+    productsSnap.forEach(docSnap => {
+      const p = docSnap.data();
+      if (p.archived === true) return;
+      const cat       = p.category || "Uncategorized";
+      const stock     = Number(p.stock)  || 0;
+      const price     = Number(p.price)  || 0;
+      const threshold = Number(p.lowStockThreshold) || 10;
+
+      if (!categoryMap[cat]) {
+        categoryMap[cat] = {
+          "Category Name": cat,
+          "Total Products": 0,
+          "Total Stock":    0,
+          "Total Value (₱)": 0,
+          "Out of Stock":   0,
+          "Low Stock":      0,
+          "In Stock":       0,
+          "Date Created":   "N/A"
+        };
+      }
+
+      categoryMap[cat]["Total Products"]++;
+      categoryMap[cat]["Total Stock"] += stock;
+      categoryMap[cat]["Total Value (₱)"] += stock * price;
+
+      if (stock === 0)             categoryMap[cat]["Out of Stock"]++;
+      else if (stock <= threshold) categoryMap[cat]["Low Stock"]++;
+      else                         categoryMap[cat]["In Stock"]++;
+    });
+
+    const reportData = Object.values(categoryMap).map(c => ({
+      ...c,
+      "Total Value (₱)": Number(c["Total Value (₱)"]).toFixed(2)
+    }));
+
+    // Sort by total products descending
+    reportData.sort((a, b) => b["Total Products"] - a["Total Products"]);
+
+    exportData(`CategoryReport_${getDateStamp()}`, reportData);
+  } catch (err) {
+    console.error("Category report error:", err);
+    alert("Error generating report: " + err.message);
+  } finally {
+    setButtonLoading(btn, false);
+  }
+}
+
+// ===============================
+// REPORT 3: LOW STOCK REPORT
+// ===============================
+async function loadLowStockReport(btn) {
+  setButtonLoading(btn, true);
+  try {
+    const snapshot = await getDocs(collection(db, "products"));
+    const reportData = [];
+
+    snapshot.forEach(docSnap => {
+      const p = docSnap.data();
+      if (p.archived === true) return;
+      const stock     = Number(p.stock)  || 0;
+      const price     = Number(p.price)  || 0;
+      const threshold = Number(p.lowStockThreshold) || 10;
+
+      if (stock <= threshold) {
+        reportData.push({
+          "Product ID":       docSnap.id,
+          "Product Name":     p.name || "",
+          "Category":         p.category || "",
+          "Current Stock":    stock,
+          "Threshold":        threshold,
+          "Units Needed":     Math.max(0, threshold - stock + 1),
+          "Price (₱)":        price.toFixed(2),
+          "Status":           stock === 0 ? "Out of Stock" : "Low Stock",
+          "Date Added":       p.createdAt ? new Date(p.createdAt.seconds * 1000).toLocaleDateString() : "N/A"
+        });
+      }
+    });
+
+    // Sort: out of stock first, then by stock ascending
+    reportData.sort((a, b) => {
+      if (a["Current Stock"] === 0 && b["Current Stock"] !== 0) return -1;
+      if (a["Current Stock"] !== 0 && b["Current Stock"] === 0) return  1;
+      return a["Current Stock"] - b["Current Stock"];
+    });
+
+    if (reportData.length === 0) {
+      alert("Great news! All products are well stocked — no low stock items to report.");
+      return;
+    }
+
+    exportData(`LowStockReport_${getDateStamp()}`, reportData);
+  } catch (err) {
+    console.error("Low stock report error:", err);
+    alert("Error generating report: " + err.message);
+  } finally {
+    setButtonLoading(btn, false);
+  }
+}
+
+// ===============================
+// REPORT 4: ACTIVITY REPORT
+// ===============================
+async function loadActivityReport(btn) {
+  setButtonLoading(btn, true);
+  try {
+    const q        = query(collection(db, "activities"), orderBy("timestamp", "desc"), limit(200));
+    const snapshot = await getDocs(q);
+    const reportData = [];
+
+    snapshot.forEach(docSnap => {
+      const log = docSnap.data();
+
+      // Determine action category
+      const action = (log.action || "").toLowerCase();
+      let actionType = "Other";
+      if (action.includes("add"))                                   actionType = "Added";
+      else if (action.includes("edit") || action.includes("update")) actionType = "Updated";
+      else if (action.includes("delete"))                            actionType = "Deleted";
+      else if (action.includes("archive"))                           actionType = "Archived";
+      else if (action.includes("restore"))                           actionType = "Restored";
+
+      reportData.push({
+        "Date":        log.timestamp ? new Date(log.timestamp.seconds * 1000).toLocaleString() : "N/A",
+        "Action":      log.action || "",
+        "Action Type": actionType,
+        "Item":        log.target || "",
+        "Performed By": log.user  || "Admin"
+      });
+    });
+
+    exportData(`ActivityReport_${getDateStamp()}`, reportData);
+  } catch (err) {
+    console.error("Activity report error:", err);
+    alert("Error generating report: " + err.message);
+  } finally {
+    setButtonLoading(btn, false);
+  }
+}
+
+// ===============================
+// HELPERS
+// ===============================
+function getDateStamp() {
+  return new Date().toISOString().split('T')[0];
+}
+
+// ===============================
+// EVENT LISTENERS
 // ===============================
 function attachReportListeners() {
-  const btnInventory = document.getElementById("btnInventory");
-  const btnCategory = document.getElementById("btnCategory");
-  const btnLowStock = document.getElementById("btnLowStock");
+  const btnInventory    = document.getElementById("btnInventory");
+  const btnCategory     = document.getElementById("btnCategory");
+  const btnLowStock     = document.getElementById("btnLowStock");
   const btnStockMovement = document.getElementById("btnStockMovement");
 
-  if (btnInventory) btnInventory.addEventListener("click", loadInventoryReport);
-  if (btnCategory) btnCategory.addEventListener("click", loadCategoryReport);
-  if (btnLowStock) btnLowStock.addEventListener("click", loadLowStockReport);
-  if (btnStockMovement) btnStockMovement.addEventListener("click", loadStockMovementReport);
+  if (btnInventory)     btnInventory.addEventListener("click",     () => loadInventoryReport(btnInventory));
+  if (btnCategory)      btnCategory.addEventListener("click",      () => loadCategoryReport(btnCategory));
+  if (btnLowStock)      btnLowStock.addEventListener("click",      () => loadLowStockReport(btnLowStock));
+  if (btnStockMovement) btnStockMovement.addEventListener("click", () => loadActivityReport(btnStockMovement));
 }
+
+// ===============================
+// LOGOUT
+// ===============================
+window.logout = function () {
+  localStorage.removeItem("user_session");
+  localStorage.removeItem("user_uid");
+  localStorage.removeItem("user_role");
+  sessionStorage.clear();
+  signOut(auth).then(() => window.location.replace("Login.html")).catch(() => window.location.replace("Login.html"));
+};

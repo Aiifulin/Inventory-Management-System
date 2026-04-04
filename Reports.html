@@ -1,34 +1,56 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Reports – Inventory MS</title>
+
+  <script>
+    if (!localStorage.getItem("user_session")) {
+      window.location.replace("Login.html");
+    }
+  </script>
+
+  <script>
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme === 'dark') {
+      document.documentElement.setAttribute('data-theme', 'dark');
+    }
+  </script>
+
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+  <link rel="stylesheet" href="components(css)/Theme.css"/>
   <link rel="stylesheet" href="components(css)/Reports.css"/>
-  <!-- ✅ SheetJS for Excel export -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
 
+  <button class="hamburger" id="hamburgerBtn">
+    <i class="fas fa-bars"></i>
+  </button>
+  <div class="overlay" id="overlay"></div>
+
   <!-- Sidebar -->
-  <aside class="sidebar">
+  <aside class="sidebar" id="sidebar">
     <div class="sidebar-content">
       <div class="sidebar-header">
         <h2>Inventory MS</h2>
-        <div class="user-role" id="userRoleDisplay">Loading...</div>
+        <span class="user-role" id="userRoleDisplay">Loading...</span>
+        <button class="close-btn" id="closeBtn"><i class="fas fa-times"></i></button>
       </div>
       <nav class="sidebar-nav">
-        <a href="Dashboard.html" class="nav-link"><i class="fa-solid fa-chart-line"></i> Dashboard</a>
-        <a href="Products.html" class="nav-link"><i class="fa-solid fa-box"></i> Products</a>
-        <a href="Categories.html" class="nav-link"><i class="fa-solid fa-list"></i> Categories</a>
-        <a href="Activity_Logs.html" class="nav-link"><i class="fa-solid fa-clock-rotate-left"></i> Activity Log</a>
-        <a href="Reports.html" class="nav-link active"><i class="fa-solid fa-file-lines"></i> Reports</a>
-        <a href="Archives.html" class="nav-link"><i class="fa-solid fa-box-archive"></i> Archived</a>
-        <a href="Settings.html" class="nav-link"><i class="fa-solid fa-gear"></i> Settings</a>
+        <a href="Dashboard.html" class="nav-link"><i class="fas fa-chart-line"></i> Dashboard</a>
+        <a href="Products.html" class="nav-link"><i class="fas fa-box"></i> Products</a>
+        <a href="Categories.html" class="nav-link"><i class="fas fa-list"></i> Categories</a>
+        <a href="Activity_Logs.html" class="nav-link"><i class="fas fa-history"></i> Activity Log</a>
+        <a href="Reports.html" class="nav-link active"><i class="fas fa-file-alt"></i> Reports</a>
+        <a href="Archives.html" class="nav-link"><i class="fas fa-archive"></i> Archived</a>
+        <a href="Settings.html" class="nav-link"><i class="fas fa-gear"></i> Settings</a>
       </nav>
       <div class="sidebar-footer">
-        <a href="#" class="logout"><i class="fa-solid fa-right-from-bracket"></i> Logout</a>
+        <a href="#" onclick="logout()" class="logout">
+          <i class="fas fa-arrow-right-from-bracket"></i> Logout
+        </a>
       </div>
     </div>
   </aside>
@@ -44,14 +66,18 @@
 
     <!-- Export Options -->
     <div class="export-options">
-      <label for="exportFormat">Export as:</label>
+      <label for="exportFormat"><i class="fas fa-file-export" style="margin-right:6px; color:var(--text-secondary);"></i>Export format:</label>
       <select id="exportFormat">
-        <option value="csv">CSV</option>
-        <option value="excel">Excel</option>
+        <option value="csv">CSV (.csv)</option>
+        <option value="excel">Excel (.xlsx)</option>
       </select>
+      <span class="export-hint">
+        <i class="fas fa-info-circle"></i> Select format before generating any report
+      </span>
     </div>
 
     <div class="reports-grid">
+
       <!-- Inventory Report -->
       <div class="report-card">
         <div class="report-card-top">
@@ -60,7 +86,7 @@
           </div>
           <div class="report-info">
             <h3>Inventory Report</h3>
-            <p>A full overview of all products, their current stock levels, and total inventory value.</p>
+            <p>Full overview of all active products — name, category, stock, price, and total inventory value.</p>
           </div>
         </div>
         <div class="report-card-footer">
@@ -78,7 +104,7 @@
           </div>
           <div class="report-info">
             <h3>Category Report</h3>
-            <p>Breakdown of products and stock distribution grouped by category.</p>
+            <p>Breakdown of product counts and total stock levels grouped by category.</p>
           </div>
         </div>
         <div class="report-card-footer">
@@ -96,7 +122,7 @@
           </div>
           <div class="report-info">
             <h3>Low Stock Report</h3>
-            <p>Lists all products that have fallen below their minimum stock threshold and require restocking.</p>
+            <p>All products at or below their low stock threshold that require restocking attention.</p>
           </div>
         </div>
         <div class="report-card-footer">
@@ -106,15 +132,15 @@
         </div>
       </div>
 
-      <!-- Stock Movement Report -->
+      <!-- Activity Report -->
       <div class="report-card">
         <div class="report-card-top">
           <div class="report-icon icon-gold">
             <i class="fa-solid fa-arrow-right-arrow-left"></i>
           </div>
           <div class="report-info">
-            <h3>Stock Movement Report</h3>
-            <p>Tracks all stock-in and stock-out activity over a selected period, including adjustments.</p>
+            <h3>Activity Report</h3>
+            <p>Recent inventory activity log — added, updated, archived, and deleted product events.</p>
           </div>
         </div>
         <div class="report-card-footer">
@@ -123,10 +149,27 @@
           </button>
         </div>
       </div>
+
     </div>
   </main>
 
-  <!-- ✅ Script -->
   <script type="module" src="components(js)/Reports.js"></script>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const hamburger = document.getElementById('hamburgerBtn');
+      const sidebar   = document.getElementById('sidebar');
+      const overlay   = document.getElementById('overlay');
+      const closeBtn  = document.getElementById('closeBtn');
+
+      function toggleSidebar() { sidebar.classList.toggle('open'); overlay.classList.toggle('show'); }
+      function closeSidebar()  { sidebar.classList.remove('open'); overlay.classList.remove('show'); }
+
+      if (hamburger) hamburger.addEventListener('click', (e) => { e.stopPropagation(); toggleSidebar(); });
+      if (closeBtn)  closeBtn.addEventListener('click', closeSidebar);
+      if (overlay)   overlay.addEventListener('click', closeSidebar);
+    });
+  </script>
+
 </body>
 </html>
