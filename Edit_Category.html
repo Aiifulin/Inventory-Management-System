@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <script>
+        // Session Check
+        if (!localStorage.getItem("user_session")) {
+            window.location.replace("Login.html");
+        }
+    </script>
+    
+    <script>
+        const savedTheme = localStorage.getItem('theme');
+        if (savedTheme === 'dark') {
+            document.documentElement.setAttribute('data-theme', 'dark');
+        }
+    </script>
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Category - Inventory MS</title>
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <link rel="stylesheet" href="components(css)/Theme.css">
+    
+    <link rel="stylesheet" href="components(css)/Edit_Product.css">
+</head>
+<body>
+    
+    <button class="hamburger" id="hamburgerBtn">
+        <i class="fas fa-bars"></i>
+    </button>
+    
+    <div class="overlay" id="overlay"></div>
+
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-content">
+            <div class="sidebar-header">
+                <h2>Inventory MS</h2>
+                <span class="user-role" id="userRoleDisplay">Loading...</span>
+            </div>
+            <nav class="sidebar-nav">
+                <a href="Dashboard.html" class="nav-link"><i class="fas fa-chart-line"></i> Dashboard</a>
+                <a href="Products.html" class="nav-link"><i class="fas fa-box"></i> Products</a>
+                <a href="Categories.html" class="nav-link active"><i class="fas fa-tags"></i> Categories</a>
+                <a href="Activity_Logs.html" class="nav-link"><i class="fas fa-history"></i> Activity Log</a>
+                <a href="Reports.html" class="nav-link"><i class="fas fa-file-alt"></i> Reports</a>
+                <a href="Archives.html" class="nav-link"><i class="fas fa-archive"></i>Archived</a>
+                <a href="Settings.html" class="nav-link"><i class="fas fa-gear"></i> Settings</a>
+            </nav>
+            <div class="sidebar-footer">
+                <a href="#" onclick="logout()" class="logout" id="logoutBtn">
+                    <i class="fas fa-arrow-right-from-bracket"></i>Logout
+                </a>
+            </div>
+        </div>
+    </aside>
+
+    <main class="main-content">
+        <div class="page-header">
+            <a href="Categories.html" class="back-btn"><i class="fas fa-arrow-left"></i></a>
+            <div class="header-title">
+                <h1>Edit Category</h1>
+                <p>Update category information</p>
+            </div>
+        </div>
+
+        <form id="editProductForm">
+            
+            <div class="form-section">
+                <h3 class="section-title">Category Information</h3>
+                <div class="fields-column">
+                    <div class="input-group">
+                        <label>Category Name</label>
+                        <input type="text" id="inpName" placeholder="e.g. Electronics" required>
+                    </div>
+                    <div class="input-group">
+                        <label>Description</label>
+                        <textarea id="inpDesc" placeholder="Category description (optional)..."></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <a href="Categories.html" class="btn-cancel">Cancel</a>
+                <button type="submit" class="btn-submit">Update Category</button>
+            </div>
+        </form>
+    </main>
+    <!-- SUCCESS MODAL -->
+    <div class="modal-overlay" id="successModal" style="display:none;">
+        <div class="modal-content">
+            <div class="success-icon">
+                <i class="fas fa-check-circle"></i>
+            </div>
+            <h2 style="margin: 0 0 8px; font-size: 20px; color: var(--text-main);">Category Updated!</h2>
+            <p style="margin: 0; color: var(--text-secondary); font-size: 14px;" id="successCategoryName"></p>
+            <p style="margin: 8px 0 0; color: var(--text-secondary); font-size: 13px;">Redirecting you back to Categories...</p>
+        </div>
+    </div>
+
+    <script type="module" src="components(js)/Edit_Categories.js"></script>
+    
+    <script>
+        const hamburger = document.getElementById('hamburgerBtn');
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('overlay');
+        const closeBtn = document.getElementById('closeBtn');
+
+        function toggleSidebar() {
+            sidebar.classList.toggle('open');
+            overlay.classList.toggle('show');
+        }
+
+        if(hamburger) hamburger.addEventListener('click', toggleSidebar);
+        if(closeBtn) closeBtn.addEventListener('click', toggleSidebar);
+        if(overlay) overlay.addEventListener('click', toggleSidebar);
+
+        document.addEventListener("DOMContentLoaded", () => {
+            const roleDisplay = document.getElementById("userRoleDisplay");
+            const sessionData = sessionStorage.getItem("user_session");
+            
+            if (sessionData && roleDisplay) {
+                try {
+                    const user = JSON.parse(sessionData);
+                    roleDisplay.textContent = user.role || user.username || "Loading...";
+                } catch (error) {
+                    console.error("Error parsing user session:", error);
+                    roleDisplay.textContent = "Loading...";
+                }
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,566 @@
+/* =========================================
+   components(css)/Dashboard.css
+   ========================================= */
+
+/* (Note: Base colors and fonts are inherited from Theme.css) */
+
+/* --- 1. GLOBAL LAYOUT --- */
+body {
+    background-color: var(--bg-body);
+    color: var(--text-main);
+    display: flex; 
+    min-height: 100vh;
+    overflow-x: hidden;
+}
+
+/* =========================================
+   2. SIDEBAR STYLES
+   ========================================= */
+.sidebar {
+    width: var(--sidebar-width);
+    min-width: var(--sidebar-width);
+    flex-shrink: 0;
+    background-color: var(--bg-sidebar);
+    padding: 20px 0;
+    height: 100vh;
+    box-shadow: 2px 0 5px var(--shadow-color);
+    position: relative;
+    /* Default Z-Index for Desktop */
+    z-index: 1000;
+    transition: transform 0.3s ease, background-color 0.3s ease;
+    border-right: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+}
+
+.sidebar-content {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow-y: auto;
+}
+
+.sidebar-header {
+    padding: 0 20px 20px;
+    border-bottom: 1px solid var(--border-color);
+    margin-bottom: 20px;
+    position: relative;
+}
+
+.sidebar-header h2 {
+    margin: 0 0 5px 0;
+    font-size: 18px;
+    color: var(--text-main);
+}
+
+.sidebar-header .user-role {
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.sidebar-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    flex-grow: 1;
+    padding: 0 10px;
+}
+
+.nav-link {
+    display: flex;
+    align-items: center;
+    padding: 12px 15px;
+    color: var(--text-secondary);
+    text-decoration: none;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.nav-link i {
+    margin-right: 12px;
+    width: 20px;
+    text-align: center;
+}
+
+.nav-link.active,
+.nav-link:hover {
+    background-color: var(--hover-bg);
+    color: var(--text-main);
+    font-weight: 600;
+}
+
+.sidebar-footer {
+    padding: 15px 20px;
+    border-top: 1px solid var(--border-color);
+}
+
+.sidebar-footer .logout {
+    display: flex;
+    align-items: center;
+    padding: 12px 15px;
+    text-decoration: none;
+    border-radius: 6px;
+    font-size: 14px;
+    transition: all 0.2s;
+    color: var(--danger-color);
+    font-weight: 500;
+}
+
+.sidebar-footer .logout i {
+    margin-right: 12px;
+    width: 20px;
+    text-align: center;
+}
+
+.sidebar-footer .logout:hover {
+    background-color: rgba(239, 68, 68, 0.1);
+}
+
+/* Hamburger & Overlay */
+.hamburger {
+    display: none;
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    z-index: 2000;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    box-shadow: 0 2px 5px var(--shadow-color);
+    color: var(--text-main);
+}
+
+.close-btn {
+    display: none;
+    position: absolute;
+    top: 0;
+    right: 20px;
+    background: none;
+    border: none;
+    font-size: 20px;
+    cursor: pointer;
+    color: var(--text-main);
+}
+
+.overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    /* Overlay stays at 1500 */
+    z-index: 1500;
+}
+
+.overlay.show {
+    display: block;
+}
+
+/* =========================================
+   3. MAIN CONTENT STYLES
+   ========================================= */
+.main-content {
+    flex: 1;
+    width: 0; 
+    padding: 30px;
+    height: 100vh;
+    overflow-y: auto;
+    background-color: var(--bg-body);
+    transition: background-color 0.3s ease;
+}
+
+.header-flex {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 30px;
+    flex-wrap: wrap;
+    gap: 15px;
+}
+
+.header-text h1 {
+    margin: 0;
+    font-size: 24px;
+    color: var(--text-main);
+}
+
+.header-text p {
+    margin: 5px 0 0;
+    color: var(--text-secondary);
+    font-size: 14px;
+}
+
+.btn-add {
+    background-color: var(--primary-color);
+    color: #ffffff;
+    padding: 10px 20px;
+    border-radius: 6px;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 600;
+    transition: opacity 0.2s;
+}
+
+.btn-add:hover {
+    opacity: 0.9;
+}
+
+/* =========================================
+   4. STATS GRID
+   ========================================= */
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 20px;
+    margin-bottom: 30px;
+}
+
+.stat-card {
+    background: var(--bg-card);
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 1px 3px var(--shadow-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border: 1px solid var(--border-color);
+    transition: background-color 0.3s ease, border-color 0.3s ease;
+}
+
+.stat-info h4 {
+    margin: 0;
+    font-size: 14px;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+.stat-info p {
+    margin: 5px 0 0;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--text-main);
+}
+
+.stat-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+}
+
+/* Icon Colors */
+.icon-gray { background-color: var(--hover-bg); color: var(--text-secondary); }
+.icon-teal { background-color: rgba(20, 184, 166, 0.1); color: #14b8a6; }
+.icon-red  { background-color: rgba(239, 68, 68, 0.1); color: #ef4444; }
+.icon-gold { background-color: rgba(245, 158, 11, 0.1); color: #f59e0b; }
+
+/* =========================================
+   5. CHARTS GRID
+   ========================================= */
+.charts-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 20px;
+    margin-bottom: 30px;
+}
+
+.card-container {
+    background: var(--bg-card);
+    border-radius: 12px;
+    box-shadow: 0 1px 3px var(--shadow-color);
+    border: 1px solid var(--border-color);
+    overflow: hidden;
+    min-width: 300px;
+    display: flex;
+    flex-direction: column;
+}
+
+.card-header {
+    padding: 15px 20px;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: var(--bg-card);
+}
+
+.card-header h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-main);
+}
+
+.chart-wrapper {
+    padding: 20px;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.custom-legend {
+    padding: 0 20px 20px;
+    border-top: 1px solid var(--border-color);
+    margin-top: 10px;
+    padding-top: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.legend-item {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+    color: var(--text-main);
+}
+
+.legend-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.legend-left span {
+    color: var(--text-secondary);
+}
+
+.legend-color {
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+}
+
+.legend-value {
+    font-weight: 600;
+    color: var(--text-main);
+}
+
+/* =========================================
+   6. BOTTOM GRID (Activity & Low Stock)
+   ========================================= */
+.bottom-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+}
+
+.no-min-width {
+    min-width: 0;
+}
+
+/* Activity Feed */
+.activity-content {
+    padding: 20px;
+    max-height: 300px;
+    overflow-y: auto;
+    font-size: 14px;
+    color: var(--text-secondary);
+}
+
+.activity-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.activity-item {
+    display: flex;
+    gap: 15px;
+    padding-bottom: 15px;
+    margin-bottom: 15px;
+    border-bottom: 1px solid var(--border-color);
+    align-items: center;
+}
+
+.activity-item:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+    padding-bottom: 0;
+}
+
+.activity-icon-box {
+    width: 36px;
+    height: 36px;
+    background-color: var(--hover-bg);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    color: var(--text-secondary);
+}
+
+.act-add    { background-color: rgba(16, 185, 129, 0.1); color: #10b981; }
+.act-edit   { background-color: rgba(59, 130, 246, 0.1); color: #3b82f6; }
+.act-delete { background-color: rgba(239, 68, 68, 0.1);  color: #ef4444; }
+
+.activity-details {
+    flex: 1;
+}
+
+.activity-text {
+    margin: 0 0 4px;
+    line-height: 1.4;
+    color: var(--text-main);
+}
+
+.activity-text strong {
+    font-weight: 600;
+    color: var(--text-main);
+}
+
+.activity-meta {
+    margin: 0;
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+/* Table */
+.table-responsive {
+    overflow-x: auto;
+    width: 100%;
+}
+
+.simple-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+}
+
+.simple-table th {
+    text-align: left;
+    padding: 12px 20px;
+    background-color: var(--table-header-bg);
+    color: var(--text-secondary);
+    font-weight: 600;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.simple-table td {
+    padding: 12px 20px;
+    border-bottom: 1px solid var(--border-color);
+    color: var(--text-main);
+    vertical-align: middle;
+}
+
+.simple-table tr:last-child td {
+    border-bottom: none;
+}
+
+.sm-product-img {
+    width: 32px; 
+    height: 32px; 
+    border-radius: 6px; 
+    object-fit: cover; 
+    vertical-align: middle; 
+    margin-right: 10px;
+    border: 1px solid var(--border-color);
+}
+
+.pill {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.pill-orange { 
+    background-color: rgba(249, 115, 22, 0.1); 
+    color: #f97316; 
+    border: 1px solid rgba(249, 115, 22, 0.2); 
+}
+
+.pill-red { 
+    background-color: rgba(239, 68, 68, 0.1); 
+    color: #ef4444; 
+    border: 1px solid rgba(239, 68, 68, 0.2); 
+}
+
+/* =========================================
+   7. RESPONSIVENESS
+   ========================================= */
+@media (max-width: 1024px) {
+    .charts-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 768px) {
+    .sidebar {
+        position: fixed;
+        left: 0; top: 0; bottom: 0;
+        transform: translateX(-100%);
+        /* FIX: Increased z-index to 2000 so it sits ABOVE the overlay (1500) */
+        z-index: 2000;
+    }
+    .sidebar.open {
+        transform: translateX(0);
+    }
+    
+    .hamburger, .close-btn {
+        display: block;
+    }
+    
+    .main-content {
+        margin-left: 0;
+        width: 100%;
+        padding: 80px 15px 30px 15px;
+    }
+    
+    .stats-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .bottom-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.btn-refresh {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 16px;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.btn-refresh:hover {
+    background: var(--hover-bg);
+    color: var(--text-main);
+    border-color: var(--text-secondary);
+}
+.btn-refresh:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Spin animation for the icon while loading */
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+}
+.btn-refresh.loading #refreshIcon {
+    animation: spin 0.7s linear infinite;
+}

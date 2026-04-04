@@ -1,0 +1,369 @@
+/* =========================================
+   components(css)/Edit_Product.css
+   ========================================= */
+
+/* (Note: Variables & Reset come from Theme.css) */
+
+/* --- 1. GLOBAL LAYOUT --- */
+html, body { height: 100%; margin: 0; }
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    /* CRITICAL FIX: Ensures Sidebar and Main Content sit side-by-side */
+    display: flex;
+    flex-direction: row;
+    min-height: 100vh;
+    overflow-x: hidden;
+    background-color: var(--bg-body);
+    color: var(--text-main);
+}
+
+/* --- 2. SIDEBAR (With Mobile Drawer Logic) --- */
+.sidebar {
+    width: var(--sidebar-width);
+    min-width: var(--sidebar-width); /* Prevent shrinking */
+    background-color: var(--bg-sidebar);
+    padding: 20px 0;
+    height: 100vh;
+    box-shadow: 2px 0 5px var(--shadow-color);
+    flex-shrink: 0;
+    position: relative;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid var(--border-color);
+    transition: transform 0.3s ease, background-color 0.3s ease;
+}
+
+.sidebar-header { padding: 0 20px 20px; border-bottom: 1px solid var(--border-color); margin-bottom: 20px; }
+.sidebar-header h2 { margin: 0 0 5px 0; font-size: 18px; color: var(--text-main); font-weight: 700; }
+.sidebar-header .user-role { font-size: 13px; color: var(--text-secondary); }
+
+.sidebar-content { display: flex; flex-direction: column; height: 100%; overflow-y: auto; }
+.sidebar-nav { display: flex; flex-direction: column; gap: 5px; flex-grow: 1; padding: 0 10px; }
+
+/* Navigation Links */
+.nav-link {
+    display: flex; align-items: center; padding: 12px 15px; color: var(--text-secondary);
+    text-decoration: none; transition: all 0.2s; border-radius: 6px; font-size: 14px; font-weight: 500;
+}
+.nav-link i { margin-right: 12px; width: 20px; text-align: center; }
+.nav-link:hover, .nav-link.active { background-color: var(--hover-bg); color: var(--text-main); font-weight: 600; }
+
+/* Logout */
+.sidebar-footer { padding: 15px 20px; border-top: 1px solid var(--border-color); }
+.logout { color: var(--danger-color); font-weight: 500; display: flex; align-items: center; padding: 10px; border-radius: 6px; text-decoration: none; }
+.logout i { margin-right: 10px; }
+.logout:hover { background-color: rgba(239, 68, 68, 0.1); color: #dc2626; }
+
+/* Hamburger & Overlay */
+.hamburger { 
+    display: none; position: fixed; top: 20px; left: 20px; z-index: 2000; 
+    background: var(--bg-card); border: 1px solid var(--border-color); padding: 8px 12px; 
+    border-radius: 6px; cursor: pointer; box-shadow: 0 2px 5px var(--shadow-color); color: var(--text-main);
+}
+.close-btn { 
+    display: none; position: absolute; top: 0; right: 20px; 
+    background: none; border: none; font-size: 20px; cursor: pointer; color: var(--text-main); 
+}
+.overlay { 
+    display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5); z-index: 1500; 
+}
+.overlay.show { display: block; }
+
+/* --- 3. MAIN CONTENT AREA --- */
+.main-content {
+    flex: 1;
+    padding: 30px;
+    box-sizing: border-box;
+    margin-left: 0;
+    overflow-y: auto;
+    
+    background-color: var(--bg-body);
+}
+
+/* Header */
+.page-header {
+    display: flex;
+    flex-direction: column; /* Stacked for back link + title */
+    gap: 5px;
+    margin-bottom: 25px;
+}
+.back-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-size: 18px;
+    margin-bottom: 10px;
+    cursor: pointer;
+}
+.back-btn:hover { color: var(--primary-color); }
+.header-title h1 { margin: 0; font-size: 24px; font-weight: 700; color: var(--text-main); }
+.header-title p { margin: 4px 0 0; color: var(--text-secondary); font-size: 14px; }
+
+/* --- 4. FORM LAYOUT & STYLES --- */
+.form-section {
+    background: var(--bg-card);
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 1px 3px var(--shadow-color);
+    border: 1px solid var(--border-color);
+    margin-bottom: 20px;
+}
+
+.section-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-main);
+    margin-bottom: 20px;
+}
+
+/* Grid System for Inputs */
+.basic-info-grid {
+    display: grid;
+    grid-template-columns: 150px 1fr;
+    gap: 24px;
+}
+
+.fields-column {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+/* Image Upload Box */
+.image-upload-box {
+    width: 100%;
+    height: 150px;
+    border: 2px dashed var(--border-color);
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: var(--text-secondary);
+    background: var(--hover-bg);
+    transition: border-color 0.2s;
+    position: relative;
+    overflow: visible; 
+}
+.image-upload-box:hover { border-color: #9ca3af; }
+.image-upload-box i { font-size: 24px; margin-bottom: 8px; }
+.image-upload-box span { font-size: 13px; font-weight: 500; }
+
+/* Fixed Remove Button Style */
+.btn-remove-image {
+    display: none; 
+    position: absolute;
+    top: 8px; right: 8px;
+    width: 32px; height: 32px; padding: 0;    
+    background: var(--bg-card); 
+    border: 1px solid #fee2e2;
+    color: #ef4444;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; z-index: 20;   
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
+    transition: all 0.2s ease;
+    overflow: hidden; 
+}
+.btn-remove-image i { font-size: 1rem; pointer-events: none; }
+.btn-remove-image:hover { background: #fee2e2; color: #dc2626; border-color: #fca5a5; transform: scale(1.1); }
+.btn-remove-image[style*="display: flex"] { display: flex !important; }
+
+/* Inputs & Labels */
+.input-group { margin-bottom: 16px; width: 100%; }
+.input-group label { display: block; margin-bottom: 6px; font-size: 13px; font-weight: 600; color: var(--text-secondary); }
+
+input[type="text"], 
+input[type="number"], 
+textarea, 
+select {
+    width: 100%;
+    padding: 10px 12px;
+    background-color: var(--input-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    font-size: 14px;
+    color: var(--text-main);
+    box-sizing: border-box;
+    transition: border 0.2s, background 0.2s;
+    height: 42px;
+}
+
+input:focus, textarea:focus, select:focus {
+    outline: none;
+    background-color: var(--bg-card);
+    border-color: var(--primary-color);
+}
+
+textarea { resize: vertical; height: 80px; font-family: inherit; }
+
+/* Pricing Grid */
+.pricing-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 20px;
+}
+
+/* --- 5. DYNAMIC ROWS (Variations & Attributes) --- */
+.variations-row, .custom-attr-row {
+    display: flex;
+    gap: 15px;
+    align-items: start;
+    margin-bottom: 10px;
+}
+
+.variations-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 42px; /* 3 inputs + delete button */
+    gap: 15px;
+    align-items: flex-end;
+    margin-bottom: 16px;
+}
+
+.custom-attr-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 42px; /* 2 inputs + delete button */
+    gap: 15px;
+    margin-bottom: 16px;
+}
+
+/* Delete Row Button */
+.btn-delete {
+    height: 42px; width: 42px; 
+    background-color: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    border-radius: 6px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; margin-top: 0;
+}
+.btn-delete:hover { background-color: rgba(239, 68, 68, 0.2); color: #dc2626; }
+
+/* Add Row Button */
+.btn-finaladd {
+    margin-top: 10px;
+    background-color: var(--primary-color);
+    color: white;
+    padding: 8px 14px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+}
+.btn-finaladd:hover { opacity: 0.9; }
+
+/* --- 6. FOOTER ACTIONS --- */
+.form-actions {
+    display: flex; justify-content: flex-end; gap: 12px;
+    margin-top: 20px; margin-bottom: 40px;
+}
+
+.btn-cancel {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    padding: 10px 20px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-block;
+}
+
+.btn-submit {
+    background: var(--primary-color);
+    border: none;
+    padding: 10px 24px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #fff;
+    cursor: pointer;
+}
+.btn-submit:hover { opacity: 0.9; }
+
+/* --- 7. RESPONSIVE (Mobile) --- */
+@media (max-width: 768px) {
+    /* Sidebar Drawer Logic */
+    .sidebar { 
+        position: fixed; left: 0; top: 0; bottom: 0; width: 260px;
+        transform: translateX(-100%); z-index: 2000;
+    }
+    .sidebar.open { transform: translateX(0); }
+    .hamburger, .close-btn { display: block; }
+
+    .main-content {
+        padding: 80px 15px 30px 15px; /* Top padding for hamburger */
+        margin-left: 0; width: 100%;
+    }
+
+    /* Stack Form Fields */
+    .basic-info-grid { grid-template-columns: 1fr; }
+    .pricing-grid { grid-template-columns: 1fr; }
+
+    /* Stack Dynamic Rows */
+    .variations-row, .custom-attr-row {
+        grid-template-columns: 1fr; /* Stack vertically */
+        gap: 10px;
+        border-bottom: 1px dashed var(--border-color);
+        padding-bottom: 15px;
+    }
+    
+    .btn-delete {
+        width: 100%;
+        margin-top: 5px;
+    }
+}
+
+@media (max-width: 480px) {
+    .main-content { padding: 15px; }
+}
+
+/* ================================
+   SUCCESS MODAL
+   ================================ */
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+    animation: fadeIn 0.25s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+.modal-content {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    padding: 40px 36px;
+    border-radius: 16px;
+    text-align: center;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+    max-width: 360px;
+    width: 100%;
+    animation: popIn 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+@keyframes popIn {
+    from { transform: scale(0.75); opacity: 0; }
+    to   { transform: scale(1);    opacity: 1; }
+}
+
+.success-icon {
+    font-size: 56px;
+    color: #22c55e;
+    margin-bottom: 16px;
+    display: block;
+}

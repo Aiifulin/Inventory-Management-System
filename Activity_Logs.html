@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+
+<style>
+html { visibility: hidden; }
+</style>
+
+<meta charset="UTF-8">
+<title>Activity Logs</title>
+
+<script>
+    if (!localStorage.getItem("user_session")) {
+        window.location.replace("Login.html");
+    }
+</script>
+
+<script>
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme === 'dark') {
+        document.documentElement.setAttribute('data-theme', 'dark');
+    }
+</script>
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link rel="stylesheet" href="components(css)/Theme.css" />
+<link rel="stylesheet" href="components(css)/Activity_Logs.css" />
+
+</head>
+<body>
+
+<button class="hamburger" id="hamburgerBtn">
+    <i class="fas fa-bars"></i>
+</button>
+
+<div class="overlay" id="overlay"></div>
+
+<aside class="sidebar" id="sidebar">
+    <div class="sidebar-content">
+        <div class="sidebar-header">
+            <h2>Inventory MS</h2>
+            <span class="user-role" id="userRoleDisplay">Loading...</span>
+            <button class="close-btn" id="closeBtn">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+
+        <nav class="sidebar-nav">
+            <a href="Dashboard.html" class="nav-link"><i class="fas fa-chart-line"></i>Dashboard</a>
+            <a href="Products.html" class="nav-link"><i class="fas fa-box"></i>Products</a>
+            <a href="Categories.html" class="nav-link"><i class="fas fa-list"></i>Categories</a>
+            <a href="Activity_Logs.html" class="nav-link active"><i class="fas fa-history"></i>Activity Log</a>
+            <a href="Reports.html" class="nav-link"><i class="fas fa-file-alt"></i>Reports</a>
+            <a href="Archives.html" class="nav-link"><i class="fas fa-archive"></i>Archived</a>
+            <a href="Settings.html" class="nav-link"><i class="fas fa-gear"></i>Settings</a>
+        </nav>
+
+        <div class="sidebar-footer">
+            <a href="#" onclick="logout()" class="logout">
+                <i class="fas fa-arrow-right-from-bracket"></i>Logout
+            </a>
+        </div>
+    </div>
+</aside>
+
+<main class="main-content">
+    <div class="page-header">
+        <div class="page-header-text">
+            <h1>Activity Logs</h1>
+            <p>Track all system activities</p>
+        </div>
+        <button class="btn-refresh-logs" id="refreshLogsBtn" title="Refresh Logs">
+            <i class="fas fa-rotate-right" id="refreshLogsIcon"></i>
+            <span>Refresh</span>
+        </button>
+    </div>
+
+    <div class="logs-toolbar">
+        <div class="search-bar">
+            <i class="fas fa-search"></i>
+            <input type="text" id="logSearch" placeholder="Search by action or product...">
+        </div>
+        <span class="logs-total-label" id="logsTotalLabel"></span>
+    </div>
+
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th id="dateHeader" style="cursor:pointer;">
+                        Date <i class="fas fa-sort" id="sortIcon"></i>
+                    </th>
+                    <th>Action</th>
+                    <th>Product</th>
+                    <th>Admin</th>
+                </tr>
+            </thead>
+            <tbody id="logTable"></tbody>
+        </table>
+    </div>
+
+    <!-- PAGINATION -->
+    <div class="pagination-bar" id="paginationBar">
+        <button class="btn-page" id="prevPageBtn" disabled>
+            <i class="fas fa-chevron-left"></i> Prev
+        </button>
+        <span class="page-info" id="pageInfo">Page 1</span>
+        <button class="btn-page" id="nextPageBtn" disabled>
+            Next <i class="fas fa-chevron-right"></i>
+        </button>
+    </div>
+</main>
+
+<script type="module" src="components(js)/Activity_Logs.js"></script>
+
+</body>
+</html>

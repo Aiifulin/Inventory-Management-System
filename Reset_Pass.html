@@ -13,24 +13,27 @@
     <div class="auth-container">
         <div class="logo">■</div>
         <div class="title">Reset Password</div>
-        <div class="subtitle">Enter your email to receive reset instrutions</div>
+        <div class="subtitle">Enter your email to receive reset instructions</div>
     </div>
 
     <div class="card">
-        <div id="errorMessage" class="error"></div>
+        <div id="error-box" class="error"></div>
+        <div id="success-box" class="success"></div>
 
-        <label>Email</label>
-        <input type="email" id="email" placeholder="admin@inventory.com" required>
+        <form id="password-reset-form">
+            <label>Email</label>
+            <input type="email" id="email" placeholder="admin@google.com" required>
 
-        <button class="reset-btn" onclick="login()">Send Reset Link</button>
-
-        <button class="login-btn" onclick="login()">Back to Sign In</button>
+        <button class="reset-btn" onclick="Login()">Send Reset Link</button>
         
+        <div class="links">
+            <a href="Login.html">Already got an account? Sign In</a>
+        </div>
     </div>
 </div>
 
 <!-- logic firebase tas iba pa -->
-<script type="module" src="components(js)/styles.js"></script>
+<script type="module" src="components(js)/Reset.js"></script>
 
 </body>
 </html>

@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+
+<style>
+html {
+    visibility: hidden;
+}
+</style>
+
+<meta charset="UTF-8">
+<title>Archived Products & Categories</title>
+
+<script>
+    if (!localStorage.getItem("user_session")) {
+        window.location.replace("Login.html");
+    }
+</script>
+
+<script>
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme === 'dark') {
+        document.documentElement.setAttribute('data-theme', 'dark');
+    }
+</script>
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+<link rel="stylesheet" href="components(css)/Theme.css" />
+<link rel="stylesheet" href="components(css)/Archives.css" />
+</head>
+
+<body>
+
+    <button class="hamburger" id="hamburgerBtn">
+        <i class="fas fa-bars"></i>
+    </button>
+
+    <div class="overlay" id="overlay"></div>
+
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-content">
+            <div class="sidebar-header">
+                <h2>Inventory MS</h2>
+                <span class="user-role" id="userRoleDisplay">Loading...</span>
+
+                <button class="close-btn" id="closeBtn">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <nav class="sidebar-nav">
+                <a href="Dashboard.html" class="nav-link">
+                    <i class="fas fa-chart-line"></i>Dashboard
+                </a>
+
+                <a href="Products.html" class="nav-link">
+                    <i class="fas fa-box"></i>Products
+                </a>
+
+                <a href="Categories.html" class="nav-link">
+                    <i class="fas fa-list"></i>Categories
+                </a>
+
+                <a href="Activity_Logs.html" class="nav-link">
+                    <i class="fas fa-history"></i>Activity Log
+                </a>
+
+                <a href="Reports.html" class="nav-link">
+                    <i class="fas fa-file-alt"></i>Reports
+                </a>
+
+                <!-- ACTIVE LINK -->
+                <a href="Archives.html" class="nav-link active">
+                    <i class="fas fa-archive"></i>Archived
+                </a>
+
+                <a href="Settings.html" class="nav-link">
+                    <i class="fas fa-gear"></i>Settings
+                </a>
+            </nav>
+
+            <div class="sidebar-footer">
+                <a href="#" onclick="logout()" class="logout">
+                    <i class="fas fa-arrow-right-from-bracket"></i>Logout
+                </a>
+            </div>
+        </div>
+    </aside>
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- Main Content -->
+    <main class="main-content">
+
+        <!-- ARCHIVED PRODUCTS SECTION -->
+        <div class="page-header">
+            <h1>Archived Products</h1>
+            <p>Restore or permanently delete archived products</p>
+        </div>
+
+        <div class="card archive-table-wrapper">
+            <div class="search-bar">
+                <input type="text" id="archiveSearchProducts" placeholder="Search products by name or category...">
+            </div>
+
+            <div class="table-container">
+                <table id="archiveTableProduct">
+                    <thead>
+                        <tr>
+                            <th>Image</th>
+                            <th>Product Name</th>
+                            <th>Category</th>
+                            <th id="sortArchivedDateProducts" style="cursor:pointer;">
+                                Archived Date <i class="fas fa-sort"></i>
+                            </th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="archiveTableProductsBody">
+                        <!-- JS will populate -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <br><br>
+
+        <!-- ARCHIVED CATEGORIES SECTION -->
+        <div class="page-header">
+            <h1>Archived Categories</h1>
+            <p>Restore or permanently delete archived categories</p>
+        </div>
+
+        <div class="card archive-table-wrapper">
+            <div class="search-bar">
+                <input type="text" id="archiveSearchCategories" placeholder="Search categories...">
+            </div>
+
+            <div class="table-container">
+                <table id="archiveTableCategories">
+                    <thead>
+                        <tr>
+                            <th>Category Name</th>
+                            <th id="sortArchivedDateCategories" style="cursor:pointer;">
+                                Archived Date <i class="fas fa-sort"></i>
+                            </th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="archiveTableCategoriesBody">
+                        <!-- JS will populate -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </main>
+    <!-- RESTORE CONFIRMATION MODAL -->
+    <div class="archive-modal-overlay" id="restoreModalOverlay" style="display:none;">
+        <div class="archive-modal">
+            <div class="archive-modal-icon restore-icon">
+                <i class="fas fa-rotate-left"></i>
+            </div>
+            <h3 class="archive-modal-title">Restore Item?</h3>
+            <p class="archive-modal-message">
+                <strong id="restoreItemName"></strong> will be moved back to active inventory.
+            </p>
+            <div class="archive-modal-actions">
+                <button class="btn-modal-cancel" id="restoreCancelBtn">Cancel</button>
+                <button class="btn-modal-restore" id="restoreConfirmBtn">
+                    <i class="fas fa-rotate-left"></i> Restore
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- DELETE PERMANENTLY CONFIRMATION MODAL -->
+    <div class="archive-modal-overlay" id="deleteModalOverlay" style="display:none;">
+        <div class="archive-modal">
+            <div class="archive-modal-icon delete-icon">
+                <i class="fas fa-triangle-exclamation"></i>
+            </div>
+            <h3 class="archive-modal-title">Delete Permanently?</h3>
+            <p class="archive-modal-message">
+                <strong id="deleteItemName"></strong> will be gone forever. This cannot be undone.
+            </p>
+            <div class="archive-modal-actions">
+                <button class="btn-modal-cancel" id="deleteCancelBtn">Cancel</button>
+                <button class="btn-modal-delete" id="deleteConfirmBtn">
+                    <i class="fas fa-trash"></i> Delete Forever
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- SUCCESS MODAL -->
+    <div class="archive-modal-overlay" id="successModalOverlay" style="display:none;">
+        <div class="archive-modal">
+            <div class="archive-modal-icon success-icon-wrap">
+                <i class="fas fa-check"></i>
+            </div>
+            <h3 class="archive-modal-title" id="successModalTitle">Done!</h3>
+            <p class="archive-modal-message" id="successModalMessage"></p>
+        </div>
+    </div>
+
+    <script type="module" src="components(js)/Archives.js"></script>
+
+</body>
+</html>

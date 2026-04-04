@@ -1,0 +1,447 @@
+body {
+    background-color: var(--bg-body);
+    color: var(--text-main);
+    display: flex;
+    min-height: 100vh;
+    overflow-x: hidden;
+}
+
+/* =========================================
+   2. SIDEBAR STYLES
+   ========================================= */
+.sidebar {
+    width: var(--sidebar-width);
+    min-width: var(--sidebar-width);
+    flex-shrink: 0;
+    background-color: var(--bg-sidebar);
+    padding: 20px 0;
+    height: 100vh;
+    box-shadow: 2px 0 5px var(--shadow-color);
+    position: relative;
+    /* Default Z-Index for Desktop */
+    z-index: 100000000;
+    transition: transform 0.3s ease, background-color 0.3s ease;
+    border-right: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+}
+
+.sidebar-content {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow-y: auto;
+}
+
+.sidebar-header {
+    padding: 0 20px 20px;
+    border-bottom: 1px solid var(--border-color);
+    margin-bottom: 20px;
+    position: relative;
+}
+
+.sidebar-header h2 {
+    margin: 0 0 5px 0;
+    font-size: 18px;
+    color: var(--text-main);
+}
+
+.sidebar-header .user-role {
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.sidebar-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    flex-grow: 1;
+    padding: 0 10px;
+}
+
+.nav-link {
+    display: flex;
+    align-items: center;
+    padding: 12px 15px;
+    color: var(--text-secondary);
+    text-decoration: none;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.nav-link i {
+    margin-right: 12px;
+    width: 20px;
+    text-align: center;
+}
+
+.nav-link.active,
+.nav-link:hover {
+    background-color: var(--hover-bg);
+    color: var(--text-main);
+    font-weight: 600;
+}
+
+.sidebar-footer {
+    padding: 15px 20px;
+    border-top: 1px solid var(--border-color);
+}
+
+.sidebar-footer .logout {
+    display: flex;
+    align-items: center;
+    padding: 12px 15px;
+    text-decoration: none;
+    border-radius: 6px;
+    font-size: 14px;
+    transition: all 0.2s;
+    color: var(--danger-color);
+    font-weight: 500;
+}
+
+.sidebar-footer .logout i {
+    margin-right: 12px;
+    width: 20px;
+    text-align: center;
+}
+
+.sidebar-footer .logout:hover {
+    background-color: rgba(239, 68, 68, 0.1);
+}
+
+/* Hamburger & Overlay */
+.hamburger {
+    display: none;
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    z-index: 2000;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    box-shadow: 0 2px 5px var(--shadow-color);
+    color: var(--text-main);
+}
+
+.close-btn {
+    display: none;
+    position: absolute;
+    top: 0;
+    right: 20px;
+    background: none;
+    border: none;
+    font-size: 20px;
+    cursor: pointer;
+    color: var(--text-main);
+}
+
+.overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    /* Overlay stays at 1500 */
+    z-index: 1500;
+}
+
+.overlay.show {
+    display: block;
+}
+
+/* --- Main Content --- */
+.main-content {
+    flex: 1;
+    width: 0; 
+    padding: 30px;
+    height: 100vh;
+    overflow-y: auto;
+    background-color: var(--bg-body);
+    transition: background-color 0.3s ease;
+}
+
+.page-header {
+    margin-bottom: 25px;
+}
+
+.page-header h1 {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 700;
+}
+
+.page-header p {
+    margin-top: 4px;
+    font-size: 14px;
+    color: var(--text-secondary);
+}
+
+/* --- Card --- */
+.card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 1px 3px var(--shadow-color);
+}
+
+/* --- Controls --- */
+.controls {
+    margin-bottom: 20px;
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.controls input {
+    padding: 10px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    background-color: var(--input-bg);
+    color: var(--text-main);
+    font-size: 14px;
+}
+
+.controls input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    background-color: var(--bg-card);
+}
+
+/* --- Table --- */
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+thead th {
+    text-align: left;
+    font-size: 13px;
+    color: var(--text-secondary);
+    font-weight: 600;
+    padding-bottom: 12px;
+}
+
+tbody tr {
+    border-top: 1px solid var(--border-color);
+}
+
+tbody td {
+    padding: 14px 0;
+    font-size: 14px;
+}
+
+/* --- Responsive --- */
+@media (max-width: 768px) {
+    .sidebar {
+        position: fixed;
+        left: 0; top: 0; bottom: 0;
+        transform: translateX(-100%);
+        /* FIX: Increased z-index to 2000 so it sits ABOVE the overlay (1500) */
+        z-index: 2000;
+    }
+    .sidebar.open {
+        transform: translateX(0);
+    }
+    
+    .hamburger, .close-btn {
+        display: block;
+    }
+
+    .main-content {
+        margin-left: 0;
+        width: 100%;
+        padding: 80px 15px 30px 15px;
+    }
+}
+
+.search-bar{
+    margin-bottom:15px;
+}
+
+.search-bar input{
+    width:300px;
+    padding:8px 12px;
+    border:1px solid #ccc;
+    border-radius:6px;
+    font-size:14px;
+}
+
+/* Page header row */
+.page-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+.page-header-text h1 { margin: 0; font-size: 22px; font-weight: 700; }
+.page-header-text p  { margin: 4px 0 0; font-size: 14px; color: var(--text-secondary); }
+
+/* Refresh button */
+.btn-refresh-logs {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 16px;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+.btn-refresh-logs:hover { background: var(--hover-bg); color: var(--text-main); }
+.btn-refresh-logs:disabled { opacity: 0.5; cursor: not-allowed; }
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+}
+.btn-refresh-logs.loading #refreshLogsIcon {
+    animation: spin 0.7s linear infinite;
+}
+
+/* Toolbar (search + total count) */
+.logs-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+}
+
+.search-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--input-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 0 14px;
+    flex: 1;
+    min-width: 200px;
+    max-width: 360px;
+    height: 40px;
+}
+.search-bar i { color: var(--text-secondary); font-size: 13px; }
+.search-bar input {
+    border: none;
+    background: transparent;
+    outline: none;
+    font-size: 14px;
+    color: var(--text-main);
+    width: 100%;
+}
+
+.logs-total-label {
+    font-size: 13px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+/* Table wrapper */
+.table-wrapper {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 16px;
+}
+
+table { width: 100%; border-collapse: collapse; }
+
+thead th {
+    text-align: left;
+    padding: 13px 16px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--border-color);
+}
+
+tbody tr { border-bottom: 1px solid var(--border-color); transition: background 0.15s; }
+tbody tr:last-child { border-bottom: none; }
+tbody tr:hover { background: var(--hover-bg); }
+
+tbody td {
+    padding: 13px 16px;
+    font-size: 14px;
+    color: var(--text-main);
+    vertical-align: middle;
+}
+
+/* Badges */
+.badge {
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    display: inline-block;
+}
+.badge.green  { background: #dcfce7; color: #15803d; }
+.badge.red    { background: #fee2e2; color: #dc2626; }
+.badge.blue   { background: #dbeafe; color: #1d4ed8; }
+.badge.orange { background: #ffedd5; color: #c2410c; }
+
+[data-theme="dark"] .badge.green  { background: rgba(21,128,61,0.2);  color: #4ade80; }
+[data-theme="dark"] .badge.red    { background: rgba(220,38,38,0.2);  color: #f87171; }
+[data-theme="dark"] .badge.blue   { background: rgba(29,78,216,0.2);  color: #60a5fa; }
+[data-theme="dark"] .badge.orange { background: rgba(194,65,12,0.2);  color: #fb923c; }
+
+/* Empty / loading state */
+.log-empty-row td {
+    text-align: center;
+    padding: 40px;
+    color: var(--text-secondary);
+}
+
+/* Pagination */
+.pagination-bar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding: 8px 0 24px;
+}
+
+.btn-page {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 18px;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-card);
+    color: var(--text-main);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.btn-page:hover:not(:disabled) { background: var(--hover-bg); }
+.btn-page:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.page-info {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    min-width: 80px;
+    text-align: center;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .logs-toolbar { flex-direction: column; align-items: stretch; }
+    .search-bar   { max-width: 100%; }
+    thead th:nth-child(4),
+    tbody td:nth-child(4) { display: none; } /* hide Admin col on mobile */
+}

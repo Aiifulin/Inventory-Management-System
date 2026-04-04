@@ -1,0 +1,607 @@
+/* =========================================
+   components(css)/Archives.css
+   ========================================= */
+
+/* Inherits:
+   - Sidebar
+   - Main layout
+   - Card
+   - Table
+   From your Theme.css system
+*/
+
+/* --- Main Layout --- */
+body {
+    background-color: var(--bg-body);
+    color: var(--text-main);
+    display: flex;
+    min-height: 100vh;
+    overflow-x: hidden;
+}
+
+
+.main-content {
+    flex: 1;
+    width: 0; 
+    padding: 30px;
+    height: 100vh;
+    overflow-y: auto;
+    background-color: var(--bg-body);
+    transition: background-color 0.3s ease;
+}
+
+/* --- Page Header --- */
+.page-header {
+    margin-bottom: 25px;
+}
+
+.page-header h1 {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 700;
+}
+
+.page-header p {
+    margin-top: 4px;
+    font-size: 14px;
+    color: var(--text-secondary);
+}
+
+/* --- Card --- */
+.card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 1px 3px var(--shadow-color);
+}
+
+/* --- Table --- */
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+thead th {
+    text-align: left;
+    font-size: 13px;
+    color: var(--text-secondary);
+    font-weight: 600;
+    padding-bottom: 12px;
+}
+
+tbody tr {
+    border-top: 1px solid var(--border-color);
+}
+
+tbody td {
+    padding: 14px 0;
+    font-size: 14px;
+    vertical-align: middle;
+}
+
+.archive-table-wrapper {
+    max-height: 500px;   /* enough for ~10 rows */
+    overflow-y: auto;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+}
+
+/* Sticky header that fully covers rows underneath */
+.archive-table-wrapper thead th {
+    position: sticky;
+    top: 0;
+    background-color: var(--bg-card); /* solid background from your theme */
+    padding: 14px 16px;               /* match body cell padding */
+    z-index: 10;                      /* higher than body cells */
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1); /* subtle shadow for separation */
+}
+
+.archive-table-wrapper {
+    max-height: 400px;   /* enough for ~10 rows */
+    overflow-y: auto;    /* scroll only when needed */
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+}
+
+/* Hide scrollbar when not needed */
+.archive-table-wrapper::-webkit-scrollbar {
+    width: 8px;
+}
+
+.archive-table-wrapper::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.archive-table-wrapper::-webkit-scrollbar-thumb {
+    background-color: var(--border-color);
+    border-radius: 4px;
+}
+
+/* For Firefox */
+.archive-table-wrapper {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-color) transparent;
+}
+
+/* --- Action Buttons --- */
+.btn-restore,
+.btn-delete {
+    padding: 6px 12px;
+    font-size: 13px;
+    border-radius: 6px;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    margin-right: 6px;
+}
+
+/* Restore Button */
+.btn-restore {
+    background-color: rgba(34, 197, 94, 0.1);
+    color: #16a34a;
+}
+
+.btn-restore:hover {
+    background-color: #16a34a;
+    color: white;
+}
+
+/* Permanent Delete Button */
+.btn-delete {
+    background-color: rgba(239, 68, 68, 0.1);
+    color: var(--danger-color);
+}
+
+.btn-delete:hover {
+    background-color: var(--danger-color);
+    color: white;
+}
+
+/* Empty State Row */
+tbody tr td[colspan] {
+    padding: 25px 0;
+    text-align: center;
+    color: var(--text-secondary);
+}
+
+/* --- Responsive --- */
+@media (max-width: 768px) {
+
+    .main-content {
+        padding: 20px;
+    }
+
+    table {
+        font-size: 13px;
+    }
+
+    .btn-restore,
+    .btn-delete {
+        padding: 5px 8px;
+        font-size: 12px;
+    }
+}
+
+/* --- Sidebar (Same Styling System) --- */
+.sidebar  {
+    width: var(--sidebar-width);
+    min-width: var(--sidebar-width);
+    flex-shrink: 0;
+    background-color: var(--bg-sidebar);
+    padding: 20px 0;
+    height: 100vh;
+    box-shadow: 2px 0 5px var(--shadow-color);
+    position: relative;
+    /* Default Z-Index for Desktop */
+    z-index: 100000000;
+    transition: transform 0.3s ease, background-color 0.3s ease;
+    border-right: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+}
+
+.sidebar-content {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow-y: auto;
+}
+
+.sidebar-header {
+    padding: 0 20px 20px;
+    border-bottom: 1px solid var(--border-color);
+    margin-bottom: 20px;
+    position: relative;
+}
+
+.sidebar-header h2 {
+    margin: 0 0 5px 0;
+    font-size: 18px;
+    color: var(--text-main);
+}
+
+.sidebar-header .user-role {
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.sidebar-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    flex-grow: 1;
+    padding: 0 10px;
+}
+
+.nav-link {
+    display: flex;
+    align-items: center;
+    padding: 12px 15px;
+    color: var(--text-secondary);
+    text-decoration: none;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.nav-link i {
+    margin-right: 12px;
+    width: 20px;
+    text-align: center;
+}
+
+.nav-link.active,
+.nav-link:hover {
+    background-color: var(--hover-bg);
+    color: var(--text-main);
+    font-weight: 600;
+}
+
+.sidebar-footer {
+    padding: 15px 20px;
+    border-top: 1px solid var(--border-color);
+}
+
+.sidebar-footer .logout {
+    display: flex;
+    align-items: center;
+    padding: 12px 15px;
+    text-decoration: none;
+    border-radius: 6px;
+    font-size: 14px;
+    transition: all 0.2s;
+    color: var(--danger-color);
+    font-weight: 500;
+}
+
+.sidebar-footer .logout i {
+    margin-right: 12px;
+    width: 20px;
+    text-align: center;
+}
+
+.sidebar-footer .logout:hover {
+    background-color: rgba(239, 68, 68, 0.1);
+}
+
+/* Hamburger & Overlay */
+.hamburger {
+    display: none;
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    z-index: 2000;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    box-shadow: 0 2px 5px var(--shadow-color);
+    color: var(--text-main);
+}
+
+.close-btn {
+    display: none;
+    position: absolute;
+    top: 0;
+    right: 20px;
+    background: none;
+    border: none;
+    font-size: 20px;
+    cursor: pointer;
+    color: var(--text-main);
+}
+
+.overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    /* Overlay stays at 1500 */
+    z-index: 1500;
+}
+
+.overlay.show {
+    display: block;
+}
+
+@media (max-width: 768px) {
+    .sidebar {
+        position: fixed;
+        left: 0; top: 0; bottom: 0;
+        transform: translateX(-100%);
+        /* FIX: Increased z-index to 2000 so it sits ABOVE the overlay (1500) */
+        z-index: 2000;
+    }
+    .sidebar.open {
+        transform: translateX(0);
+    }
+    
+    .hamburger, .close-btn {
+        display: block;
+    }
+
+    .main-content {
+        margin-left: 0;
+        width: 100%;
+        padding: 80px 15px 30px 15px;
+    }
+}
+
+
+.product-img {
+    width: 60px;
+    height: 60px;
+    object-fit: cover;
+    border-radius: 6px;
+}
+
+.search-bar{
+    margin-bottom:15px;
+}
+
+.search-bar input{
+    width:100%;
+    max-width:300px;
+    padding:8px 12px;
+    border:1px solid #ccc;
+    border-radius:6px;
+    font-size:14px;
+}
+
+.table-container{
+    width:100%;
+    overflow-x:auto;
+}
+
+.action-buttons{
+    display:flex;
+    gap:6px;
+    flex-wrap:wrap;
+}
+
+@media (max-width:768px){
+
+.search-bar input{
+    width:100%;
+}
+
+.action-buttons{
+    flex-direction:column;
+}
+
+.action-buttons button{
+    width:100%;
+}
+
+}
+
+table{
+    font-size:13px;
+}
+
+td{
+    padding:10px 6px;
+}
+
+.action-buttons{
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+}
+
+/* ================================
+   ARCHIVE ACTION MODALS
+   ================================ */
+.archive-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    z-index: 9000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    animation: archiveFadeIn 0.2s ease;
+}
+
+@keyframes archiveFadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+.archive-modal {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    padding: 32px 28px;
+    max-width: 380px;
+    width: 100%;
+    text-align: center;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+    animation: archiveSlideUp 0.25s ease;
+}
+
+@keyframes archiveSlideUp {
+    from { transform: translateY(24px); opacity: 0; }
+    to   { transform: translateY(0);    opacity: 1; }
+}
+
+/* Icon circle */
+.archive-modal-icon {
+    width: 62px;
+    height: 62px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 18px;
+    font-size: 24px;
+}
+
+.restore-icon {
+    background: #dcfce7;
+    border: 2px solid #86efac;
+    color: #16a34a;
+}
+
+.delete-icon {
+    background: #fef2f2;
+    border: 2px solid #fca5a5;
+    color: #dc2626;
+}
+
+.success-icon-wrap {
+    background: #dcfce7;
+    border: 2px solid #86efac;
+    color: #16a34a;
+}
+
+[data-theme="dark"] .restore-icon,
+[data-theme="dark"] .success-icon-wrap {
+    background: rgba(22, 163, 74, 0.15);
+    border-color: rgba(22, 163, 74, 0.4);
+}
+
+[data-theme="dark"] .delete-icon {
+    background: rgba(220, 38, 38, 0.15);
+    border-color: rgba(220, 38, 38, 0.4);
+}
+
+.archive-modal-title {
+    margin: 0 0 10px;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-main);
+}
+
+.archive-modal-message {
+    margin: 0 0 24px;
+    font-size: 14px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+}
+
+.archive-modal-message strong {
+    color: var(--text-main);
+    font-weight: 600;
+}
+
+.archive-modal-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+}
+
+.btn-modal-cancel {
+    flex: 1;
+    padding: 10px 16px;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-body);
+    color: var(--text-secondary);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.btn-modal-cancel:hover {
+    background: var(--hover-bg);
+    color: var(--text-main);
+}
+
+.btn-modal-restore {
+    flex: 1;
+    padding: 10px 16px;
+    border-radius: 8px;
+    border: none;
+    background: #16a34a;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: background 0.2s;
+}
+.btn-modal-restore:hover:not(:disabled) { background: #15803d; }
+.btn-modal-restore:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btn-modal-delete {
+    flex: 1;
+    padding: 10px 16px;
+    border-radius: 8px;
+    border: none;
+    background: #dc2626;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: background 0.2s;
+}
+.btn-modal-delete:hover:not(:disabled) { background: #b91c1c; }
+.btn-modal-delete:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.toast-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 10000;
+}
+
+.toast {
+    background: #333;
+    color: white;
+    padding: 12px 24px;
+    border-radius: 8px;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    animation: slideIn 0.3s ease forwards;
+    min-width: 250px;
+}
+
+.toast.success { border-left: 5px solid #2ecc71; }
+.toast.error { border-left: 5px solid #e74c3c; }
+
+.toast i { font-size: 1.2rem; }
+.toast.success i { color: #2ecc71; }
+.toast.error i { color: #e74c3c; }
+
+@keyframes slideIn {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes fadeOut {
+    to { transform: translateX(20px); opacity: 0; }
+}

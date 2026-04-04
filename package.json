@@ -1,0 +1,12 @@
+{
+    "scripts": {
+        "test": "vitest"
+    },
+    "devDependencies": {
+        "jsdom": "^27.3.0",
+        "vitest": "^4.0.16"
+    },
+    "dependencies": {
+        "firebase": "^12.7.0"
+    }
+}

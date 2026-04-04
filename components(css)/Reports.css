@@ -1,0 +1,316 @@
+/* ── Reports.css ── */
+
+/* ── Layout ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  background-color: var(--bg-body);
+  color: var(--text-main);
+  display: flex;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* --- Sidebar (Same Styling System) --- */
+.sidebar  {
+    width: var(--sidebar-width);
+    min-width: var(--sidebar-width);
+    flex-shrink: 0;
+    background-color: var(--bg-sidebar);
+    padding: 20px 0;
+    height: 100vh;
+    box-shadow: 2px 0 5px var(--shadow-color);
+    position: relative;
+    /* Default Z-Index for Desktop */
+    z-index: 100000000;
+    transition: transform 0.3s ease, background-color 0.3s ease;
+    border-right: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+}
+
+.sidebar-content {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow-y: auto;
+}
+
+.sidebar-header {
+    padding: 0 20px 20px;
+    border-bottom: 1px solid var(--border-color);
+    margin-bottom: 20px;
+    position: relative;
+}
+
+.sidebar-header h2 {
+    margin: 0 0 5px 0;
+    font-size: 18px;
+    color: var(--text-main);
+}
+
+.sidebar-header .user-role {
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.sidebar-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    flex-grow: 1;
+    padding: 0 10px;
+}
+
+.nav-link {
+    display: flex;
+    align-items: center;
+    padding: 12px 15px;
+    color: var(--text-secondary);
+    text-decoration: none;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.nav-link i {
+    margin-right: 12px;
+    width: 20px;
+    text-align: center;
+}
+
+.nav-link.active,
+.nav-link:hover {
+    background-color: var(--hover-bg);
+    color: var(--text-main);
+    font-weight: 600;
+}
+
+.sidebar-footer {
+    padding: 15px 20px;
+    border-top: 1px solid var(--border-color);
+}
+
+.sidebar-footer .logout {
+    display: flex;
+    align-items: center;
+    padding: 12px 15px;
+    text-decoration: none;
+    border-radius: 6px;
+    font-size: 14px;
+    transition: all 0.2s;
+    color: var(--danger-color);
+    font-weight: 500;
+}
+
+.sidebar-footer .logout i {
+    margin-right: 12px;
+    width: 20px;
+    text-align: center;
+}
+
+.sidebar-footer .logout:hover {
+    background-color: rgba(239, 68, 68, 0.1);
+}
+
+/* Hamburger & Overlay */
+.hamburger {
+  display: none; position: fixed; top: 20px; left: 20px; z-index: 2000;
+  background: var(--bg-card); border: 1px solid var(--border-color); padding: 8px 12px;
+  border-radius: 6px; cursor: pointer; box-shadow: 0 2px 5px var(--shadow-color); color: var(--text-main);
+}
+.close-btn {
+  display: none; position: absolute; top: 0; right: 20px;
+  background: none; border: none; font-size: 20px; cursor: pointer; color: var(--text-main);
+}
+.overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 1500; }
+.overlay.show { display: block; }
+
+/* ── Main Content ── */
+.main-content {
+  flex: 1; padding: 30px; height: 100vh;
+  overflow-y: auto; background-color: var(--bg-body);
+  transition: background-color 0.3s ease;
+}
+
+.header-flex {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 20px; flex-wrap: wrap; gap: 15px;
+}
+.header-text h1 { font-size: 24px; color: var(--text-main); font-weight: 700; }
+.header-text p  { margin-top: 5px; color: var(--text-secondary); font-size: 14px; }
+
+/* ── Export Options Bar ── */
+.export-options {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 14px 20px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+  box-shadow: 0 1px 3px var(--shadow-color);
+}
+
+.export-options label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-main);
+  white-space: nowrap;
+}
+
+.export-options select {
+  padding: 8px 32px 8px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  background-color: var(--input-bg);
+  color: var(--text-main);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%239ca3af%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px top 50%;
+  background-size: 8px auto;
+  min-width: 130px;
+  transition: border-color 0.2s, background-color 0.2s;
+}
+
+.export-options select:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  background-color: var(--bg-card);
+}
+
+.export-hint {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ── Reports Grid ── */
+.reports-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+/* ── Report Card ── */
+.report-card {
+  background: var(--bg-card);
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  box-shadow: 0 1px 3px var(--shadow-color);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  transition: border-color .2s, transform .2s, box-shadow .2s, background-color 0.3s ease;
+  animation: fadeUp .35s ease both;
+}
+.report-card:hover {
+  border-color: var(--primary-color);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px var(--shadow-color);
+}
+.report-card:nth-child(1) { animation-delay: .05s; }
+.report-card:nth-child(2) { animation-delay: .10s; }
+.report-card:nth-child(3) { animation-delay: .15s; }
+.report-card:nth-child(4) { animation-delay: .20s; }
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.report-card-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+.report-icon {
+  width: 48px; height: 48px; border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px; flex-shrink: 0;
+}
+.icon-blue   { background-color: rgba(59,130,246,.12); color: #3b82f6; }
+.icon-teal   { background-color: rgba(20,184,166,.12);  color: #14b8a6; }
+.icon-red    { background-color: rgba(239,68,68,.12);   color: #ef4444; }
+.icon-gold   { background-color: rgba(245,158,11,.12);  color: #f59e0b; }
+
+/* Light mode icon adjustments */
+[data-theme="light"] .icon-blue  { background-color: rgba(59,130,246,.1); }
+[data-theme="light"] .icon-teal  { background-color: rgba(20,184,166,.1); }
+[data-theme="light"] .icon-red   { background-color: rgba(239,68,68,.1);  }
+[data-theme="light"] .icon-gold  { background-color: rgba(245,158,11,.1); }
+
+.report-info h3 {
+  font-size: 16px; font-weight: 600;
+  color: var(--text-main); margin-bottom: 5px;
+}
+.report-info p {
+  font-size: 13px; color: var(--text-secondary); line-height: 1.5;
+}
+
+.report-card-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: auto;
+}
+
+/* ── Generate Report Button ── */
+.btn-report {
+  display: inline-flex; align-items: center; gap: 8px;
+  background-color: var(--primary-color);
+  color: #fff;
+  padding: 9px 18px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid var(--primary-color);
+  cursor: pointer;
+  transition: opacity .18s, transform .15s, box-shadow .18s;
+}
+.btn-report:hover {
+  opacity: 0.88;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(0,0,0,.15);
+}
+.btn-report:active { transform: translateY(0); box-shadow: none; }
+.btn-report:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+.btn-report i { font-size: 12px; }
+
+/* Loading spinner on button */
+.btn-report .fa-spinner { animation: spin 0.7s linear infinite; }
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+/* ── Access Denied ── */
+.access-denied {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--text-secondary);
+}
+.access-denied h2 { font-size: 22px; color: var(--text-main); margin-bottom: 8px; }
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+  .sidebar {
+    position: fixed; left: 0; top: 0; bottom: 0; width: 260px;
+    transform: translateX(-100%); z-index: 2000;
+  }
+  .sidebar.open { transform: translateX(0); }
+  .hamburger, .close-btn { display: block; }
+  .main-content { margin-left: 0; width: 100%; padding: 80px 15px 30px 15px; }
+  .reports-grid { grid-template-columns: 1fr; }
+  .export-options { flex-direction: column; align-items: flex-start; }
+  .export-hint { margin-left: 0; }
+}
+@media (max-width: 1024px) {
+  .reports-grid { grid-template-columns: 1fr; }
+}
