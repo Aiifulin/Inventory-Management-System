@@ -104,7 +104,7 @@ onAuthStateChanged(auth, async (user) => {
                 </div>`;
             
             main.style.visibility = 'visible';
-            document.documentElement.style.visibility = 'visible'; // ✅ ADD THIS
+            document.documentElement.style.visibility = 'visible'; 
             return;
         }
 
@@ -113,7 +113,7 @@ onAuthStateChanged(auth, async (user) => {
         loadArchivedCategories(true);
 
         main.style.visibility = 'visible';
-        document.documentElement.style.visibility = 'visible'; // ✅ ADD THIS
+        document.documentElement.style.visibility = 'visible'; 
 
     } else {
         window.location.href = "Login.html";

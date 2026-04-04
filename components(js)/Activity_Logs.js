@@ -23,7 +23,7 @@ const db   = getFirestore(app);
 // CONSTANTS & STATE
 // ================================================
 const LOGS_CACHE_KEY = 'activity_logs_cache';
-const PAGE_SIZE      = 20;
+const PAGE_SIZE      = 10;
 
 let allLogs      = [];   // full cached dataset
 let filteredLogs = [];   // after search filter applied
