@@ -24,51 +24,58 @@ let currentSortDir = 'asc';
 let currentUser = null;
 let isAdmin = false;
 
-// --- HELPER: CHECK ADMIN ROLE (Dynamic) ---
-async function checkAdminRole(uid) {
-    try {
-        const userDocRef = doc(db, "users", uid);
-        const userSnap = await getDoc(userDocRef);
-        
-        if (userSnap.exists()) {
-            const userData = userSnap.data();
-            return (userData.role && userData.role.toLowerCase() === 'admin');
-        }
-        return false;
-    } catch (error) {
-        console.error("Error checking role:", error);
-        return false; 
+// ================================================
+// 🔥 CACHED USER DATA HELPER
+// ================================================
+async function getCachedUserData(uid) {
+    const CACHE_KEY = `user_data_${uid}`;
+
+    // 1. Check sessionStorage first
+    const cached = sessionStorage.getItem(CACHE_KEY);
+    if (cached) {
+        return JSON.parse(cached);
     }
+
+    // 2. If not cached, fetch from Firestore
+    try {
+        const snap = await getDoc(doc(db, "users", uid));
+        if (snap.exists()) {
+            const data = snap.data();
+
+            // Store in session cache
+            sessionStorage.setItem(CACHE_KEY, JSON.stringify(data));
+
+            return data;
+        }
+    } catch (err) {
+        console.error("Error fetching user data:", err);
+    }
+
+    return null;
 }
 
-// --- HELPER: DISPLAY USER ROLE (UI) ---
+async function checkAdminRole(uid) {
+    const userData = await getCachedUserData(uid);
+    return userData?.role?.toLowerCase() === 'admin';
+}
+
 async function displayUserRole(uid) {
     const roleEl = document.getElementById('userRoleDisplay');
     if (!roleEl) {
         const sidebarRole = document.querySelector('.sidebar-header .user-role');
         if (sidebarRole) {
-            sidebarRole.id = 'userRoleDisplay'; 
-            return displayUserRole(uid); 
+            sidebarRole.id = 'userRoleDisplay';
+            return displayUserRole(uid);
         }
         return;
     }
 
-    try {
-        const docRef = doc(db, "users", uid);
-        const docSnap = await getDoc(docRef);
-        
-        if (docSnap.exists()) {
-            const data = docSnap.data();
-            let roleName = data.role || "User";
-            roleName = roleName.charAt(0).toUpperCase() + roleName.slice(1);
-            roleEl.textContent = roleName;
-        } else {
-            roleEl.textContent = "User"; 
-        }
-    } catch (error) {
-        console.error("Error displaying role:", error);
-        roleEl.textContent = "User";
-    }
+    const userData = await getCachedUserData(uid);
+
+    let roleName = userData?.role || "User";
+    roleName = roleName.charAt(0).toUpperCase() + roleName.slice(1);
+
+    roleEl.textContent = roleName;
 }
 
 // --- HELPER: ACTIVITY LOGGING FUNCTION ---

@@ -1,7 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
-import { 
-    getFirestore, collection, doc, getDoc, setDoc, updateDoc, serverTimestamp, query, where, getDocs, addDoc
-} from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { getFirestore, collection, doc, getDoc, setDoc, updateDoc, serverTimestamp, query, where, getDocs, addDoc} from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 
 const firebaseConfig = {
@@ -18,9 +16,35 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
 
+// ================================================
+// OPTIMIZED USER DATA HELPER (SHARED)
+// ================================================
+async function getCachedUserData(uid) {
+    const CACHE_KEY_USER = `user_data_${uid}`;
+    
+    // Check Session Storage first
+    const cached = sessionStorage.getItem(CACHE_KEY_USER);
+    if (cached) return JSON.parse(cached);
+
+    // If not cached, fetch from Firestore
+    try {
+        const docRef = doc(db, "users", uid);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            sessionStorage.setItem(CACHE_KEY_USER, JSON.stringify(data));
+            return data;
+        }
+    } catch (err) {
+        console.error("Error fetching user data:", err);
+    }
+    return null;
+}
+
 // --- AUTH CHECK WITH ROLE VALIDATION ---
 onAuthStateChanged(auth, async (user) => {
     if (user) {
+        await displayUserRole(user.uid);
         const isAdmin = await checkAdminRole(user.uid);
         if (!isAdmin) {
             alert("Access Denied: Only Admins can add categories.");
@@ -33,18 +57,20 @@ onAuthStateChanged(auth, async (user) => {
 
 // --- HELPER: CHECK ADMIN ROLE ---
 async function checkAdminRole(uid) {
-    try {
-        const userDocRef = doc(db, "users", uid);
-        const userSnap = await getDoc(userDocRef);
-        if (userSnap.exists()) {
-            const userData = userSnap.data();
-            return (userData.role && userData.role.toLowerCase() === 'admin');
-        }
-        return false;
-    } catch (error) {
-        console.error("Error checking role:", error);
-        return false; 
-    }
+    const userData = await getCachedUserData(uid);
+    return userData?.role?.toLowerCase() === 'admin';
+}
+
+// --- HELPER: DISPLAY USER ROLE ---
+async function displayUserRole(uid) {
+    const roleEl = document.getElementById('userRoleDisplay');
+    if (!roleEl) return;
+
+    const userData = await getCachedUserData(uid);
+    let roleName = userData?.role || "User";
+    
+    roleName = roleName.charAt(0).toUpperCase() + roleName.slice(1);
+    roleEl.textContent = roleName;
 }
 
 // --- HELPER: ACTIVITY LOGGING FUNCTION ---
@@ -91,7 +117,7 @@ async function addCategory(categoryData) {
         ...categoryData,
         createdAt: serverTimestamp(),
         archived: false,
-        itemCount: 0   // 👈 new field added here
+        itemCount: 0  
     });
 
     return newId;
@@ -169,7 +195,6 @@ function showSuccessModal(categoryName) {
     if (label) label.textContent = `"${categoryName}" has been added.`;
     if (modal) modal.style.display = 'flex';
 
-    // Animate progress bar over 2 seconds then redirect
     let width = 0;
     const interval = setInterval(() => {
         width += 2;
@@ -178,5 +203,5 @@ function showSuccessModal(categoryName) {
             clearInterval(interval);
             window.location.href = "Categories.html";
         }
-    }, 40); // 40ms × 50 steps = 2 seconds
+    }, 40); 
 }

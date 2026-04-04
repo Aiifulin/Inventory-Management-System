@@ -44,11 +44,12 @@ async function checkAdminRole(uid) {
 // --- HELPER: DISPLAY USER ROLE (UI) ---
 async function displayUserRole(uid) {
     const roleEl = document.getElementById('userRoleDisplay');
+
     if (!roleEl) {
         const sidebarRole = document.querySelector('.sidebar-header .user-role');
         if (sidebarRole) {
-            sidebarRole.id = 'userRoleDisplay'; 
-            return displayUserRole(uid); 
+            sidebarRole.id = 'userRoleDisplay';
+            return displayUserRole(uid);
         }
         return;
     }
@@ -56,14 +57,13 @@ async function displayUserRole(uid) {
     try {
         const docRef = doc(db, "users", uid);
         const docSnap = await getDoc(docRef);
-        
+
         if (docSnap.exists()) {
-            const data = docSnap.data();
-            let roleName = data.role || "User";
-            roleName = roleName.charAt(0).toUpperCase() + roleName.slice(1);
-            roleEl.textContent = roleName;
+            let role = docSnap.data().role || "User";
+            role = role.charAt(0).toUpperCase() + role.slice(1);
+            roleEl.textContent = role;
         } else {
-            roleEl.textContent = "User"; 
+            roleEl.textContent = "User";
         }
     } catch (error) {
         console.error("Error displaying role:", error);
@@ -94,14 +94,21 @@ onAuthStateChanged(auth, async (user) => {
         currentUser = user;
 
         displayUserRole(user.uid);
+
         isAdmin = await checkAdminRole(user.uid);
-        
+
+        // saves the role locally for quick access in other components/pages without extra calls
+        localStorage.setItem("user_uid", user.uid);
+        localStorage.setItem("user_role", isAdmin ? "admin" : "user");
+
+
         const addBtn = document.querySelector('.btn-primary');
-        if(addBtn) {
+        if (addBtn) {
             addBtn.style.display = isAdmin ? "flex" : "none";
         }
 
         fetchProducts();
+
     } else {
         window.location.href = "Login.html";
     }

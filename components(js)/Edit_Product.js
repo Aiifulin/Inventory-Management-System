@@ -21,11 +21,42 @@ const auth = getAuth(app);
 let currentBase64Image = "";
 let isFormDirty = false;
 
+// ================================================
+// 🔥 CACHED USER DATA HELPER
+// ================================================
+async function getCachedUserData(uid) {
+    const CACHE_KEY = `user_data_${uid}`;
+
+    // 1. Check sessionStorage first
+    const cached = sessionStorage.getItem(CACHE_KEY);
+    if (cached) return JSON.parse(cached);
+
+    // 2. Fetch from Firestore if not cached
+    try {
+        const snap = await getDoc(doc(db, "users", uid));
+        if (snap.exists()) {
+            const data = snap.data();
+            sessionStorage.setItem(CACHE_KEY, JSON.stringify(data));
+            return data;
+        }
+    } catch (err) {
+        console.error("Error fetching user data:", err);
+    }
+
+    return null;
+}
+
+async function checkAdminRole(uid) {
+    const userData = await getCachedUserData(uid);
+    return userData?.role?.toLowerCase() === 'admin';
+}
+
 // --- AUTH CHECK WITH ROLE VALIDATION ---
 onAuthStateChanged(auth, async (user) => {
     if (user) {
         // 1. Fetch User Role from 'users' collection
-        const isAdmin = await checkAdminRole(user.uid);
+        const userData = await getCachedUserData(user.uid);
+        const isAdmin = userData?.role?.toLowerCase() === 'admin';
 
         if (!isAdmin) {
             alert("Access Denied: Only Admins can edit products.");
@@ -39,23 +70,7 @@ onAuthStateChanged(auth, async (user) => {
     }
 });
 
-// --- HELPER: CHECK ADMIN ROLE ---
-async function checkAdminRole(uid) {
-    try {
-        const userDocRef = doc(db, "users", uid);
-        const userSnap = await getDoc(userDocRef);
-        
-        if (userSnap.exists()) {
-            const userData = userSnap.data();
-            // Check if role is 'admin' (case-insensitive for safety)
-            return (userData.role && userData.role.toLowerCase() === 'admin');
-        }
-        return false;
-    } catch (error) {
-        console.error("Error checking role:", error);
-        return false; 
-    }
-}
+
 
 // --- HELPER: ACTIVITY LOGGING FUNCTION ---
 async function logActivity(action, targetName) {

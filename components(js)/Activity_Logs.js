@@ -1,24 +1,9 @@
-import { initializeApp } 
-from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
-
-import { 
-    getFirestore, 
-    collection, 
-    query, 
-    orderBy, 
-    limit, 
-    getDocs, 
-    startAfter,
-    where,
-    doc,
-    getDoc
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+import {
+    getFirestore, collection, query, orderBy, getDocs, doc, getDoc
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 
-import { 
-    getAuth, 
-    onAuthStateChanged, 
-    signOut 
-} from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 // --- CONFIG ---
 const firebaseConfig = {
     apiKey: "AIzaSyBeaF2VKovHASuzhvZHzOoE0yB7QnBDej0",
@@ -30,269 +15,311 @@ const firebaseConfig = {
     measurementId: "G-68CR9JCJV8"
 };
 
-const app = initializeApp(firebaseConfig);
+const app  = initializeApp(firebaseConfig);
 const auth = getAuth(app);
-const db = getFirestore(app);
+const db   = getFirestore(app);
 
-// --- AUTH LISTENER ---(Abstracion Example)
+// ================================================
+// CONSTANTS & STATE
+// ================================================
+const LOGS_CACHE_KEY = 'activity_logs_cache';
+const PAGE_SIZE      = 20;
+
+let allLogs      = [];   // full cached dataset
+let filteredLogs = [];   // after search filter applied
+let currentPage  = 1;
+let sortDir      = 'desc';
+
+// ================================================
+// USER DATA CACHE (shared pattern)
+// ================================================
+async function getCachedUserData(uid) {
+    const key    = `user_data_${uid}`;
+    const cached = sessionStorage.getItem(key);
+    if (cached) return JSON.parse(cached);
+
+    try {
+        const snap = await getDoc(doc(db, "users", uid));
+        if (snap.exists()) {
+            sessionStorage.setItem(key, JSON.stringify(snap.data()));
+            return snap.data();
+        }
+    } catch (err) {
+        console.error("Error fetching user data:", err);
+    }
+    return null;
+}
+
+async function displayUserRole(uid) {
+    const el = document.getElementById('userRoleDisplay');
+    if (!el) return;
+    const data = await getCachedUserData(uid);
+    const role = data?.role || "User";
+    el.textContent = role.charAt(0).toUpperCase() + role.slice(1);
+}
+
+async function checkAdminRole(uid) {
+    const data = await getCachedUserData(uid);
+    return data?.role?.toLowerCase() === 'admin';
+}
+
+// ================================================
+// LOG CACHE HELPERS
+// ================================================
+function saveLogsCache(logs) {
+    sessionStorage.setItem(LOGS_CACHE_KEY, JSON.stringify(logs));
+}
+
+function loadLogsCache() {
+    try {
+        const raw = sessionStorage.getItem(LOGS_CACHE_KEY);
+        return raw ? JSON.parse(raw) : null;
+    } catch {
+        return null;
+    }
+}
+
+// ================================================
+// AUTH
+// ================================================
 onAuthStateChanged(auth, async (user) => {
-
     if (!user) {
         window.location.href = "Login.html";
         return;
     }
 
     await displayUserRole(user.uid);
+    document.documentElement.style.visibility = "visible";
 
-    const isAdmin = await checkAdminRole(user.uid);
+    await initLogs();
+});
 
-    if (!isAdmin) {
-        window.location.href = "Dashboard.html";
+// ================================================
+// CORE: INIT & FETCH
+// ================================================
+async function initLogs(forceRefresh = false) {
+    const cached = loadLogsCache();
+
+    if (!forceRefresh && cached) {
+        allLogs = cached;
+        applyFilterAndRender();
         return;
     }
 
-    // ✅ Reveal page immediately for admin
-    document.documentElement.style.visibility = "visible";
-
-    // THEN load content
-    loadArchivedProducts(true); 
-    // or loadLogs(true) on activity page
-
-});
-
-// --- HELPER: TIME FORMATTER ---
-function formatTimeAgo(date) {
-    const now = new Date();
-    const diffInSeconds = Math.floor((now - date) / 1000);
-
-    if (diffInSeconds < 60) return "Just now";
-
-    const diffInMinutes = Math.floor(diffInSeconds / 60);
-    if (diffInMinutes < 60) {
-        return `${diffInMinutes} minute${diffInMinutes !== 1 ? 's' : ''} ago`;
-    }
-
-    const diffInHours = Math.floor(diffInMinutes / 60);
-    if (diffInHours < 2) {
-        return `${diffInHours} hour${diffInHours !== 1 ? 's' : ''} ago`;
-    }
-
-    return date.toLocaleString('en-US', { 
-        month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' 
-    });
+    await fetchAndCacheLogs();
 }
 
-// --- HELPER: DISPLAY USER ROLE ---
-async function displayUserRole(uid) {
-    const roleEl = document.getElementById('userRoleDisplay');
-    if (!roleEl) return;
+async function fetchAndCacheLogs() {
+    setRefreshLoading(true);
 
     try {
-        const docRef = doc(db, "users", uid);
-        const docSnap = await getDoc(docRef);
-        
-        if (docSnap.exists()) {
+        // Fetch ALL logs ordered by timestamp — we handle pagination client-side
+        const q        = query(collection(db, "activities"), orderBy("timestamp", "desc"));
+        const snapshot = await getDocs(q);
+
+        allLogs = [];
+        snapshot.forEach((docSnap) => {
             const data = docSnap.data();
-            let roleName = data.role || "User";
-            roleName = roleName.charAt(0).toUpperCase() + roleName.slice(1);
-            roleEl.textContent = roleName;
-        } else {
-            roleEl.textContent = "User"; 
-        }
-    } catch (error) {
-        console.error("Error displaying role:", error);
-        roleEl.textContent = "User";
+            allLogs.push({
+                id:        docSnap.id,
+                action:    data.action    || '',
+                target:    data.target    || '',
+                user:      data.user      || 'Admin',
+                timestamp: data.timestamp ? data.timestamp.toDate().toISOString() : null
+            });
+        });
+
+        saveLogsCache(allLogs);
+        applyFilterAndRender();
+
+    } catch (err) {
+        console.error("Error fetching logs:", err);
+    } finally {
+        setRefreshLoading(false);
     }
 }
 
-// --- role checker for admins ---(Encapsulation Example)
-async function checkAdminRole(uid) {
-    try {
-        const userDocRef = doc(db, "users", uid);
-        const userSnap = await getDoc(userDocRef);
-        
-        // basically if the role is admin return true 
-        if (userSnap.exists()) {
-            const userData = userSnap.data();
-            return (userData.role && userData.role.toLowerCase() === 'admin');
-        }
-        return false;
-    } catch (error) {
-        console.error("Error checking role:", error);
-        return false; 
-    }
-}
-let sortDirection = "desc"; // default (newest first)
-let lastVisible = null;
-const pageSize = 50;
+// ================================================
+// FILTER + SORT + RENDER
+// ================================================
+function applyFilterAndRender() {
+    const search = (document.getElementById('logSearch')?.value || '').toLowerCase();
 
+    // 1. Filter
+    filteredLogs = allLogs.filter(log => {
+        return log.action.toLowerCase().includes(search) ||
+               log.target.toLowerCase().includes(search) ||
+               log.user.toLowerCase().includes(search);
+    });
 
-const dateHeader = document.getElementById("dateHeader");
+    // 2. Sort (allLogs comes from Firestore already desc, but re-sort after filter)
+    filteredLogs.sort((a, b) => {
+        const tA = a.timestamp ? new Date(a.timestamp) : 0;
+        const tB = b.timestamp ? new Date(b.timestamp) : 0;
+        return sortDir === 'desc' ? tB - tA : tA - tB;
+    });
 
-dateHeader.addEventListener("click", () => {
+    // 3. Reset to page 1 on any filter/sort change
+    currentPage = 1;
 
-    sortDirection = (sortDirection === "desc") ? "asc" : "desc";
-
-    lastVisible = null;
-
-    updateDateHeader();
-
-    loadLogs(true);
-});
-
-function updateDateHeader() {
-    const header = document.getElementById("dateHeader");
-
-    header.textContent = sortDirection === "desc"
-        ? "Date ↓"
-        : "Date ↑";
+    renderPage();
 }
 
-
-async function loadLogs(reset = true) {
-
-    let q;
-
-    if (reset || !lastVisible) {
-        q = query(
-            collection(db, "activities"),
-            orderBy("timestamp", sortDirection),
-            limit(pageSize)
-        );
-    } else {
-        q = query(
-            collection(db, "activities"),
-            orderBy("timestamp", sortDirection),
-            startAfter(lastVisible),
-            limit(pageSize)
-        );
-    }
-
-    const snapshot = await getDocs(q);
-
-    const table = document.getElementById("logTable");
+function renderPage() {
+    const table = document.getElementById('logTable');
     if (!table) return;
 
-    if (reset) table.innerHTML = "";
+    const totalPages = Math.max(1, Math.ceil(filteredLogs.length / PAGE_SIZE));
+    if (currentPage > totalPages) currentPage = totalPages;
 
-    if (snapshot.empty) {
+    const start    = (currentPage - 1) * PAGE_SIZE;
+    const end      = start + PAGE_SIZE;
+    const pageRows = filteredLogs.slice(start, end);
+
+    // --- Table rows ---
+    if (filteredLogs.length === 0) {
         table.innerHTML = `
-        <tr>
-            <td colspan="4" style="text-align:center;padding:20px;color:#999;">
-                No activity logs found.
-            </td>
-        </tr>`;
-        return;
+            <tr class="log-empty-row">
+                <td colspan="4">No activity logs found.</td>
+            </tr>`;
+    } else {
+        table.innerHTML = pageRows.map(log => {
+            const dateStr = log.timestamp
+                ? new Date(log.timestamp).toLocaleString('en-US', {
+                    month: 'short', day: 'numeric', year: 'numeric',
+                    hour: '2-digit', minute: '2-digit'
+                  })
+                : '—';
+
+            const action = log.action.toLowerCase();
+            let badgeClass = 'blue';
+            if (action.includes('add'))    badgeClass = 'green';
+            if (action.includes('delete')) badgeClass = 'red';
+            if (action.includes('archive') || action.includes('restore')) badgeClass = 'orange';
+
+            return `
+                <tr>
+                    <td>${dateStr}</td>
+                    <td><span class="badge ${badgeClass}">${log.action}</span></td>
+                    <td>${log.target}</td>
+                    <td>${log.user}</td>
+                </tr>`;
+        }).join('');
     }
 
-    snapshot.forEach(doc => {
-        const log = doc.data();
+    // --- Total label ---
+    const totalLabel = document.getElementById('logsTotalLabel');
+    if (totalLabel) {
+        totalLabel.textContent = filteredLogs.length > 0
+            ? `${filteredLogs.length} log${filteredLogs.length !== 1 ? 's' : ''} found`
+            : '';
+    }
 
-        const date = log.timestamp
-            ? log.timestamp.toDate().toLocaleString()
-            : "Just now";
+    // --- Pagination controls ---
+    const pageInfo   = document.getElementById('pageInfo');
+    const prevBtn    = document.getElementById('prevPageBtn');
+    const nextBtn    = document.getElementById('nextPageBtn');
 
-        let badgeClass = "blue";
-
-        const action = (log.action || "").toLowerCase();
-        if (action.includes("add")) badgeClass = "green";
-        if (action.includes("delete")) badgeClass = "red";
-
-        table.innerHTML += `
-        <tr>
-            <td>${date}</td>
-            <td><span class="badge ${badgeClass}">${log.action || ""}</span></td>
-            <td class="product-name">${log.target || ""}</td>
-            <td>${log.user || ""}</td>
-        </tr>
-        `;
-    });
-
-    lastVisible = snapshot.docs[snapshot.docs.length - 1];
+    if (pageInfo) pageInfo.textContent = `Page ${currentPage} of ${totalPages}`;
+    if (prevBtn)  prevBtn.disabled = currentPage <= 1;
+    if (nextBtn)  nextBtn.disabled = currentPage >= totalPages;
 }
 
-loadLogs(true);
+// ================================================
+// REFRESH LOADING STATE
+// ================================================
+function setRefreshLoading(isLoading) {
+    const btn = document.getElementById('refreshLogsBtn');
+    if (!btn) return;
+    btn.disabled = isLoading;
+    btn.classList.toggle('loading', isLoading);
+}
 
-document.querySelectorAll('input[name="actionFilter"]').forEach(radio => {
-    radio.addEventListener("change", () => {
-        lastVisible = null;
-        loadLogs(true);
-    });
-});
+// ================================================
+// TIME FORMATTER
+// ================================================
+function formatTimeAgo(date) {
+    const diffInSeconds = Math.floor((new Date() - date) / 1000);
+    if (diffInSeconds < 60) return "Just now";
+    const mins = Math.floor(diffInSeconds / 60);
+    if (mins < 60) return `${mins} minute${mins !== 1 ? 's' : ''} ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs} hour${hrs !== 1 ? 's' : ''} ago`;
+    return date.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
 
-document.addEventListener("input", function(e){
-
-    if(e.target.id !== "logSearch") return;
-
-    const search = e.target.value.toLowerCase();
-
-    const rows = document.querySelectorAll("#logTable tr");
-
-    rows.forEach(row => {
-
-        const action = row.children[1]?.textContent.toLowerCase() || "";
-        const product = row.children[2]?.textContent.toLowerCase() || "";
-
-        if(action.includes(search) || product.includes(search)){
-            row.style.display = "";
-        } else {
-            row.style.display = "none";
-        }
-
-    });
-
-});
-
-window.addEventListener("load", () => {
-    document.documentElement.style.visibility = "visible";
-});
-
+// ================================================
+// EVENT LISTENERS
+// ================================================
 document.addEventListener("DOMContentLoaded", () => {
+
+    // --- Sort by date ---
+    document.getElementById('dateHeader')?.addEventListener('click', () => {
+        sortDir = sortDir === 'desc' ? 'asc' : 'desc';
+        const icon = document.getElementById('sortIcon');
+        if (icon) {
+            icon.className = sortDir === 'desc'
+                ? 'fas fa-sort-down'
+                : 'fas fa-sort-up';
+        }
+        applyFilterAndRender();
+    });
+
+    // --- Search (filters cached data, no Firestore call) ---
+    document.getElementById('logSearch')?.addEventListener('input', () => {
+        applyFilterAndRender();
+    });
+
+    // --- Refresh button (force fetch from Firestore) ---
+    document.getElementById('refreshLogsBtn')?.addEventListener('click', () => {
+        initLogs(true);
+    });
+
+    // --- Pagination ---
+    document.getElementById('prevPageBtn')?.addEventListener('click', () => {
+        if (currentPage > 1) {
+            currentPage--;
+            renderPage();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+    });
+
+    document.getElementById('nextPageBtn')?.addEventListener('click', () => {
+        const totalPages = Math.ceil(filteredLogs.length / PAGE_SIZE);
+        if (currentPage < totalPages) {
+            currentPage++;
+            renderPage();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+    });
+
+    // --- Sidebar ---
     const hamburgerBtn = document.getElementById('hamburgerBtn');
-    const closeBtn = document.getElementById('closeBtn');
-    const sidebar = document.getElementById('sidebar');
-    const overlay = document.getElementById('overlay');
+    const closeBtn     = document.getElementById('closeBtn');
+    const sidebar      = document.getElementById('sidebar');
+    const overlay      = document.getElementById('overlay');
 
-    function toggleSidebar() {
-        sidebar.classList.toggle('open');
-        overlay.classList.toggle('show');
-    }
+    function toggleSidebar() { sidebar.classList.toggle('open'); overlay.classList.toggle('show'); }
+    function closeSidebar()  { sidebar.classList.remove('open'); overlay.classList.remove('show'); }
 
-    function closeSidebar() {
-        sidebar.classList.remove('open');
-        overlay.classList.remove('show');
-    }
-
-    if (hamburgerBtn) {
-        hamburgerBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            toggleSidebar();
-        });
-    }
-
-    if (closeBtn) {
-        closeBtn.addEventListener('click', closeSidebar);
-    }
-
-    if (overlay) {
-        overlay.addEventListener('click', closeSidebar);
-    }
+    hamburgerBtn?.addEventListener('click', (e) => { e.stopPropagation(); toggleSidebar(); });
+    closeBtn?.addEventListener('click', closeSidebar);
+    overlay?.addEventListener('click', closeSidebar);
 });
 
-// Logout Helper
+// ================================================
+// LOGOUT
+// ================================================
 window.logout = function() {
-    // Clear LOCAL storage now
     localStorage.removeItem("user_session");
     localStorage.removeItem("user_uid");
     localStorage.removeItem("user_role");
-    
-    // Also clear session just in case
     sessionStorage.clear();
 
     signOut(auth).then(() => {
         window.location.replace("Login.html");
-    }).catch((error) => {
-        console.error("Logout Error:", error);
+    }).catch((err) => {
+        console.error("Logout Error:", err);
         window.location.replace("Login.html");
     });
 };

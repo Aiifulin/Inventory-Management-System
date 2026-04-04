@@ -39,59 +39,83 @@ let sortDirectionProducts = "desc";
 let sortDirectionCategories = "desc";
 let pendingAction = null; // { type: 'restore'|'delete', itemType: 'product'|'category', id, name }
 
-// --- AUTH CHECK WITH ROLE VALIDATION ---
-onAuthStateChanged(auth, async (user) => {
-    if (user) {
-        // 1. Fetch User Role from 'users' collection
-        const isAdmin = await checkAdminRole(user.uid);
 
-        if (!isAdmin) {
-            alert("Access Denied: Only Admins can access archives.");
-            window.location.href = "Products.html";
-        } else {
-            console.log("Admin verified.");
-            // Only load page logic if admin is verified
-            displayUserRole(user.uid);
-            loadArchivedProducts(true);
-            loadArchivedCategories(true);
-            document.documentElement.style.visibility = "visible";
-        }
-    } else {
-        window.location.href = "Login.html";
-    }
-});
+// ================================================
+// OPTIMIZED USER CACHE (SHARED)
+// ================================================
+async function getCachedUserData(uid) {
+    const CACHE_KEY = `user_data_${uid}`;
 
-// ===============================
-// DISPLAY ROLE
-// ===============================
-async function displayUserRole(uid) {
-    const roleEl = document.getElementById('userRoleDisplay');
-    if (!roleEl) return;
+    // 1. Try cache first
+    const cached = sessionStorage.getItem(CACHE_KEY);
+    if (cached) return JSON.parse(cached);
 
+    // 2. Fetch if not cached
     try {
         const snap = await getDoc(doc(db, "users", uid));
 
         if (snap.exists()) {
-            let role = snap.data().role || "User";
-            role = role.charAt(0).toUpperCase() + role.slice(1);
-            roleEl.textContent = role;
-        } else {
-            roleEl.textContent = "User";
+            const data = snap.data();
+
+            sessionStorage.setItem(CACHE_KEY, JSON.stringify(data));
+            return data;
         }
-    } catch {
-        roleEl.textContent = "User";
+    } catch (err) {
+        console.error("Error fetching user data:", err);
     }
+
+    return null;
 }
 
-// ===============================
-// ADMIN CHECK
-// ===============================
 async function checkAdminRole(uid) {
-    const snap = await getDoc(doc(db, "users", uid));
-    if (!snap.exists()) return false;
-
-    return snap.data().role?.toLowerCase() === "admin";
+    const userData = await getCachedUserData(uid);
+    return userData?.role?.toLowerCase() === "admin";
 }
+
+async function displayUserRole(uid) {
+    const roleEl = document.getElementById('userRoleDisplay');
+    if (!roleEl) return;
+
+    const userData = await getCachedUserData(uid);
+
+    let role = userData?.role || "User";
+    role = role.charAt(0).toUpperCase() + role.slice(1);
+
+    roleEl.textContent = role;
+}
+
+// --- AUTH CHECK WITH ROLE VALIDATION ---
+onAuthStateChanged(auth, async (user) => {
+    if (!user) {
+        window.location.href = "Login.html";
+        return;
+    }
+
+    const userData = await getCachedUserData(user.uid);
+
+    const isAdmin = userData?.role?.toLowerCase() === "admin";
+
+    if (!isAdmin) {
+        alert("Access Denied: Only Admins can access archives.");
+        window.location.href = "Products.html";
+        return;
+    }
+
+    console.log("Admin verified (cached).");
+
+    // Display role WITHOUT extra read
+    let role = userData?.role || "User";
+    role = role.charAt(0).toUpperCase() + role.slice(1);
+    const roleEl = document.getElementById('userRoleDisplay');
+    if (roleEl) roleEl.textContent = role;
+
+    // Load page
+    loadArchivedProducts(true);
+    loadArchivedCategories(true);
+    document.documentElement.style.visibility = "visible";
+});
+
+
 
 // ===============================
 // LOAD ARCHIVED PRODUCTS

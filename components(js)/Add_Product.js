@@ -23,44 +23,80 @@ let selectedImageFile = null;
 let draftProducts = [];       // array of queued product objects
 let isBulkMode = false;
 
-// --- AUTH CHECK WITH ROLE VALIDATION ---
-onAuthStateChanged(auth, async (user) => {
-    if (user) {
-        // 1. Fetch User Role from 'users' collection
-        const isAdmin = await checkAdminRole(user.uid);
 
-        if (!isAdmin) {
-            alert("Access Denied: Only Admins can add products.");
-            window.location.href = "Products.html";
-        } else {
-            console.log("Admin verified.");
-            // Only load page logic if admin is verified
-            loadDefaultThreshold();
-        }
-    } else {
-        window.location.href = "Login.html";
-    }
-});
+// ================================================
+// OPTIMIZED USER DATA HELPER (SHARED)
+// ================================================
+async function getCachedUserData(uid) {
+    const CACHE_KEY = `user_data_${uid}`;
+    
+    // 1. Check cache first
+    const cached = sessionStorage.getItem(CACHE_KEY);
+    if (cached) return JSON.parse(cached);
 
-// --- HELPER: CHECK ADMIN ROLE ---
-async function checkAdminRole(uid) {
+    // 2. Fetch from Firestore if not cached
     try {
         const userDocRef = doc(db, "users", uid);
         const userSnap = await getDoc(userDocRef);
-        
+
         if (userSnap.exists()) {
-            const userData = userSnap.data();
-            // Check if role is 'admin' (case-insensitive for safety)
-            return (userData.role && userData.role.toLowerCase() === 'admin');
+            const data = userSnap.data();
+
+            // Save to session cache
+            sessionStorage.setItem(CACHE_KEY, JSON.stringify(data));
+
+            return data;
         }
-        
-        // Fallback: If user not found in DB (legacy accounts), assume NOT admin
-        return false;
     } catch (error) {
-        console.error("Error checking role:", error);
-        return false; 
+        console.error("Error fetching user data:", error);
     }
+
+    return null;
 }
+
+// --- AUTH CHECK WITH ROLE VALIDATION ---
+onAuthStateChanged(auth, async (user) => {
+    if (!user) {
+        window.location.href = "Login.html";
+        return;
+    }
+
+    const userData = await getCachedUserData(user.uid);
+
+    const isAdmin = userData?.role?.toLowerCase() === 'admin';
+
+    if (!isAdmin) {
+        alert("Access Denied: Only Admins can add products.");
+        window.location.href = "Products.html";
+        return;
+    }
+
+    console.log("Admin verified (cached).");
+
+    // Optional UI
+    displayUserRole(user.uid);
+
+    // Load rest
+    loadDefaultThreshold();
+});
+
+async function checkAdminRole(uid) {
+    const userData = await getCachedUserData(uid);
+    return userData?.role?.toLowerCase() === 'admin';
+}
+
+async function displayUserRole(uid) {
+    const el = document.getElementById("userRoleDisplay");
+    if (!el) return;
+
+    const userData = await getCachedUserData(uid);
+
+    let role = userData?.role || "User";
+    role = role.charAt(0).toUpperCase() + role.slice(1);
+
+    el.textContent = role;
+}
+
 
 // --- HELPER: ACTIVITY LOGGING FUNCTION ---
 async function logActivity(action, targetName) {
