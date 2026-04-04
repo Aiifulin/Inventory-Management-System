@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
 import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
-import { getFirestore, collection, query, orderBy, limit, doc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { getFirestore, collection, query, orderBy, limit, doc, getDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
 // --- CONFIG ---
 const firebaseConfig = {
@@ -17,169 +17,241 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// Global Chart Instances
+// --- GLOBALS ---
 let barChartInstance = null;
 let pieChartInstance = null;
+let dashboardStage = {};           // FIX 1: was never declared
+const CACHE_KEY = 'dashboard_cache';
 
-// --- AUTH LISTENER ---(Abstracion Example)
+// ================================================
+// CACHE HELPERS
+// ================================================
+function saveCache(data) {
+    sessionStorage.setItem(CACHE_KEY, JSON.stringify(data));
+}
+
+function loadCache() {
+    try {
+        const raw = sessionStorage.getItem(CACHE_KEY);
+        return raw ? JSON.parse(raw) : null;
+    } catch {
+        return null;
+    }
+}
+
+function clearCache() {
+    sessionStorage.removeItem(CACHE_KEY);
+}
+
+async function getCachedUserData(uid) {
+    const CACHE_KEY_USER = `user_data_${uid}`;
+    
+    // 1. Check Session Storage
+    const cached = sessionStorage.getItem(CACHE_KEY_USER);
+    if (cached) return JSON.parse(cached);
+
+    // 2. If not cached, fetch from Firestore
+    try {
+        const docSnap = await getDoc(doc(db, "users", uid));
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            // Store it so we don't have to fetch it again
+            sessionStorage.setItem(CACHE_KEY_USER, JSON.stringify(data));
+            return data;
+        }
+    } catch (err) {
+        console.error("Error fetching user data:", err);
+    }
+    return null;
+}
+
+async function displayUserRole(uid) {
+    const roleEl = document.getElementById('userRoleDisplay');
+    if (!roleEl) return;
+
+    const userData = await getCachedUserData(uid);
+    let role = userData?.role || "User";
+    
+    // Format: "admin" -> "Admin"
+    roleEl.textContent = role.charAt(0).toUpperCase() + role.slice(1);
+}
+
+async function checkAdminRole(uid) {
+    const userData = await getCachedUserData(uid);
+    return userData?.role?.toLowerCase() === 'admin';
+}
+
+// ================================================
+// AUTH LISTENER
+// ================================================
 onAuthStateChanged(auth, async (user) => {
     if (user) {
-        // visual display of user role
+        // These now share the same cached data/request
         displayUserRole(user.uid);
-
-        // handles decision for admin and non-admin users
         const isAdmin = await checkAdminRole(user.uid);
 
-        // if not admin then hide add button
-        if (!isAdmin) {
-            const addBtn = document.querySelector('.btn-add'); 
-            if (addBtn) addBtn.style.display = 'none';
-        }
+        // UI adjustment based on role
+        const addBtn = document.querySelector('.btn-add');
+        if (addBtn) addBtn.style.display = isAdmin ? 'flex' : 'none';
 
-        // 3. Listen for Real-Time Data
-        setupDashboardStatsListener();
-        setupRecentActivitiesListener();
-        setupCategoryCountListener();
-
+        await loadDashboard(); 
 
     } else {
         window.location.href = "Login.html";
     }
 });
 
-// --- HELPER: TIME FORMATTER ---
-function formatTimeAgo(date) {
-    const now = new Date();
-    const diffInSeconds = Math.floor((now - date) / 1000);
+// ================================================
+// CORE LOAD FUNCTION
+// ================================================
+async function loadDashboard(forceRefresh = false) {
+    const cached = loadCache();
 
-    if (diffInSeconds < 60) return "Just now";
-
-    const diffInMinutes = Math.floor(diffInSeconds / 60);
-    if (diffInMinutes < 60) {
-        return `${diffInMinutes} minute${diffInMinutes !== 1 ? 's' : ''} ago`;
+    if (!forceRefresh && cached) {
+        // Serve instantly from cache — zero Firestore reads
+        updateStat("statTotalProducts", cached.totalProducts);
+        updateStat("statLowStock",      cached.lowStockCount);
+        updateStat("statCategories",    cached.categoryCount);
+        updateStat("statTotalValue",    cached.totalValue);
+        initCharts(cached.categoryMap);
+        renderLowStockTable(cached.lowStockItems);
+        renderActivities(cached.activities);
+        return;
     }
 
-    const diffInHours = Math.floor(diffInMinutes / 60);
-    if (diffInHours < 2) {
-        return `${diffInHours} hour${diffInHours !== 1 ? 's' : ''} ago`;
-    }
-
-    return date.toLocaleString('en-US', { 
-        month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' 
-    });
+    await fetchAndCache();
 }
 
-// --- HELPER: DISPLAY USER ROLE ---
-async function displayUserRole(uid) {
-    const roleEl = document.getElementById('userRoleDisplay');
-    if (!roleEl) return;
+async function fetchAndCache() {
+    dashboardStage = {};
+    setRefreshLoading(true);
 
     try {
-        const docRef = doc(db, "users", uid);
-        const docSnap = await getDoc(docRef);
-        
-        if (docSnap.exists()) {
-            const data = docSnap.data();
-            let roleName = data.role || "User";
-            roleName = roleName.charAt(0).toUpperCase() + roleName.slice(1);
-            roleEl.textContent = roleName;
-        } else {
-            roleEl.textContent = "User"; 
-        }
-    } catch (error) {
-        console.error("Error displaying role:", error);
-        roleEl.textContent = "User";
+        await Promise.all([
+            loadStats(),
+            loadRecentActivities(),
+            loadCategoryCount()
+        ]);
+        saveCache(dashboardStage); // Only saves after all three succeed
+    } catch (err) {
+        console.error("Dashboard load error:", err);
+    } finally {
+        setRefreshLoading(false);
     }
 }
 
-// --- role checker for admins ---(Encapsulation Example)
-async function checkAdminRole(uid) {
-    try {
-        const userDocRef = doc(db, "users", uid);
-        const userSnap = await getDoc(userDocRef);
-        
-        // basically if the role is admin return true 
-        if (userSnap.exists()) {
-            const userData = userSnap.data();
-            return (userData.role && userData.role.toLowerCase() === 'admin');
-        }
-        return false;
-    } catch (error) {
-        console.error("Error checking role:", error);
-        return false; 
-    }
+function setRefreshLoading(isLoading) {
+    const btn = document.getElementById('refreshBtn');
+    if (!btn) return;
+    btn.disabled = isLoading;
+    btn.classList.toggle('loading', isLoading);
 }
 
-// --- REAL-TIME STATS LISTENER ---
-function setupDashboardStatsListener() {
-    const productsRef = collection(db, "products");
+// ================================================
+// TO PREVENT USER ROLE FLICKER ON LOAD, WE FIRST CHECK LOCAL STORAGE
+// THEN VALIDATE WITH FIRESTORE IN THE BACKGROUND. THIS WAY, WE CAN HIDE ADMIN-ONLY UI ELEMENTS IMMEDIATELY WITHOUT WAITING FOR FIRESTORE.
+// ================================================
 
-    onSnapshot(productsRef, (querySnapshot) => {
-        const products = [];
-        const lowStockItems = []; 
-        const categoryMap = {}; 
 
-        querySnapshot.forEach((doc) => {
-            const p = doc.data();
-            products.push(p);
+// ================================================
+// DATA LOADERS
+// ================================================
+async function loadStats() {
+    const snapshot = await getDocs(collection(db, "products"));
 
-            const stock = Number(p.stock) || 0;
-            const price = Number(p.price) || 0;
-            const threshold = Number(p.lowStockThreshold) || 10;
-            const cat = p.category || "Uncategorized";
-            const itemValue = stock * price;
+    const products      = [];
+    const lowStockItems = [];
+    const categoryMap   = {};
 
-            if (!categoryMap[cat]) {
-                categoryMap[cat] = { count: 0, value: 0 };
-            }
-            categoryMap[cat].count += 1;        
-            categoryMap[cat].value += itemValue; 
+    snapshot.forEach((docSnap) => {
+        const p = docSnap.data();
+        if (p.archived === true) return;
 
-            if (stock <= threshold) {
-                lowStockItems.push({
-                    name: p.name,
-                    stock: stock,
-                    imageUrl: p.imageUrl,
-                    threshold: threshold
-                });
-            }
-        });
+        products.push(p);
 
-        const totalProducts = products.length;
-        const categoriesCount = Object.keys(categoryMap).length;
-        const lowStockCount = lowStockItems.length;
-        
-        const totalValue = products.reduce((sum, p) => {
-            return sum + ((Number(p.price) || 0) * (Number(p.stock) || 0));
-        }, 0);
+        const stock     = Number(p.stock) || 0;
+        const price     = Number(p.price) || 0;
+        const threshold = Number(p.lowStockThreshold) || 10;
+        const cat       = p.category || "Uncategorized";
 
-        // to update and display stats by calling updateStat function
-        updateStat("statTotalProducts", totalProducts);
-        updateStat("statCategories", categoriesCount);
-        updateStat("statLowStock", lowStockCount);
-        
-        const formattedValue = totalValue.toLocaleString('en-PH', {
-            style: 'currency',
-            currency: 'PHP',
-            minimumFractionDigits: 2
-        });
-        updateStat("statTotalValue", formattedValue);
+        if (!categoryMap[cat]) categoryMap[cat] = { count: 0, value: 0 };
+        categoryMap[cat].count += 1;
+        categoryMap[cat].value += stock * price;
 
-        initCharts(categoryMap);
-        renderLowStockTable(lowStockItems);
-
-    }, (error) => {
-        console.error("Error listening to stats:", error);
+        if (stock <= threshold) {
+            lowStockItems.push({ name: p.name, stock, imageUrl: p.imageUrl || null, threshold });
+        }
     });
+
+    const totalValue = products.reduce((sum, p) =>
+        sum + ((Number(p.price) || 0) * (Number(p.stock) || 0)), 0);
+
+    const formattedValue = totalValue.toLocaleString('en-PH', {
+        style: 'currency', currency: 'PHP', minimumFractionDigits: 2
+    });
+
+    updateStat("statTotalProducts", products.length);
+    updateStat("statLowStock",      lowStockItems.length);
+    updateStat("statTotalValue",    formattedValue);
+    initCharts(categoryMap);
+    renderLowStockTable(lowStockItems);
+
+    // Stage for cache
+    dashboardStage.totalProducts = products.length;
+    dashboardStage.lowStockCount = lowStockItems.length;
+    dashboardStage.totalValue    = formattedValue;
+    dashboardStage.categoryMap   = categoryMap;
+    dashboardStage.lowStockItems = lowStockItems;
 }
 
-// --- HELPER: RENDER LOW STOCK ---
+async function loadRecentActivities() {
+    const q = query(
+        collection(db, "activities"),
+        orderBy("timestamp", "desc"),
+        limit(5)
+    );
+    const snapshot = await getDocs(q);
+
+    const activities = [];
+    snapshot.forEach((docSnap) => {
+        const data = docSnap.data();
+        activities.push({
+            user:      data.user   || 'Admin',
+            action:    data.action || '',
+            target:    data.target || '',
+            // Convert Timestamp to ISO string so it survives JSON serialization
+            timestamp: data.timestamp ? data.timestamp.toDate().toISOString() : null
+        });
+    });
+
+    dashboardStage.activities = activities;
+    renderActivities(activities);
+}
+
+async function loadCategoryCount() {
+    const snapshot = await getDocs(collection(db, "categories"));
+    let count = 0;
+    snapshot.forEach((docSnap) => {
+        if (docSnap.data().archived !== true) count++;
+    });
+    updateStat("statCategories", count);
+    dashboardStage.categoryCount = count;
+}
+
+// ================================================
+// RENDER HELPERS
+// ================================================
 function renderLowStockTable(items) {
     const tableBody = document.querySelector('#lowStockTable tbody');
     if (!tableBody) return;
 
     if (items.length === 0) {
-        tableBody.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:20px; color:#9ca3af;">All products are well stocked!</td></tr>';
+        tableBody.innerHTML = `
+            <tr>
+                <td colspan="3" style="text-align:center; padding:20px; color:#9ca3af;">
+                    All products are well stocked!
+                </td>
+            </tr>`;
         return;
     }
 
@@ -188,135 +260,87 @@ function renderLowStockTable(items) {
 
     let html = '';
     displayItems.forEach(item => {
-        let pillClass = "pill-orange";
-        let statusText = "Low Stock";
-        
-        if (item.stock === 0) {
-            pillClass = "pill-red";
-            statusText = "Out of Stock";
-        }
+        const pillClass  = item.stock === 0 ? "pill-red"    : "pill-orange";
+        const statusText = item.stock === 0 ? "Out of Stock" : "Low Stock";
 
-        let imgTag = '<div style="display:inline-block; width:32px; height:32px; background:#f3f4f6; border-radius:6px; margin-right:10px; vertical-align:middle; text-align:center; line-height:32px;"><i class="fas fa-box" style="font-size:12px; color:#9ca3af;"></i></div>';
-        if (item.imageUrl) {
-            imgTag = `<img src="${item.imageUrl}" class="sm-product-img" alt="img">`;
-        }
+        const imgTag = item.imageUrl
+            ? `<img src="${item.imageUrl}" class="sm-product-img" alt="img">`
+            : `<div style="display:inline-block; width:32px; height:32px; background:#f3f4f6; border-radius:6px; margin-right:10px; vertical-align:middle; text-align:center; line-height:32px;">
+                   <i class="fas fa-box" style="font-size:12px; color:#9ca3af;"></i>
+               </div>`;
 
         html += `
             <tr>
-                <td>
-                    ${imgTag}
-                    <span style="font-weight:500;">${item.name}</span>
-                </td>
+                <td>${imgTag}<span style="font-weight:500;">${item.name}</span></td>
                 <td style="font-family:monospace; font-size:14px;">${item.stock}</td>
                 <td><span class="pill ${pillClass}">${statusText}</span></td>
-            </tr>
-        `;
+            </tr>`;
     });
 
     tableBody.innerHTML = html;
 }
 
-// --- REAL-TIME ACTIVITIES LISTENER ---
-function setupRecentActivitiesListener() {
-    const activityContainer = document.querySelector('.activity-content');
-    if (!activityContainer) return; 
+function renderActivities(activities) {
+    const container = document.querySelector('.activity-content');
+    if (!container) return;
 
-    const q = query(
-        collection(db, "activities"), 
-        orderBy("timestamp", "desc"), 
-        limit(5)
-    );
+    if (!activities || activities.length === 0) {
+        container.innerHTML = `
+            <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; color:#9ca3af;">
+                <i class="fas fa-history" style="font-size:24px; margin-bottom:10px;"></i>
+                <span>No recent activities found.</span>
+            </div>`;
+        return;
+    }
 
-    onSnapshot(q, (querySnapshot) => {
-        if (querySnapshot.empty) {
-            activityContainer.innerHTML = `
-                <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; color:#9ca3af;">
-                    <i class="fas fa-history" style="font-size: 24px; margin-bottom: 10px;"></i>
-                    <span>No recent activities found.</span>
-                </div>`;
-            return;
+    let html = '<ul class="activity-list">';
+
+    activities.forEach((data) => {
+        const timeString  = data.timestamp ? formatTimeAgo(new Date(data.timestamp)) : "Just now";
+        const actionLower = data.action.toLowerCase();
+
+        let iconClass  = "fa-info";
+        let colorClass = "";
+
+        if (actionLower.includes("add")) {
+            iconClass = "fa-plus";  colorClass = "act-add";
+        } else if (actionLower.includes("edit") || actionLower.includes("update")) {
+            iconClass = "fa-pen";   colorClass = "act-edit";
+        } else if (actionLower.includes("delete") || actionLower.includes("remove")) {
+            iconClass = "fa-trash"; colorClass = "act-delete";
         }
 
-        let html = '<ul class="activity-list">';
-
-        querySnapshot.forEach((doc) => {
-            const data = doc.data();
-            
-            // handles time calculation and formatting
-            let timeString = "Just now";
-            if (data.timestamp) {
-                const date = data.timestamp.toDate(); 
-                timeString = formatTimeAgo(date);
-            }
-
-            let iconClass = "fa-info";
-            let colorClass = "";
-            const actionLower = (data.action || "").toLowerCase(); 
-            
-            if (actionLower.includes("add")) {
-                iconClass = "fa-plus";
-                colorClass = "act-add";
-            } else if (actionLower.includes("edit") || actionLower.includes("update")) {
-                iconClass = "fa-pen";
-                colorClass = "act-edit";
-            } else if (actionLower.includes("delete") || actionLower.includes("remove")) {
-                iconClass = "fa-trash";
-                colorClass = "act-delete";
-            }
-
-            html += `
-                <li class="activity-item">
-                    <div class="activity-icon-box ${colorClass}">
-                        <i class="fas ${iconClass}"></i>
-                    </div>
-                    <div class="activity-details">
-                        <p class="activity-text">
-                            <strong>${data.user || 'Admin'}</strong> ${data.action}: ${data.target}
-                        </p>
-                        <p class="activity-meta">${timeString}</p>
-                    </div>
-                </li>
-            `;
-        });
-
-        html += '</ul>';
-        activityContainer.innerHTML = html;
-
-    }, (error) => {
-        console.error("Error listening to activities:", error);
-        activityContainer.innerHTML = `<div style="color:red; text-align:center; padding:20px;">Error: ${error.message}</div>`;
+        html += `
+            <li class="activity-item">
+                <div class="activity-icon-box ${colorClass}">
+                    <i class="fas ${iconClass}"></i>
+                </div>
+                <div class="activity-details">
+                    <p class="activity-text">
+                        <strong>${data.user}</strong> ${data.action}: ${data.target}
+                    </p>
+                    <p class="activity-meta">${timeString}</p>
+                </div>
+            </li>`;
     });
+
+    html += '</ul>';
+    container.innerHTML = html;
 }
 
-// --- REAL-TIME CATEGORY COUNT LISTENER ---
-function setupCategoryCountListener() {
-    const categoriesRef = collection(db, "categories");
-
-    onSnapshot(categoriesRef, (querySnapshot) => {
-        const count = querySnapshot.size; // number of category docs
-        updateStat("statCategories", count);
-    }, (error) => {
-        console.error("Error listening to categories:", error);
-        updateStat("statCategories", "Error");
-    });
-}
-
-// --- CHART RENDERING FUNCTION ---
+// ================================================
+// CHARTS
+// ================================================
 function initCharts(dataMap) {
     const labels = Object.keys(dataMap);
     const counts = labels.map(cat => dataMap[cat].count);
     const values = labels.map(cat => dataMap[cat].value);
 
-    // --- DARK MODE DETECTION ---
-    // Check if the html tag has data-theme="dark"
-    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-    
-    // Dynamic Colors for Charts
-    const barColor = isDark ? '#3b82f6' : '#0f172a'; // Bright Blue vs Dark Blue
-    const textColor = isDark ? '#e5e7eb' : '#374151'; // Light Grey vs Dark Grey
-    const gridColor = isDark ? '#374151' : '#e5e7eb'; // Darker Grid vs Lighter Grid
-
-    const chartColors = ['#0f172a', '#3b82f6', '#64748b', '#cbd5e1', '#f59e0b', '#10b981', '#ef4444'];
+    const isDark    = document.documentElement.getAttribute('data-theme') === 'dark';
+    const barColor  = isDark ? '#3b82f6' : '#0f172a';
+    const textColor = isDark ? '#e5e7eb' : '#374151';
+    const gridColor = isDark ? '#374151' : '#e5e7eb';
+    const chartColors = ['#0f172a','#3b82f6','#64748b','#cbd5e1','#f59e0b','#10b981','#ef4444'];
 
     const ctxBar = document.getElementById('barChart');
     if (ctxBar) {
@@ -324,7 +348,7 @@ function initCharts(dataMap) {
         barChartInstance = new Chart(ctxBar.getContext('2d'), {
             type: 'bar',
             data: {
-                labels: labels,
+                labels,
                 datasets: [{
                     label: 'Number of Products',
                     data: counts,
@@ -336,9 +360,9 @@ function initCharts(dataMap) {
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: { legend: { display: false } },
-                scales: { 
-                    y: { 
-                        beginAtZero: true, 
+                scales: {
+                    y: {
+                        beginAtZero: true,
                         ticks: { stepSize: 1, color: textColor },
                         grid: { color: gridColor }
                     },
@@ -357,7 +381,7 @@ function initCharts(dataMap) {
         pieChartInstance = new Chart(ctxPie.getContext('2d'), {
             type: 'doughnut',
             data: {
-                labels: labels,
+                labels,
                 datasets: [{
                     data: values,
                     backgroundColor: chartColors,
@@ -372,12 +396,11 @@ function initCharts(dataMap) {
                     legend: { display: false },
                     tooltip: {
                         callbacks: {
-                            label: function(context) {
-                                let label = context.label || '';
-                                if (label) { label += ': '; }
+                            label(context) {
+                                let label = context.label ? context.label + ': ' : '';
                                 if (context.parsed !== null) {
-                                    label += new Intl.NumberFormat('en-PH', { 
-                                        style: 'currency', currency: 'PHP' 
+                                    label += new Intl.NumberFormat('en-PH', {
+                                        style: 'currency', currency: 'PHP'
                                     }).format(context.parsed);
                                 }
                                 return label;
@@ -391,73 +414,90 @@ function initCharts(dataMap) {
 
     const legendContainer = document.getElementById('pieLegend');
     if (legendContainer) {
-        legendContainer.innerHTML = labels.map((label, index) => {
-            const color = chartColors[index % chartColors.length];
-            const value = values[index];
-            const formattedValue = new Intl.NumberFormat('en-PH', { 
-                style: 'currency', currency: 'PHP' 
-            }).format(value);
+        legendContainer.innerHTML = labels.map((label, i) => {
+            const color = chartColors[i % chartColors.length];
+            const formattedValue = new Intl.NumberFormat('en-PH', {
+                style: 'currency', currency: 'PHP'
+            }).format(values[i]);
 
             return `
                 <div class="legend-item">
                     <div class="legend-left">
-                        <span class="legend-color" style="background-color: ${color};"></span>
+                        <span class="legend-color" style="background-color:${color};"></span>
                         <span>${label}</span>
                     </div>
                     <span class="legend-value">${formattedValue}</span>
-                </div>
-            `;
+                </div>`;
         }).join('');
     }
 }
 
+// ================================================
+// UTILITIES
+// ================================================
 function updateStat(id, value) {
     const el = document.getElementById(id);
-    if(el) el.innerText = value;
+    if (el) el.innerText = value;
 }
 
-// --- UI EVENT LISTENERS ---
+function formatTimeAgo(date) {
+    const now = new Date();
+    const diffInSeconds = Math.floor((now - date) / 1000);
+
+    if (diffInSeconds < 60) return "Just now";
+
+    const diffInMinutes = Math.floor(diffInSeconds / 60);
+    if (diffInMinutes < 60) return `${diffInMinutes} minute${diffInMinutes !== 1 ? 's' : ''} ago`;
+
+    const diffInHours = Math.floor(diffInMinutes / 60);
+    if (diffInHours < 24) return `${diffInHours} hour${diffInHours !== 1 ? 's' : ''} ago`;
+
+    return date.toLocaleString('en-US', {
+        month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+    });
+}
+
+
+
+
+
+// ================================================
+// UI EVENT LISTENERS
+// ================================================
 document.addEventListener("DOMContentLoaded", () => {
     const hamburgerBtn = document.getElementById('hamburgerBtn');
-    const closeBtn = document.getElementById('closeBtn');
-    const sidebar = document.getElementById('sidebar');
-    const overlay = document.getElementById('overlay');
+    const closeBtn     = document.getElementById('closeBtn');
+    const sidebar      = document.getElementById('sidebar');
+    const overlay      = document.getElementById('overlay');
+    const refreshBtn   = document.getElementById('refreshBtn');
+
+    // FIX 3: pass forceRefresh = true so it always hits Firestore on manual refresh
+    if (refreshBtn) {
+        refreshBtn.addEventListener('click', () => loadDashboard(true));
+    }
 
     function toggleSidebar() {
         sidebar.classList.toggle('open');
         overlay.classList.toggle('show');
     }
-
     function closeSidebar() {
         sidebar.classList.remove('open');
         overlay.classList.remove('show');
     }
 
-    if (hamburgerBtn) {
-        hamburgerBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            toggleSidebar();
-        });
-    }
-
-    if (closeBtn) {
-        closeBtn.addEventListener('click', closeSidebar);
-    }
-
-    if (overlay) {
-        overlay.addEventListener('click', closeSidebar);
-    }
+    if (hamburgerBtn) hamburgerBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleSidebar(); });
+    if (closeBtn)     closeBtn.addEventListener('click', closeSidebar);
+    if (overlay)      overlay.addEventListener('click', closeSidebar);
 });
 
-// --- LOGOUT FUNCTION ---
+// ================================================
+// LOGOUT
+// ================================================
 window.logout = function() {
-    // Clear LOCAL storage now
     localStorage.removeItem("user_session");
     localStorage.removeItem("user_uid");
     localStorage.removeItem("user_role");
-    
-    // Also clear session just in case
-    sessionStorage.clear();
+    sessionStorage.clear(); // Also clears dashboard cache
 
     signOut(auth).then(() => {
         window.location.replace("Login.html");
