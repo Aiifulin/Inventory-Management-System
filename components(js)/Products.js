@@ -134,15 +134,30 @@ function applyFilters() {
     const priceRangeVal = document.getElementById("filterPrice").value; 
     const statusVal = document.getElementById("filterStatus").value;
     const sortVal = document.getElementById("filterSort").value;
+    
 
     let result = allProducts.filter(p => {
         const prodName = (p.name || "").toLowerCase();
         const prodCat = (p.category || "").toLowerCase();
         const prodId = (p.id || "").toLowerCase();
 
+        let prodDate = "";
+        if (p.createdAt && p.createdAt.toDate) {
+            const d = p.createdAt.toDate();
+            // Produces strings like "mar 17 2026", "march", "2026" — all searchable
+            prodDate = d.toLocaleDateString("en-US", {
+                month: 'long', day: 'numeric', year: 'numeric'
+            }).toLowerCase();
+            // Also add short month so "mar" matches "March"
+            prodDate += " " + d.toLocaleDateString("en-US", { month: 'short' }).toLowerCase();
+            // Also add numeric format so "3/17" or "17" matches
+            prodDate += " " + d.toLocaleDateString("en-US");
+        }
+
         const matchesSearch = prodName.includes(searchVal) || 
                               prodCat.includes(searchVal) || 
-                              prodId.includes(searchVal);
+                              prodId.includes(searchVal) ||
+                              prodDate.includes(searchVal);
 
         const matchesCategory = catVal === "" || p.category === catVal;
         

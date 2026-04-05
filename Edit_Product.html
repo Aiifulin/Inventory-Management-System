@@ -37,7 +37,7 @@
         <div class="sidebar-content">
             <div class="sidebar-header">
                 <h2>Inventory MS</h2>
-                <span class="user-role" id="userRoleDisplay">Loading...</span>
+                <span class="user-role" id="userRoleDisplay">Admin</span>
             </div>
             <nav class="sidebar-nav">
                 <a href="Dashboard.html" class="nav-link"><i class="fas fa-chart-line"></i> Dashboard</a>
@@ -70,7 +70,7 @@
             <div class="form-section">
                 <h3 class="section-title">Basic Information</h3>
                 <div class="basic-info-grid">
-                    <div class="image-upload-box" onclick="document.getElementById('fileInput').click()">
+                    <div class="image-upload-box" id="uploadBox">
                         <input type="file" id="fileInput" accept="image/*" style="display: none;">
                         
                         <div id="uploadPlaceholder" style="text-align: center;">
@@ -157,6 +157,13 @@
             <p style="margin: 8px 0 0; color: var(--text-secondary); font-size: 13px;">Redirecting you back to Products...</p>
         </div>
     </div>    
+    <!-- IMAGE PREVIEW MODAL -->
+    <div class="img-preview-overlay" id="imgPreviewOverlay" style="display:none;">
+        <button class="img-preview-close" id="imgPreviewClose">
+            <i class="fas fa-times"></i>
+        </button>
+        <img id="imgPreviewFull" src="" alt="Full Preview">
+    </div>
 
     <script type="module" src="components(js)/Edit_Product.js"></script>
     
@@ -182,10 +189,10 @@
             if (sessionData && roleDisplay) {
                 try {
                     const user = JSON.parse(sessionData);
-                    roleDisplay.textContent = user.role || user.username || "Loading...";
+                    roleDisplay.textContent = user.role || user.username || "Admin";
                 } catch (error) {
                     console.error("Error parsing user session:", error);
-                    roleDisplay.textContent = "Loading...";
+                    roleDisplay.textContent = "Admin";
                 }
             }
         });

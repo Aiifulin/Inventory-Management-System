@@ -27,39 +27,70 @@ const db = getFirestore(app);
  * LOGIN FUNCTION
  ***********************************************/
 const login = function () {
-    const email = document.getElementById("email").value.trim();
-    const pass = document.getElementById("password").value.trim();
+    const email    = document.getElementById("email").value.trim();
+    const pass     = document.getElementById("password").value.trim();
     const errorBox = document.getElementById("errorMessage");
+    const loginBtn = document.getElementById("loginBtn");
+    const btnText  = document.getElementById("loginBtnText");
+    const spinner  = document.getElementById("loginSpinner");
 
     // Clear previous errors
-    if(errorBox) errorBox.style.display = "none";
+    if (errorBox) { errorBox.style.display = "none"; errorBox.textContent = ""; }
+
+    // Show loading state
+    loginBtn.disabled  = true;
+    btnText.textContent = "Signing in...";
+    spinner.style.display = "inline-block";
 
     signInWithEmailAndPassword(auth, email, pass)
         .then((userCredential) => {
-            // --- CRITICAL FIX: SAVE THE SESSION ---
-            // Without this, the Dashboard will kick you out immediately.
             localStorage.setItem("user_session", "true");
             localStorage.setItem("user_uid", userCredential.user.uid);
-
-            console.log("Logged in:", userCredential.user);
-            window.location.href = "Dashboard.html";
+            showLoginSuccess();
         })
         .catch((err) => {
-            // Login Failed
             console.error(err.code, err.message);
+
+            // Reset button
+            loginBtn.disabled     = false;
+            btnText.textContent   = "Sign In";
+            spinner.style.display = "none";
+
             if (errorBox) {
                 errorBox.style.display = "block";
-                
-                if (err.code === "auth/invalid-credential" || err.code === "auth/user-not-found" || err.code === "auth/wrong-password") {
-                    errorBox.textContent = "Invalid Email or Password";
+                // Re-trigger shake animation
+                errorBox.style.animation = 'none';
+                errorBox.offsetHeight; // reflow
+                errorBox.style.animation = '';
+
+                if (["auth/invalid-credential","auth/user-not-found","auth/wrong-password"].includes(err.code)) {
+                    errorBox.textContent = "Invalid email or password. Please try again.";
+                } else if (err.code === "auth/too-many-requests") {
+                    errorBox.textContent = "Too many attempts. Please wait a moment and try again.";
                 } else {
                     errorBox.textContent = err.message;
                 }
-            } else {
-                alert(err.message);
             }
         });
 };
+
+function showLoginSuccess() {
+    const overlay  = document.getElementById('loginSuccessOverlay');
+    const bar      = document.getElementById('loginProgressBar');
+
+    overlay.style.display = 'flex';
+
+    // Animate progress bar over 2 seconds then redirect
+    let width = 0;
+    const interval = setInterval(() => {
+        width += 2;
+        bar.style.width = width + '%';
+        if (width >= 100) {
+            clearInterval(interval);
+            window.location.href = "Dashboard.html";
+        }
+    }, 40); // 40ms × 50 steps = 2 seconds
+}
 
 /************************************************
  * PASSWORD TOGGLE

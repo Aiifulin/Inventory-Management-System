@@ -161,6 +161,40 @@ function initPage() {
     removeBtn.style.display = 'none'; // Hidden by default
 
     if(uploadBox) uploadBox.appendChild(removeBtn);
+    removeBtn.addEventListener('click', resetImage);
+
+    // --- IMAGE CLICK TO PREVIEW ---
+    const imgPreviewOverlay = document.getElementById('imgPreviewOverlay');
+    const imgPreviewFull    = document.getElementById('imgPreviewFull');
+    const imgPreviewClose   = document.getElementById('imgPreviewClose');
+    
+    // Click the preview image to open fullscreen
+    if (preview) {
+        preview.style.cursor = 'zoom-in';
+        preview.addEventListener('click', (e) => {
+            e.stopPropagation(); // Don't trigger the upload box click
+            if (!preview.src || preview.style.display === 'none') return;
+            imgPreviewFull.src = preview.src;
+            imgPreviewOverlay.style.display = 'flex';
+        });
+    }
+    
+    // Close on X button or backdrop click
+    imgPreviewClose?.addEventListener('click', () => {
+        imgPreviewOverlay.style.display = 'none';
+    });
+    imgPreviewOverlay?.addEventListener('click', (e) => {
+        if (e.target === imgPreviewOverlay) {
+            imgPreviewOverlay.style.display = 'none';
+        }
+    });
+    
+    // Close on Escape key
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && imgPreviewOverlay.style.display === 'flex') {
+            imgPreviewOverlay.style.display = 'none';
+        }
+    });
 
     function resetImage(e) {
         if(e) e.stopPropagation();
@@ -173,7 +207,13 @@ function initPage() {
         isFormDirty = true;
     }
 
-    removeBtn.addEventListener('click', resetImage);
+    if (uploadBox) {
+        uploadBox.addEventListener('click', (e) => {
+            // Don't open file picker if they clicked the preview image or remove button
+            if (e.target === preview || e.target === removeBtn || removeBtn.contains(e.target)) return;
+            fileInput.click();
+        });
+    }
 
     if(fileInput) {
         fileInput.addEventListener('change', function(e) {

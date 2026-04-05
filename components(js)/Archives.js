@@ -173,8 +173,12 @@ async function loadArchivedProducts(reset = true) {
         const id = docSnap.id;
 
         const archivedDate = product.archivedAt
-            ? product.archivedAt.toDate().toLocaleString()
-            : "—";
+        ? product.archivedAt.toDate().toLocaleDateString("en-US", {
+            month: "long",
+            day: "numeric",
+            year: "numeric"
+        })
+        : "—";
 
         const imageUrl = product.imageUrl || "placeholder.png";
 
@@ -260,8 +264,12 @@ async function loadArchivedCategories(reset = true) {
         const id = docSnap.id;
 
         const archivedDate = category.archivedAt
-            ? category.archivedAt.toDate().toLocaleString()
-            : "—";
+        ? category.archivedAt.toDate().toLocaleDateString("en-US", {
+            month: "long",
+            day: "numeric",
+            year: "numeric"
+        })
+        : "—";
 
         const row = document.createElement("tr");
         row.innerHTML = `
@@ -400,9 +408,10 @@ document.addEventListener("input", function(e){
 
         const name = row.children[1]?.textContent.toLowerCase() || "";
         const category = row.children[2]?.textContent.toLowerCase() || "";
+        const date = row.children[3]?.textContent.toLowerCase() || "";
 
         row.style.display =
-            (name.includes(search) || category.includes(search))
+            (name.includes(search) || category.includes(search) || date.includes(search))
             ? ""
             : "none";
     });
@@ -420,8 +429,9 @@ document.addEventListener("input", function(e){
     document.querySelectorAll("#archiveTableCategoriesBody tr").forEach(row => {
 
         const categoryName = row.children[0]?.textContent.toLowerCase() || "";
+        const date = row.children[1]?.textContent.toLowerCase() || "";
 
-        row.style.display = categoryName.includes(search) ? "" : "none";
+        row.style.display = categoryName.includes(search) || date.includes(search) ? "" : "none";
     });
 });
 

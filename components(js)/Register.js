@@ -32,65 +32,106 @@ window.togglePassword = function(id, el) {
 };
 
 window.register = async function () {
-    const name = document.getElementById("name").value.trim();
-    const email = document.getElementById("email").value.trim();
-    const password = document.getElementById("password").value;
+    const name            = document.getElementById("name").value.trim();
+    const email           = document.getElementById("email").value.trim();
+    const password        = document.getElementById("password").value;
     const confirmPassword = document.getElementById("confirmPassword").value;
-    const errorBox = document.getElementById("errorMessage");
+    const errorBox        = document.getElementById("errorMessage");
+    const registerBtn     = document.getElementById("registerBtn");
+    const btnText         = document.getElementById("registerBtnText");
+    const spinner         = document.getElementById("registerSpinner");
 
+    // Clear previous error
     errorBox.style.display = "none";
+    errorBox.textContent   = "";
 
-    // Validation
+    // --- VALIDATION ---
     if (!name || !email || !password || !confirmPassword) {
-        errorBox.innerText = "Please fill out all fields.";
-        errorBox.style.display = "block";
+        showError(errorBox, "Please fill out all fields.");
         return;
     }
 
-    const emailChecking = /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/;
-    if (!emailChecking.test(email)) {
-        errorBox.innerText = "Please enter a valid email address.";
-        errorBox.style.display = "block";
-        return;
-    }
-
-    if (password !== confirmPassword) {
-        errorBox.innerText = "Passwords do not match.";
-        errorBox.style.display = "block";
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/;
+    if (!emailRegex.test(email)) {
+        showError(errorBox, "Please enter a valid email address.");
         return;
     }
 
     if (password.length < 6) {
-        errorBox.innerText = "Password must be at least 6 characters.";
-        errorBox.style.display = "block";
+        showError(errorBox, "Password must be at least 6 characters.");
         return;
     }
 
-    try {
-        // 1. Create Auth User
-        const userCred = await createUserWithEmailAndPassword(auth, email, password);
-        const user = userCred.user;
+    if (password !== confirmPassword) {
+        showError(errorBox, "Passwords do not match.");
+        return;
+    }
 
-        // 2. Save User Details to Firestore (The Mirror)
-        // We set the default role to 'user' here
+    // Show loading state
+    registerBtn.disabled   = true;
+    btnText.textContent    = "Creating account...";
+    spinner.style.display  = "inline-block";
+
+    try {
+        const userCred = await createUserWithEmailAndPassword(auth, email, password);
+        const user     = userCred.user;
+
         await setDoc(doc(db, "users", user.uid), {
-            uid: user.uid,
-            name: name,
-            email: email,
-            role: "user", // DEFAULT ROLE
+            uid:       user.uid,
+            name:      name,
+            email:     email,
+            role:      "user",
             createdAt: new Date()
         });
 
-        console.log("Account created and saved to DB");
-        const popup = document.getElementById("successPopup");
-        popup.style.display = "flex";
+        showRegisterSuccess();
 
     } catch (err) {
-        errorBox.innerText = err.message;
-        errorBox.style.display = "block";
         console.error(err);
+
+        // Reset button
+        registerBtn.disabled  = false;
+        btnText.textContent   = "Create Account";
+        spinner.style.display = "none";
+
+        let msg = err.message;
+        if (err.code === "auth/email-already-in-use") {
+            msg = "An account with this email already exists.";
+        } else if (err.code === "auth/invalid-email") {
+            msg = "Please enter a valid email address.";
+        } else if (err.code === "auth/weak-password") {
+            msg = "Password must be at least 6 characters.";
+        }
+
+        showError(errorBox, msg);
     }
 };
+
+function showError(box, message) {
+    box.textContent   = message;
+    box.style.display = "block";
+    // Re-trigger shake animation
+    box.style.animation = "none";
+    box.offsetHeight;
+    box.style.animation = "";
+}
+
+function showRegisterSuccess() {
+    const overlay = document.getElementById("successOverlay");
+    const bar     = document.getElementById("registerProgressBar");
+
+    overlay.style.display = "flex";
+
+    let width = 0;
+    const interval = setInterval(() => {
+        width += 2;
+        bar.style.width = width + "%";
+        if (width >= 100) {
+            clearInterval(interval);
+            window.location.href = "Login.html";
+        }
+    }, 40); // 2 seconds total
+}
 
 window.goToLogin = function() {
     window.location.href = "Login.html";

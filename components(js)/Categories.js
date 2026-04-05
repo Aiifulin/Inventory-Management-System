@@ -156,22 +156,23 @@ function applyFilters() {
 
     let result = allCategories.filter(c => {
         const catName = (c.name || "").toLowerCase();
-        return catName.includes(searchVal);
-    });
-
-    result.sort((a, b) => {
-        let valA, valB;
-        if (sortVal === 'date') { 
-            valA = a.createdAt?.seconds || 0; 
-            valB = b.createdAt?.seconds || 0; 
-        } else { 
-            valA = (a.name || "").toLowerCase(); 
-            valB = (b.name || "").toLowerCase(); 
+    
+        let dateStr = "";
+        if (c.createdAt && c.createdAt.toDate) {
+            const d = c.createdAt.toDate();
+    
+            dateStr =
+                d.toLocaleDateString("en-US", {
+                    month: 'long',
+                    day: 'numeric',
+                    year: 'numeric'
+                }).toLowerCase();
+    
+            dateStr += " " + d.toLocaleDateString("en-US", { month: 'short' }).toLowerCase();
+            dateStr += " " + d.toLocaleDateString("en-US");
         }
-
-        if (valA < valB) return currentSortDir === 'asc' ? -1 : 1;
-        if (valA > valB) return currentSortDir === 'asc' ? 1 : -1;
-        return 0;
+    
+        return catName.includes(searchVal) || dateStr.includes(searchVal);
     });
 
     filteredCategories = result;

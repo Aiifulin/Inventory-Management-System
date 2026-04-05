@@ -147,9 +147,24 @@ function applyFilterAndRender() {
 
     // 1. Filter
     filteredLogs = allLogs.filter(log => {
+        // Build searchable date string from stored ISO timestamp
+        let logDate = "";
+        if (log.timestamp) {
+            const d = new Date(log.timestamp);
+            logDate  = d.toLocaleString('en-US', {
+                month: 'long', day: 'numeric', year: 'numeric',
+                hour: '2-digit', minute: '2-digit'
+            }).toLowerCase();
+            // Also add short month so "mar" matches "March"
+            logDate += " " + d.toLocaleDateString('en-US', { month: 'short' }).toLowerCase();
+            // Also add numeric format so "3/17" or "2026" matches
+            logDate += " " + d.toLocaleDateString('en-US');
+        }
+    
         return log.action.toLowerCase().includes(search) ||
                log.target.toLowerCase().includes(search) ||
-               log.user.toLowerCase().includes(search);
+               log.user.toLowerCase().includes(search)   ||
+               logDate.includes(search);
     });
 
     // 2. Sort (allLogs comes from Firestore already desc, but re-sort after filter)

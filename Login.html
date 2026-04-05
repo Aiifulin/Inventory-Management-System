@@ -3,17 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <title>Inventory Login</title>
-
     <link rel="stylesheet" href="components(css)/Login.css"> 
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" />
 </head>
 
 <body>
 
-<div>
+<div class="page-wrapper">
     <div class="auth-container">
-        <div class="logo">■</div>
-        <div class="title">Inventory Management</div>
+        <div class="logo"><i class="fas fa-boxes-stacked"></i></div>
+        <div class="title">S/N Variety Inventory Management System</div>
         <div class="subtitle">Sign in to manage your inventory</div>
     </div>
 
@@ -27,10 +26,14 @@
         <div class="password-wrapper">
             <input type="password" id="password" placeholder="Enter your password" required>
             <span class="toggle-btn" onclick="togglePassword('password', this)">
-              <i class="fa-solid fa-eye"></i></span>  
+                <i class="fa-solid fa-eye"></i>
+            </span>
         </div>
 
-        <button class="login-btn" onclick="login()">Sign In</button>
+        <button class="login-btn" id="loginBtn" onclick="login()">
+            <span id="loginBtnText">Sign In</span>
+            <i class="fas fa-spinner fa-spin" id="loginSpinner" style="display:none;"></i>
+        </button>
 
         <div class="links">
             <a href="Register.html">Create an account</a>
@@ -39,7 +42,20 @@
     </div>
 </div>
 
-<!-- logic firebase tas iba pa -->
+<!-- SUCCESS MODAL -->
+<div class="login-success-overlay" id="loginSuccessOverlay" style="display:none;">
+    <div class="login-success-modal">
+        <div class="login-success-icon">
+            <i class="fas fa-check"></i>
+        </div>
+        <h2 class="login-success-title">Welcome back!</h2>
+        <p class="login-success-sub">Login successful. Taking you to your dashboard...</p>
+        <div class="login-progress-wrap">
+            <div class="login-progress-bar" id="loginProgressBar"></div>
+        </div>
+    </div>
+</div>
+
 <script type="module" src="components(js)/Login.js"></script>
 
 </body>

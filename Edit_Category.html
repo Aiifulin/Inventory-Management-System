@@ -37,7 +37,7 @@
         <div class="sidebar-content">
             <div class="sidebar-header">
                 <h2>Inventory MS</h2>
-                <span class="user-role" id="userRoleDisplay">Loading...</span>
+                <span class="user-role" id="userRoleDisplay">Admin</span>
             </div>
             <nav class="sidebar-nav">
                 <a href="Dashboard.html" class="nav-link"><i class="fas fa-chart-line"></i> Dashboard</a>
@@ -123,10 +123,10 @@
             if (sessionData && roleDisplay) {
                 try {
                     const user = JSON.parse(sessionData);
-                    roleDisplay.textContent = user.role || user.username || "Loading...";
+                    roleDisplay.textContent = user.role || user.username || "Admin";
                 } catch (error) {
                     console.error("Error parsing user session:", error);
-                    roleDisplay.textContent = "Loading...";
+                    roleDisplay.textContent = "Admin";
                 }
             }
         });
