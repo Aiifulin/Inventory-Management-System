@@ -2,6 +2,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
 import { getFirestore, collection, addDoc, serverTimestamp, query, where, getDocs, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-storage.js";
+import { initLogoutModal } from "./logout-modal.js";
 
 const firebaseConfig = {
     apiKey: "AIzaSyBeaF2VKovHASuzhvZHzOoE0yB7QnBDej0",
@@ -57,7 +58,7 @@ async function getCachedUserData(uid) {
 // --- AUTH CHECK WITH ROLE VALIDATION ---
 onAuthStateChanged(auth, async (user) => {
     if (!user) {
-        window.location.href = "Login.html";
+        window.location.href = "index.html";
         return;
     }
 
@@ -84,6 +85,17 @@ onAuthStateChanged(auth, async (user) => {
     displayUserRole(user.uid);
     loadDefaultThreshold();
     main.style.visibility = 'visible';
+
+    // =======================================================
+    // Logout Confirmation Modal (shared pattern with Dashboard)
+    // =======================================================
+    const doSignOut = () => {
+        localStorage.removeItem("user_session"); localStorage.removeItem("user_uid"); localStorage.removeItem("user_role");
+        sessionStorage.clear();
+        signOut(auth).then(() => window.location.replace("index.html")).catch(() => window.location.replace("index.html"));
+    };
+    const openLogoutModal = initLogoutModal(doSignOut);
+    window.logout = function () { if (openLogoutModal) openLogoutModal(); }; 
 });
 
 async function checkAdminRole(uid) {
@@ -787,20 +799,3 @@ document.addEventListener("DOMContentLoaded", () => {
     }    
 });
 
-// Logout Helper
-window.logout = function() {
-    // Clear LOCAL storage now
-    localStorage.removeItem("user_session");
-    localStorage.removeItem("user_uid");
-    localStorage.removeItem("user_role");
-    
-    // Also clear session just in case
-    sessionStorage.clear();
-
-    signOut(auth).then(() => {
-        window.location.replace("Login.html");
-    }).catch((error) => {
-        console.error("Logout Error:", error);
-        window.location.replace("Login.html");
-    });
-};

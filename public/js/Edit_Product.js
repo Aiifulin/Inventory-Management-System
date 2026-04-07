@@ -2,6 +2,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
 // FIXED: Added addDoc, serverTimestamp, doc, getDoc for role check
 import { getFirestore, doc, getDoc, updateDoc, collection, getDocs, query, where, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+import { initLogoutModal } from "./logout-modal.js";
 
 const firebaseConfig = {
     apiKey: "AIzaSyBeaF2VKovHASuzhvZHzOoE0yB7QnBDej0",
@@ -64,9 +65,19 @@ onAuthStateChanged(auth, async (user) => {
         } else {
             // Only load page logic if admin is verified
             initPage(); 
+            // =======================================================
+            // Logout Confirmation Modal (shared pattern with Dashboard)
+            // =======================================================
+            const doSignOut = () => {
+                localStorage.removeItem("user_session"); localStorage.removeItem("user_uid"); localStorage.removeItem("user_role");
+                sessionStorage.clear();
+                signOut(auth).then(() => window.location.replace("index.html")).catch(() => window.location.replace("index.html"));
+            };
+            const openLogoutModal = initLogoutModal(doSignOut);
+            window.logout = function () { if (openLogoutModal) openLogoutModal(); }; 
         }
     } else {
-        window.location.href = "Login.html";
+        window.location.href = "index.html";
     }
 });
 
@@ -454,22 +465,6 @@ function setupDynamicRows() {
     });
 }
 
-window.logout = function() {
-    // Clear LOCAL storage now
-    localStorage.removeItem("user_session");
-    localStorage.removeItem("user_uid");
-    localStorage.removeItem("user_role");
-    
-    // Also clear session just in case
-    sessionStorage.clear();
-
-    signOut(auth).then(() => {
-        window.location.replace("Login.html");
-    }).catch((error) => {
-        console.error("Logout Error:", error);
-        window.location.replace("Login.html");
-    });
-};
 
 // --- LOAD CATEGORIES FOR SELECT ---
 async function loadCategories() {

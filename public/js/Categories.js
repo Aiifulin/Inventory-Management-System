@@ -1,6 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
 import { getFirestore, collection, getDocs, doc, addDoc, serverTimestamp, getDoc, where, updateDoc, query} from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+import { initLogoutModal } from "./logout-modal.js";
 
 // --- CONFIG ---
 const firebaseConfig = {
@@ -109,8 +110,19 @@ onAuthStateChanged(auth, async (user) => {
         if (addBtn) addBtn.style.display = isAdmin ? 'flex' : 'none';
 
         fetchCategories();
+
+        // =======================================================
+        // Logout Confirmation Modal (shared pattern with Dashboard)
+        // =======================================================
+        const doSignOut = () => {
+            localStorage.removeItem("user_session"); localStorage.removeItem("user_uid"); localStorage.removeItem("user_role");
+            sessionStorage.clear();
+            signOut(auth).then(() => window.location.replace("index.html")).catch(() => window.location.replace("index.html"));
+        };
+        const openLogoutModal = initLogoutModal(doSignOut);
+        window.logout = function () { if (openLogoutModal) openLogoutModal(); }; 
     } else {
-        window.location.href = "Login.html";
+        window.location.href = "index.html";
     }
 });
 
@@ -380,25 +392,6 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 });
-
-// --- LOGOUT FUNCTION ---
-window.logout = function() {
-    // Clear LOCAL storage now
-    localStorage.removeItem("user_session");
-    localStorage.removeItem("user_uid");
-    localStorage.removeItem("user_role");
-    
-    // Also clear session just in case
-    sessionStorage.clear();
-
-    signOut(auth).then(() => {
-        window.location.replace("Login.html");
-    }).catch((error) => {
-        console.error("Logout Error:", error);
-        window.location.replace("Login.html");
-    });
-};
-
 
 function showToast(message, type = 'success') {
     const container = document.getElementById('toast-container');

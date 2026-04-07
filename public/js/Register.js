@@ -128,11 +128,11 @@ function showRegisterSuccess() {
         bar.style.width = width + "%";
         if (width >= 100) {
             clearInterval(interval);
-            window.location.href = "Login.html";
+            window.location.href = "index.html";
         }
     }, 40); // 2 seconds total
 }
 
 window.goToLogin = function() {
-    window.location.href = "Login.html";
+    window.location.href = "index.html";
 };

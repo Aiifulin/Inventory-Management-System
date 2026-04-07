@@ -75,9 +75,19 @@ onAuthStateChanged(auth, async (user) => {
 
       // Reveal only after content is ready — no flicker either way
       main.style.visibility = 'visible';
+      // =======================================================
+      // Logout Confirmation Modal (shared pattern with Dashboard)
+      // =======================================================
+      const doSignOut = () => {
+          localStorage.removeItem("user_session"); localStorage.removeItem("user_uid"); localStorage.removeItem("user_role");
+          sessionStorage.clear();
+          signOut(auth).then(() => window.location.replace("index.html")).catch(() => window.location.replace("index.html"));
+      };
+      const openLogoutModal = initLogoutModal(doSignOut);
+      window.logout = function () { if (openLogoutModal) openLogoutModal(); }; 
 
   } else {
-      window.location.href = "Login.html";
+      window.location.href = "index.html";
   }
 });
 
@@ -374,14 +384,3 @@ function attachReportListeners() {
   if (btnLowStock)      btnLowStock.addEventListener("click",      () => loadLowStockReport(btnLowStock));
   if (btnStockMovement) btnStockMovement.addEventListener("click", () => loadActivityReport(btnStockMovement));
 }
-
-// ===============================
-// LOGOUT
-// ===============================
-window.logout = function () {
-  localStorage.removeItem("user_session");
-  localStorage.removeItem("user_uid");
-  localStorage.removeItem("user_role");
-  sessionStorage.clear();
-  signOut(auth).then(() => window.location.replace("Login.html")).catch(() => window.location.replace("Login.html"));
-};

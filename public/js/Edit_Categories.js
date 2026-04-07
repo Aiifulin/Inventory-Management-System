@@ -1,6 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
 import { getFirestore, doc, getDoc, updateDoc, collection, addDoc, serverTimestamp, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+import { initLogoutModal } from "./logout-modal.js";
 
 const firebaseConfig = {
     apiKey: "AIzaSyBeaF2VKovHASuzhvZHzOoE0yB7QnBDej0",
@@ -50,9 +51,19 @@ onAuthStateChanged(auth, async (user) => {
             window.location.href = "Categories.html";
         } else {
             initPage();
+            // =======================================================
+            // Logout Confirmation Modal (shared pattern with Dashboard)
+            // =======================================================
+            const doSignOut = () => {
+                localStorage.removeItem("user_session"); localStorage.removeItem("user_uid"); localStorage.removeItem("user_role");
+                sessionStorage.clear();
+                signOut(auth).then(() => window.location.replace("index.html")).catch(() => window.location.replace("index.html"));
+            };
+            const openLogoutModal = initLogoutModal(doSignOut);
+            window.logout = function () { if (openLogoutModal) openLogoutModal(); }; 
         }
     } else {
-        window.location.href = "Login.html";
+        window.location.href = "index.html";
     }
 });
 
@@ -218,19 +229,7 @@ function initPage() {
     }
 }
 
-// --- LOGOUT ---
-window.logout = function () {
-    localStorage.removeItem("user_session");
-    localStorage.removeItem("user_uid");
-    localStorage.removeItem("user_role");
-    sessionStorage.clear();
 
-    signOut(auth).then(() => {
-        window.location.replace("Login.html");
-    }).catch(() => {
-        window.location.replace("Login.html");
-    });
-};
 
 // --- SUCCESS MODAL ---
 function showSuccessModal(categoryName) {

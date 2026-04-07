@@ -5,7 +5,7 @@
     <script>
         // Session Check
         if (!localStorage.getItem("user_session")) {
-            window.location.replace("Login.html");
+            window.location.replace("index.html");
         }
     </script>
     
@@ -98,6 +98,31 @@
             <p style="margin: 8px 0 0; color: var(--text-secondary); font-size: 13px;">Redirecting you back to Categories...</p>
         </div>
     </div>
+    <!-- LOGOUT CONFIRMATION MODAL -->
+    <div id="logoutModalOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:99999;align-items:center;justify-content:center;padding:20px;">
+        <div style="background:var(--bg-card);border:1px solid var(--border-color);border-radius:16px;padding:32px 28px;max-width:380px;width:100%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.2);animation:logoutModalPop 0.25s ease;">
+            <div style="width:62px;height:62px;background:#fee2e2;border:1.5px solid #fca5a5;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 18px;font-size:22px;color:#dc2626;">
+                <i class="fas fa-arrow-right-from-bracket"></i>
+            </div>
+            <h3 style="margin:0 0 10px;font-size:18px;font-weight:700;color:var(--text-main);">Sign out?</h3>
+            <p style="margin:0 0 24px;font-size:14px;color:var(--text-secondary);line-height:1.6;">You'll be returned to the login screen. Any unsaved changes will be lost.</p>
+            <div style="display:flex;gap:10px;">
+                <button id="logoutCancelBtn" style="flex:1;padding:10px 16px;border-radius:8px;border:1px solid var(--border-color);background:var(--bg-body);color:var(--text-secondary);font-size:14px;font-weight:600;cursor:pointer;transition:all 0.2s;">Cancel</button>
+                <button id="logoutConfirmBtn" style="flex:1;padding:10px 16px;border-radius:8px;border:none;background:#dc2626;color:#fff;font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:background 0.2s;">
+                    <i class="fas fa-arrow-right-from-bracket"></i> Sign out
+                </button>
+            </div>
+        </div>
+    </div>
+    <style>
+    @keyframes logoutModalPop {
+        from { transform:scale(0.9);opacity:0; }
+        to   { transform:scale(1);opacity:1; }
+    }
+    #logoutModalOverlay.show { display:flex !important; }
+    #logoutCancelBtn:hover { background:var(--hover-bg);color:var(--text-main); }
+    #logoutConfirmBtn:hover { background:#b91c1c; }
+    </style>
 
     <script type="module" src="js/Edit_Categories.js"></script>
     

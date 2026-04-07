@@ -1,6 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
 import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 import { getFirestore, collection, query, orderBy, limit, doc, getDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { initLogoutModal } from "./logout-modal.js";
 
 // --- CONFIG ---
 const firebaseConfig = {
@@ -97,7 +98,7 @@ onAuthStateChanged(auth, async (user) => {
         await loadDashboard();
 
     } else {
-        window.location.href = "Login.html";
+        window.location.href = "index.html";
     }
 });
 
@@ -488,21 +489,16 @@ document.addEventListener("DOMContentLoaded", () => {
     if (hamburgerBtn) hamburgerBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleSidebar(); });
     if (closeBtn)     closeBtn.addEventListener('click', closeSidebar);
     if (overlay)      overlay.addEventListener('click', closeSidebar);
+
+    // =======================================================
+    // Logout Confirmation Modal (shared pattern with Dashboard)
+    // =======================================================
+    const doSignOut = () => {
+        localStorage.removeItem("user_session"); localStorage.removeItem("user_uid"); localStorage.removeItem("user_role");
+        sessionStorage.clear();
+        signOut(auth).then(() => window.location.replace("index.html")).catch(() => window.location.replace("index.html"));
+    };
+    const openLogoutModal = initLogoutModal(doSignOut);
+    window.logout = function () { if (openLogoutModal) openLogoutModal(); };    
 });
 
-// ================================================
-// LOGOUT
-// ================================================
-window.logout = function() {
-    localStorage.removeItem("user_session");
-    localStorage.removeItem("user_uid");
-    localStorage.removeItem("user_role");
-    sessionStorage.clear(); // Also clears dashboard cache
-
-    signOut(auth).then(() => {
-        window.location.replace("Login.html");
-    }).catch((error) => {
-        console.error("Logout Error:", error);
-        window.location.replace("Login.html");
-    });
-};
