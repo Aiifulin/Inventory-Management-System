@@ -1,13 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { 
-    checkAdminRole, 
-    fetchProductsLogic, 
-    deleteProductLogic, 
-    filterProductsLogic, 
-    sortProductsLogic 
+import {
+    checkAdminRole,
+    fetchProductsLogic,
+    deleteProductLogic,
+    filterProductsLogic,
+    sortProductsLogic
 } from "./Products.js";
 
-// --- HOISTED MOCKS ---
 const { mockGetDocs, mockDeleteDoc, mockAddDoc, mockDoc, mockCollection, mockGetDoc } = vi.hoisted(() => ({
     mockGetDocs: vi.fn(),
     mockDeleteDoc: vi.fn(),
@@ -17,7 +16,6 @@ const { mockGetDocs, mockDeleteDoc, mockAddDoc, mockDoc, mockCollection, mockGet
     mockGetDoc: vi.fn()
 }));
 
-// --- MOCK FIREBASE ---
 vi.mock("firebase/firestore", () => ({
     getFirestore: vi.fn(),
     collection: mockCollection,
@@ -29,87 +27,175 @@ vi.mock("firebase/firestore", () => ({
     serverTimestamp: () => "MOCK_TIME"
 }));
 
+vi.mock("firebase/auth", () => ({
+    getAuth: vi.fn(),
+    onAuthStateChanged: vi.fn(),
+    signOut: vi.fn()
+}));
+
 describe("Product List Logic", () => {
 
-    beforeEach(() => {
-        vi.clearAllMocks();
-    });
+    beforeEach(() => vi.clearAllMocks());
 
-    // TEST 1: Admin Check
-    it("should return true for admin role", async () => {
-        mockGetDoc.mockResolvedValue({
-            exists: () => true,
-            data: () => ({ role: 'admin' })
-        });
-        const result = await checkAdminRole("uid1", {});
-        expect(result).toBe(true);
-    });
-
-    // TEST 2: Fetching Data
-    it("should fetch and format products", async () => {
-        const mockData = [
-            { id: "1", data: () => ({ name: "Apple", price: 10 }) },
-            { id: "2", data: () => ({ name: "Banana", price: 5 }) }
-        ];
-        mockGetDocs.mockResolvedValue({
-            forEach: (cb) => mockData.forEach(cb)
+    // ─── checkAdminRole ───────────────────────────────────────────────────────
+    describe("checkAdminRole", () => {
+        it("should return true for admin role", async () => {
+            mockGetDoc.mockResolvedValue({ exists: () => true, data: () => ({ role: 'admin' }) });
+            expect(await checkAdminRole("uid1", {})).toBe(true);
         });
 
-        const products = await fetchProductsLogic({});
-        expect(products.length).toBe(2);
-        expect(products[0].name).toBe("Apple");
-        expect(products[0].id).toBe("1");
+        it("should return false for user role", async () => {
+            mockGetDoc.mockResolvedValue({ exists: () => true, data: () => ({ role: 'user' }) });
+            expect(await checkAdminRole("uid1", {})).toBe(false);
+        });
+
+        it("should return false when document does not exist", async () => {
+            mockGetDoc.mockResolvedValue({ exists: () => false });
+            expect(await checkAdminRole("uid1", {})).toBe(false);
+        });
+
+        it("should return false on Firestore error", async () => {
+            mockGetDoc.mockRejectedValue(new Error("error"));
+            expect(await checkAdminRole("uid1", {})).toBe(false);
+        });
     });
 
-    // TEST 3: Deletion Logic
-    it("should delete doc and log activity", async () => {
-        const mockAllProducts = [{ id: "123", name: "Old Phone" }];
-        const mockAuth = { currentUser: { email: "admin@test.com" } };
+    // ─── fetchProductsLogic ───────────────────────────────────────────────────
+    describe("fetchProductsLogic", () => {
+        it("should fetch and format products with IDs", async () => {
+            const mockData = [
+                { id: "1", data: () => ({ name: "Apple", price: 10 }) },
+                { id: "2", data: () => ({ name: "Banana", price: 5  }) }
+            ];
+            mockGetDocs.mockResolvedValue({ forEach: (cb) => mockData.forEach(cb) });
 
-        await deleteProductLogic("123", mockAllProducts, {}, mockAuth);
+            const products = await fetchProductsLogic({});
+            expect(products).toHaveLength(2);
+            expect(products[0].name).toBe("Apple");
+            expect(products[0].id).toBe("1");
+        });
 
-        expect(mockDeleteDoc).toHaveBeenCalled();
-        expect(mockAddDoc).toHaveBeenCalled(); // Activity Log
-        
-        // --- FIX IS HERE: Use .mock.calls instead of .calls ---
-        const logCallArgs = mockAddDoc.mock.calls[0];
-        const logData = logCallArgs[1]; // The second argument is the data object
-
-        expect(logData.action).toBe("Deleted Product");
-        expect(logData.target).toBe("Old Phone");
+        it("should return an empty array when no products exist", async () => {
+            mockGetDocs.mockResolvedValue({ forEach: () => {} });
+            const products = await fetchProductsLogic({});
+            expect(products).toHaveLength(0);
+        });
     });
 
-    // TEST 4: Filtering Logic
-    it("should filter by search text correctly", () => {
+    // ─── deleteProductLogic ───────────────────────────────────────────────────
+    describe("deleteProductLogic", () => {
+        it("should delete doc and log activity", async () => {
+            const allProducts = [{ id: "123", name: "Old Phone" }];
+            const mockAuth = { currentUser: { email: "admin@test.com" } };
+
+            await deleteProductLogic("123", allProducts, {}, mockAuth);
+
+            expect(mockDeleteDoc).toHaveBeenCalled();
+            expect(mockAddDoc).toHaveBeenCalled();
+
+            const logData = mockAddDoc.mock.calls[0][1];
+            expect(logData.action).toBe("Deleted Product");
+            expect(logData.target).toBe("Old Phone");
+        });
+
+        it("should log 'Unknown Product' if ID is not found in allProducts", async () => {
+            await deleteProductLogic("999", [], {}, { currentUser: { email: "a@b.com" } });
+            const logData = mockAddDoc.mock.calls[0][1];
+            expect(logData.target).toBe("Unknown Product");
+        });
+    });
+
+    // ─── filterProductsLogic ─────────────────────────────────────────────────
+    describe("filterProductsLogic", () => {
         const products = [
-            { name: "Gaming Mouse", category: "Electronics" },
-            { name: "Office Chair", category: "Furniture" }
+            { name: "Gaming Mouse",  category: "Electronics", price: 75,  stock: 20, lowStockThreshold: 5  },
+            { name: "Office Chair",  category: "Furniture",   price: 300, stock: 3,  lowStockThreshold: 5  },
+            { name: "USB Hub",       category: "Electronics", price: 25,  stock: 0,  lowStockThreshold: 5  },
+            { name: "Standing Desk", category: "Furniture",   price: 1200,stock: 10, lowStockThreshold: 5  }
         ];
-        
-        const filters = { 
-            searchVal: "mouse", 
-            catVal: "", 
-            priceRangeVal: "", 
-            statusVal: "" 
-        };
 
-        const result = filterProductsLogic(products, filters);
-        expect(result.length).toBe(1);
-        expect(result[0].name).toBe("Gaming Mouse");
+        it("should filter by search text (name)", () => {
+            const result = filterProductsLogic(products, { searchVal: "mouse", catVal: "", priceRangeVal: "", statusVal: "" });
+            expect(result).toHaveLength(1);
+            expect(result[0].name).toBe("Gaming Mouse");
+        });
+
+        it("should filter by category", () => {
+            const result = filterProductsLogic(products, { searchVal: "", catVal: "Furniture", priceRangeVal: "", statusVal: "" });
+            expect(result).toHaveLength(2);
+        });
+
+        it("should filter by out-of-stock status", () => {
+            const result = filterProductsLogic(products, { searchVal: "", catVal: "", priceRangeVal: "", statusVal: "out-of-stock" });
+            expect(result).toHaveLength(1);
+            expect(result[0].name).toBe("USB Hub");
+        });
+
+        it("should filter by low-stock status", () => {
+            const result = filterProductsLogic(products, { searchVal: "", catVal: "", priceRangeVal: "", statusVal: "low-stock" });
+            expect(result).toHaveLength(1);
+            expect(result[0].name).toBe("Office Chair");
+        });
+
+        it("should filter by price range", () => {
+            const result = filterProductsLogic(products, { searchVal: "", catVal: "", priceRangeVal: "51-100", statusVal: "" });
+            expect(result).toHaveLength(1);
+            expect(result[0].name).toBe("Gaming Mouse");
+        });
+
+        it("should filter by price range 1000+", () => {
+            const result = filterProductsLogic(products, { searchVal: "", catVal: "", priceRangeVal: "1000+", statusVal: "" });
+            expect(result).toHaveLength(1);
+            expect(result[0].name).toBe("Standing Desk");
+        });
+
+        it("should return all products when no filters are applied", () => {
+            const result = filterProductsLogic(products, { searchVal: "", catVal: "", priceRangeVal: "", statusVal: "" });
+            expect(result).toHaveLength(4);
+        });
+
+        it("should return empty array when nothing matches", () => {
+            const result = filterProductsLogic(products, { searchVal: "zzznomatch", catVal: "", priceRangeVal: "", statusVal: "" });
+            expect(result).toHaveLength(0);
+        });
     });
 
-    // TEST 5: Sorting Logic
-    it("should sort by price ascending", () => {
+    // ─── sortProductsLogic ────────────────────────────────────────────────────
+    describe("sortProductsLogic", () => {
         const products = [
-            { name: "A", price: 100 },
-            { name: "B", price: 50 },
-            { name: "C", price: 200 }
+            { name: "Banana", price: 100, stock: 50 },
+            { name: "Apple",  price: 50,  stock: 10 },
+            { name: "Cherry", price: 200, stock: 30 }
         ];
 
-        const sorted = sortProductsLogic(products, 'price', 'asc');
-        
-        expect(sorted[0].price).toBe(50);  // Lowest
-        expect(sorted[1].price).toBe(100);
-        expect(sorted[2].price).toBe(200); // Highest
+        it("should sort by price ascending", () => {
+            const sorted = sortProductsLogic(products, 'price', 'asc');
+            expect(sorted[0].price).toBe(50);
+            expect(sorted[2].price).toBe(200);
+        });
+
+        it("should sort by price descending", () => {
+            const sorted = sortProductsLogic(products, 'price', 'desc');
+            expect(sorted[0].price).toBe(200);
+            expect(sorted[2].price).toBe(50);
+        });
+
+        it("should sort by name ascending (alphabetical)", () => {
+            const sorted = sortProductsLogic(products, 'name', 'asc');
+            expect(sorted[0].name).toBe("Apple");
+            expect(sorted[2].name).toBe("Cherry");
+        });
+
+        it("should sort by stock ascending", () => {
+            const sorted = sortProductsLogic(products, 'stock', 'asc');
+            expect(sorted[0].stock).toBe(10);
+            expect(sorted[2].stock).toBe(50);
+        });
+
+        it("should not mutate the original array", () => {
+            const original = [...products];
+            sortProductsLogic(products, 'price', 'desc');
+            expect(products[0].name).toBe(original[0].name);
+        });
     });
 });

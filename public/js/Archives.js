@@ -357,6 +357,7 @@ async function restoreCategory(id, name) {
         await updateDoc(doc(db, "categories", id), { archived: false, archivedAt: null });
         await logActivity("Restore Category", name);
         loadArchivedCategories(true);
+        sessionStorage.removeItem('dashboard_cache');
         showToast(`Category "${name}" is now active again.`, 'success');
     } catch (error) {
         console.error("Error restoring category:", error);

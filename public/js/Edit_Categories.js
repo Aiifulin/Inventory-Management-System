@@ -13,22 +13,19 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+const db  = getFirestore(app);
 const auth = getAuth(app);
 
 let isFormDirty = false;
 
 // ================================================
-// 🔥 CACHED USER DATA HELPER
+// CACHED USER DATA HELPER
 // ================================================
 async function getCachedUserData(uid) {
     const CACHE_KEY = `user_data_${uid}`;
-
-    // 1. Check sessionStorage first
     const cached = sessionStorage.getItem(CACHE_KEY);
     if (cached) return JSON.parse(cached);
 
-    // 2. Fetch from Firestore if not cached
     try {
         const snap = await getDoc(doc(db, "users", uid));
         if (snap.exists()) {
@@ -39,21 +36,14 @@ async function getCachedUserData(uid) {
     } catch (err) {
         console.error("Error fetching user data:", err);
     }
-
     return null;
-}
-
-async function checkAdminRole(uid) {
-    const userData = await getCachedUserData(uid);
-    return userData?.role?.toLowerCase() === 'admin';
 }
 
 // --- AUTH CHECK WITH ROLE VALIDATION ---
 onAuthStateChanged(auth, async (user) => {
     if (user) {
-        // 🔥 preload once
         const userData = await getCachedUserData(user.uid);
-        const isAdmin = userData?.role?.toLowerCase() === 'admin';
+        const isAdmin  = userData?.role?.toLowerCase() === 'admin';
 
         if (!isAdmin) {
             alert("Access Denied: Only Admins can edit categories.");
@@ -66,20 +56,16 @@ onAuthStateChanged(auth, async (user) => {
     }
 });
 
-
-
-// --- HELPER: ACTIVITY LOGGING FUNCTION ---
+// --- HELPER: ACTIVITY LOGGING ---
 async function logActivity(action, targetName) {
     try {
-        const userEmail = auth.currentUser ? auth.currentUser.email : "Admin"; 
-        
+        const userEmail = auth.currentUser ? auth.currentUser.email : "Admin";
         await addDoc(collection(db, "activities"), {
-            action: action,
-            target: targetName,
-            user: userEmail,
+            action,
+            target:    targetName,
+            user:      userEmail,
             timestamp: serverTimestamp()
         });
-        console.log("Activity logged successfully");
     } catch (e) {
         console.error("Error logging activity", e);
     }
@@ -90,27 +76,24 @@ function sanitizeInput(str) {
     if (!str) return "";
     if (typeof str !== 'string') return String(str);
     const div = document.createElement('div');
-    div.innerText = str; 
+    div.innerText = str;
     return div.innerHTML;
 }
 
 function applyCharLimit(input) {
     if (!input) return;
     input.setAttribute("maxlength", "100");
-    input.addEventListener("input", function() {
-        if (this.value.length >= 100) {
-            this.style.borderColor = "red";
-            this.style.outlineColor = "red";
-        } else {
-            this.style.borderColor = "";
-            this.style.outlineColor = "";
-        }
+    input.addEventListener("input", function () {
+        this.style.borderColor  = this.value.length >= 100 ? "red" : "";
+        this.style.outlineColor = this.value.length >= 100 ? "red" : "";
     });
 }
 
-// --- INIT PAGE ---
+// ================================================
+// INIT PAGE
+// ================================================
 function initPage() {
-    const urlParams = new URLSearchParams(window.location.search);
+    const urlParams  = new URLSearchParams(window.location.search);
     const categoryId = urlParams.get('id');
 
     if (!categoryId) {
@@ -122,31 +105,30 @@ function initPage() {
     // --- DATA LOSS PREVENTION ---
     const form = document.getElementById('editProductForm');
     if (form) {
-        form.addEventListener('input', () => isFormDirty = true);
+        form.addEventListener('input',  () => isFormDirty = true);
         form.addEventListener('change', () => isFormDirty = true);
     }
     window.addEventListener('beforeunload', (e) => {
-        if (isFormDirty) {
-            e.preventDefault();
-            e.returnValue = ''; 
-        }
+        if (isFormDirty) { e.preventDefault(); e.returnValue = ''; }
     });
 
-    // Apply limits to main inputs
     const nameInput = document.getElementById('inpName');
-    if(nameInput) applyCharLimit(nameInput);
+    if (nameInput) applyCharLimit(nameInput);
 
-    // --- FETCH DATA ---
-    (async () => { 
+    // --- FETCH EXISTING DATA ---
+    (async () => {
         try {
-            const docRef = doc(db, "categories", categoryId);
+            const docRef  = doc(db, "categories", categoryId);
             const docSnap = await getDoc(docRef);
 
             if (docSnap.exists()) {
                 const data = docSnap.data();
-                
-                document.getElementById('inpName').value = data.name || "";
+
+                nameInput.value = data.name || "";
                 document.getElementById('inpDesc').value = data.description || "";
+
+                // Store original name so we can detect renames later
+                nameInput.dataset.originalName = data.name || "";
 
             } else {
                 alert("Category not found!");
@@ -159,66 +141,85 @@ function initPage() {
         }
     })();
 
-    // --- SAVE LOGIC WITH LOGGING ---
+    // --- SAVE LOGIC ---
     const submitBtn = document.querySelector('.btn-submit');
 
     if (form) {
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
-            
+
             submitBtn.innerText = "Updating...";
-            submitBtn.disabled = true;
+            submitBtn.disabled  = true;
 
             try {
                 const rawName = document.getElementById('inpName').value.trim();
                 const rawDesc = document.getElementById('inpDesc').value.trim();
+                const originalName = document.getElementById('inpName').dataset.originalName || "";
 
-                if (!rawName) {
-                    throw new Error("Category name is required.");
-                }
+                if (!rawName) throw new Error("Category name is required.");
 
-                // Duplicate Check
-                const q = query(collection(db, "categories"), where("name", "==", rawName));
-                const querySnapshot = await getDocs(q);
-                
+                // Duplicate check — exclude current doc
+                const q  = query(collection(db, "categories"), where("name", "==", rawName));
+                const qs = await getDocs(q);
                 let isDuplicate = false;
-                if (!querySnapshot.empty) {
-                    querySnapshot.forEach(d => {
-                        if (d.id !== categoryId) isDuplicate = true; 
-                    });
-                }
-
-                if (isDuplicate) {
-                    throw new Error(`Category "${rawName}" already exists!`);
-                }
+                qs.forEach(d => { if (d.id !== categoryId) isDuplicate = true; });
+                if (isDuplicate) throw new Error(`Category "${rawName}" already exists!`);
 
                 const updatedData = {
-                    name: sanitizeInput(rawName), 
+                    name:        rawName,          // plain text, no sanitize needed for stored name
+                    normalizedName: rawName.toLowerCase(),
                     description: sanitizeInput(rawDesc),
-                    updatedAt: serverTimestamp()
+                    updatedAt:   serverTimestamp()
                 };
 
-                // 1. UPDATE CATEGORY
+                // 1. UPDATE CATEGORY DOCUMENT
                 await updateDoc(doc(db, "categories", categoryId), updatedData);
-                
-                // 2. LOG ACTIVITY
-                await logActivity("Updated Category", updatedData.name);
+
+                // 2. CASCADE RENAME TO ALL PRODUCTS IN THIS CATEGORY
+                const nameChanged = originalName && originalName !== rawName;
+                if (nameChanged) {
+                    submitBtn.innerText = "Updating Products...";
+
+                    const productsQuery = query(
+                        collection(db, "products"),
+                        where("category", "==", originalName)
+                    );
+                    const productsSnap = await getDocs(productsQuery);
+
+                    const updatePromises = [];
+                    productsSnap.forEach(docSnap => {
+                        updatePromises.push(
+                            updateDoc(doc(db, "products", docSnap.id), {
+                                category: rawName
+                            })
+                        );
+                    });
+
+                    await Promise.all(updatePromises);
+                    console.log(`Updated category name in ${updatePromises.length} product(s).`);
+                }
+
+                // 3. LOG ACTIVITY
+                await logActivity("Updated Category", rawName);
+
+                // 4. BUST CACHES so Dashboard and Products reflect the change
+                sessionStorage.removeItem('dashboard_cache');
 
                 isFormDirty = false;
-                showSuccessModal(updatedData.name);
+                showSuccessModal(rawName);
 
             } catch (error) {
                 console.error("Error updating:", error);
                 alert("Error updating category: " + error.message);
                 submitBtn.innerText = "Update Category";
-                submitBtn.disabled = false;
+                submitBtn.disabled  = false;
             }
         });
     }
 }
 
-// --- LOGOUT FUNCTION ---
-window.logout = function() {
+// --- LOGOUT ---
+window.logout = function () {
     localStorage.removeItem("user_session");
     localStorage.removeItem("user_uid");
     localStorage.removeItem("user_role");
@@ -226,8 +227,7 @@ window.logout = function() {
 
     signOut(auth).then(() => {
         window.location.replace("Login.html");
-    }).catch((error) => {
-        console.error("Logout Error:", error);
+    }).catch(() => {
         window.location.replace("Login.html");
     });
 };

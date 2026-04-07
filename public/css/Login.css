@@ -267,7 +267,6 @@ input:focus {
 }
 
 /* --- MOBILE --- */
-/* --- MOBILE --- */
 @media (max-width: 480px) {
     body {
         padding: 16px;

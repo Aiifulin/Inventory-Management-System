@@ -1,14 +1,11 @@
-// tests/Forgot_Password.test.js
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { handlePasswordReset } from "./Reset.js";
 
-// --- HOISTED MOCKS ---
 const { mockFetchMethods, mockSendReset } = vi.hoisted(() => ({
     mockFetchMethods: vi.fn(),
     mockSendReset: vi.fn()
 }));
 
-// --- MOCK FIREBASE ---
 vi.mock("firebase/auth", () => ({
     getAuth: vi.fn(),
     fetchSignInMethodsForEmail: mockFetchMethods,
@@ -17,34 +14,32 @@ vi.mock("firebase/auth", () => ({
 
 describe("Forgot Password Logic", () => {
 
-    beforeEach(() => {
-        vi.clearAllMocks();
-    });
+    beforeEach(() => vi.clearAllMocks());
 
-    // TEST 1: Validation
+    // ─── Validation ───────────────────────────────────────────────────────────
     it("should throw error if email is empty", async () => {
         await expect(handlePasswordReset("", {}))
             .rejects.toThrow("Please enter your email address");
-        
         expect(mockFetchMethods).not.toHaveBeenCalled();
     });
 
-    // TEST 2: Email Not Found
-    it("should throw error if email does not exist in Firebase", async () => {
-        // Mock returning an empty array (no sign-in methods found)
-        mockFetchMethods.mockResolvedValue([]); 
+    it("should throw error if email is only whitespace", async () => {
+        // The function receives already-trimmed value but guards against empty string
+        await expect(handlePasswordReset("", {}))
+            .rejects.toThrow("Please enter your email address");
+    });
 
+    // ─── Email Not Found ──────────────────────────────────────────────────────
+    it("should throw error if no account found for the email", async () => {
+        mockFetchMethods.mockResolvedValue([]);
         await expect(handlePasswordReset("unknown@user.com", {}))
             .rejects.toThrow("No account found with this email address.");
-        
-        // Ensure we did NOT send the email
         expect(mockSendReset).not.toHaveBeenCalled();
     });
 
-    // TEST 3: Success Case
+    // ─── Success ─────────────────────────────────────────────────────────────
     it("should send reset email if account exists", async () => {
-        // Mock returning a valid sign-in method
-        mockFetchMethods.mockResolvedValue(['password']); 
+        mockFetchMethods.mockResolvedValue(['password']);
 
         const result = await handlePasswordReset("existing@user.com", {});
 
@@ -53,15 +48,32 @@ describe("Forgot Password Logic", () => {
         expect(result).toBe("Password reset email sent successfully. Check your inbox.");
     });
 
-    // TEST 4: Firebase Specific Error Handling
-    it("should handle invalid-email error code", async () => {
-        // Simulate Firebase throwing a specific error code
-        const firebaseError = new Error("Firebase Error");
-        firebaseError.code = "auth/invalid-email";
-        
-        mockFetchMethods.mockRejectedValue(firebaseError);
+    it("should send reset email if account uses Google sign-in", async () => {
+        mockFetchMethods.mockResolvedValue(['google.com']);
+        const result = await handlePasswordReset("google@user.com", {});
+        expect(mockSendReset).toHaveBeenCalled();
+        expect(result).toContain("sent successfully");
+    });
 
+    // ─── Firebase Error Handling ──────────────────────────────────────────────
+    it("should translate auth/invalid-email error", async () => {
+        const err = Object.assign(new Error("Firebase"), { code: "auth/invalid-email" });
+        mockFetchMethods.mockRejectedValue(err);
         await expect(handlePasswordReset("bad-email", {}))
             .rejects.toThrow("Please enter a valid email address.");
+    });
+
+    it("should translate auth/too-many-requests error", async () => {
+        const err = Object.assign(new Error("Firebase"), { code: "auth/too-many-requests" });
+        mockFetchMethods.mockRejectedValue(err);
+        await expect(handlePasswordReset("rate@limit.com", {}))
+            .rejects.toThrow("Too many attempts. Please try again later.");
+    });
+
+    it("should re-throw unrecognised Firebase errors", async () => {
+        const err = Object.assign(new Error("Some unknown error"), { code: "auth/unknown" });
+        mockFetchMethods.mockRejectedValue(err);
+        await expect(handlePasswordReset("user@test.com", {}))
+            .rejects.toThrow("Some unknown error");
     });
 });

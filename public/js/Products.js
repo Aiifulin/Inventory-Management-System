@@ -97,6 +97,8 @@ onAuthStateChanged(auth, async (user) => {
         if (exportBtn) exportBtn.style.display = 'flex';
 
         fetchProducts();
+        loadCategoryFilter();
+        
 
     } else {
         window.location.href = "Login.html";
@@ -514,4 +516,27 @@ function exportToExcel() {
     XLSX.writeFile(workbook, fileName);
     
     showToast("Exporting Excel file...", "success");
+}
+
+async function loadCategoryFilter() {
+    const select = document.getElementById("filterCategory");
+    if (!select) return;
+
+    // Keep the "All Categories" option, remove any others
+    select.innerHTML = '<option value="">All Categories</option>';
+
+    try {
+        const snapshot = await getDocs(collection(db, "categories"));
+        snapshot.forEach(docSnap => {
+            const data = docSnap.data();
+            if (data.archived === true || !data.name) return; // skip archived
+
+            const option = document.createElement("option");
+            option.value       = data.name;
+            option.textContent = data.name;
+            select.appendChild(option);
+        });
+    } catch (err) {
+        console.error("Error loading category filter:", err);
+    }
 }

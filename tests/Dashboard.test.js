@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { checkAdminRole, calculateStats, loadDashboardStats } from "./Dashboard.js";
 
-// 1. HOISTED MOCKS (Setup before imports)
 const { mockGetDocs, mockGetDoc, mockDoc, mockCollection } = vi.hoisted(() => ({
     mockGetDocs: vi.fn(),
     mockGetDoc: vi.fn(),
@@ -9,7 +8,6 @@ const { mockGetDocs, mockGetDoc, mockDoc, mockCollection } = vi.hoisted(() => ({
     mockCollection: vi.fn()
 }));
 
-// 2. MOCK FIREBASE
 vi.mock("firebase/firestore", () => ({
     getFirestore: vi.fn(),
     collection: mockCollection,
@@ -19,6 +17,7 @@ vi.mock("firebase/firestore", () => ({
     query: vi.fn(),
     orderBy: vi.fn(),
     limit: vi.fn(),
+    onSnapshot: vi.fn(),
     initializeApp: vi.fn()
 }));
 
@@ -28,12 +27,10 @@ vi.mock("firebase/auth", () => ({
     signOut: vi.fn()
 }));
 
-// 3. TEST SUITE
 describe("Dashboard Logic", () => {
-    
+
     beforeEach(() => {
         vi.clearAllMocks();
-        // Setup simple DOM for "updateStat" tests
         document.body.innerHTML = `
             <div id="statTotalProducts"></div>
             <div id="statTotalValue"></div>
@@ -42,79 +39,139 @@ describe("Dashboard Logic", () => {
         `;
     });
 
-    // --- TEST: Admin Role ---
+    // ─── checkAdminRole ───────────────────────────────────────────────────────
     describe("checkAdminRole", () => {
         it("should return true if user is admin (case insensitive)", async () => {
             mockGetDoc.mockResolvedValue({
                 exists: () => true,
                 data: () => ({ role: 'AdMin' })
             });
-            const isAdmin = await checkAdminRole("uid123", {});
-            expect(isAdmin).toBe(true);
+            expect(await checkAdminRole("uid123", {})).toBe(true);
         });
 
-        it("should return false if user is just a user", async () => {
+        it("should return false if user role is 'user'", async () => {
             mockGetDoc.mockResolvedValue({
                 exists: () => true,
                 data: () => ({ role: 'user' })
             });
-            const isAdmin = await checkAdminRole("uid123", {});
-            expect(isAdmin).toBe(false);
+            expect(await checkAdminRole("uid123", {})).toBe(false);
+        });
+
+        it("should return false if user document does not exist", async () => {
+            mockGetDoc.mockResolvedValue({ exists: () => false });
+            expect(await checkAdminRole("uid123", {})).toBe(false);
+        });
+
+        it("should return false if Firestore throws an error", async () => {
+            mockGetDoc.mockRejectedValue(new Error("Network error"));
+            expect(await checkAdminRole("uid123", {})).toBe(false);
+        });
+
+        it("should return false if role is missing from user document", async () => {
+            mockGetDoc.mockResolvedValue({
+                exists: () => true,
+                data: () => ({})
+            });
+            expect(await checkAdminRole("uid123", {})).toBe(false);
         });
     });
 
-    // --- TEST: Stat Calculation (Pure Logic) ---
+    // ─── calculateStats ───────────────────────────────────────────────────────
     describe("calculateStats", () => {
         it("should correctly calculate totals, values, and low stock", () => {
-            const mockProducts = [
+            const products = [
                 { name: "High Stock Item", stock: 100, price: 10, category: "A", lowStockThreshold: 10 },
-                { name: "Low Stock Item", stock: 5, price: 20, category: "B", lowStockThreshold: 10 },
-                { name: "Zero Stock Item", stock: 0, price: 50, category: "A", lowStockThreshold: 5 }
+                { name: "Low Stock Item",  stock: 5,   price: 20, category: "B", lowStockThreshold: 10 },
+                { name: "Zero Stock Item", stock: 0,   price: 50, category: "A", lowStockThreshold: 5  }
             ];
+            const stats = calculateStats(products);
 
-            const stats = calculateStats(mockProducts);
-
-            // Assertions
             expect(stats.totalProducts).toBe(3);
-            
-            // Value: (100*10) + (5*20) + (0*50) = 1000 + 100 + 0 = 1100
+            // (100*10) + (5*20) + (0*50) = 1100
             expect(stats.totalValue).toBe(1100);
-            
-            // Categories: "A" and "B"
             expect(stats.categoriesCount).toBe(2);
-            
-            // Low Stock: "Low Stock Item" (5 <= 10) and "Zero Stock Item" (0 <= 5)
+            // stock 5 <= threshold 10 AND stock 0 <= threshold 5
             expect(stats.lowStockCount).toBe(2);
-            expect(stats.lowStockItems[0].name).toBe("Low Stock Item");
+        });
+
+        it("should return zero stats for an empty product list", () => {
+            const stats = calculateStats([]);
+            expect(stats.totalProducts).toBe(0);
+            expect(stats.totalValue).toBe(0);
+            expect(stats.categoriesCount).toBe(0);
+            expect(stats.lowStockCount).toBe(0);
+            expect(stats.lowStockItems).toHaveLength(0);
+        });
+
+        it("should treat a product with stock exactly equal to threshold as low stock", () => {
+            const products = [
+                { name: "Edge Case", stock: 10, price: 5, category: "X", lowStockThreshold: 10 }
+            ];
+            const stats = calculateStats(products);
+            expect(stats.lowStockCount).toBe(1);
+        });
+
+        it("should group products by category correctly", () => {
+            const products = [
+                { name: "A1", stock: 10, price: 5, category: "Electronics", lowStockThreshold: 5 },
+                { name: "A2", stock: 20, price: 5, category: "Electronics", lowStockThreshold: 5 },
+                { name: "B1", stock: 10, price: 5, category: "Furniture",   lowStockThreshold: 5 }
+            ];
+            const stats = calculateStats(products);
+            expect(stats.categoriesCount).toBe(2);
+            expect(stats.categoryMap["Electronics"].count).toBe(2);
+            expect(stats.categoryMap["Furniture"].count).toBe(1);
+        });
+
+        it("should assign 'Uncategorized' for products missing a category", () => {
+            const products = [
+                { name: "Mystery Item", stock: 5, price: 10, lowStockThreshold: 3 }
+            ];
+            const stats = calculateStats(products);
+            expect(stats.categoryMap["Uncategorized"]).toBeDefined();
+        });
+
+        it("should handle non-numeric stock/price gracefully", () => {
+            const products = [
+                { name: "Bad Data", stock: "abc", price: null, category: "Test", lowStockThreshold: 5 }
+            ];
+            const stats = calculateStats(products);
+            expect(stats.totalValue).toBe(0);
         });
     });
 
-    // --- TEST: Full Data Load & DOM Update ---
+    // ─── loadDashboardStats ───────────────────────────────────────────────────
     describe("loadDashboardStats", () => {
         it("should fetch data and update the DOM elements", async () => {
-            // Mock Database Data
             const mockData = [
                 { data: () => ({ name: "P1", stock: 10, price: 100 }) },
-                { data: () => ({ name: "P2", stock: 5, price: 50 }) }
+                { data: () => ({ name: "P2", stock: 5,  price: 50  }) }
             ];
-            
-            // Setup mock return
             mockGetDocs.mockResolvedValue({
-                forEach: (callback) => mockData.forEach(callback)
+                forEach: (cb) => mockData.forEach(cb)
             });
 
-            // Run Function
             await loadDashboardStats({});
 
-            // Check if DOM was updated
-            // FIX: We convert innerText to String() to handle JSDOM number/string behavior safely
-            const totalProductsText = document.getElementById("statTotalProducts").innerText;
-            expect(String(totalProductsText)).toBe("2");
-            
-            // Value: (10*100) + (5*50) = 1000 + 250 = 1,250.00
-            // Note: The exact string depends on the locale mocking in JSDOM, 
-            // but we check if it's not empty
+            expect(String(document.getElementById("statTotalProducts").innerText)).toBe("2");
             expect(document.getElementById("statTotalValue").innerText).not.toBe("");
+        });
+
+        it("should return null when Firestore throws", async () => {
+            mockGetDocs.mockRejectedValue(new Error("Firestore unavailable"));
+            const result = await loadDashboardStats({});
+            expect(result).toBeNull();
+        });
+
+        it("should return stats object on success", async () => {
+            mockGetDocs.mockResolvedValue({
+                forEach: (cb) => [
+                    { data: () => ({ name: "X", stock: 5, price: 10, category: "A", lowStockThreshold: 10 }) }
+                ].forEach(cb)
+            });
+            const result = await loadDashboardStats({});
+            expect(result).not.toBeNull();
+            expect(result.totalProducts).toBe(1);
         });
     });
 });

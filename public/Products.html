@@ -15,15 +15,15 @@
             document.documentElement.setAttribute('data-theme', 'dark');
         }
     </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Categories - Inventory MS</title>
+    <title>Products - Inventory MS</title>
     
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
-    <link rel="stylesheet" href="components(css)/Theme.css">
-    <link rel="stylesheet" href="components(css)/Products.css">
-    <link rel="stylesheet" href="components(css)/Categories.css">
+    <link rel="stylesheet" href="css/theme.css">
+    <link rel="stylesheet" href="css/Products.css">
 </head>
 
 <body>
@@ -44,8 +44,8 @@
 
             <nav class="sidebar-nav">
                 <a href="Dashboard.html" class="nav-link"><i class="fas fa-chart-line"></i> Dashboard</a>
-                <a href="Products.html" class="nav-link"><i class="fas fa-box"></i> Products</a>
-                <a href="Categories.html" class="nav-link active"><i class="fas fa-list"></i> Categories</a>
+                <a href="Products.html" class="nav-link active"><i class="fas fa-box"></i> Products</a>
+                <a href="Categories.html" class="nav-link"><i class="fas fa-list"></i> Categories</a>
                 <a href="Activity_Logs.html" class="nav-link"><i class="fas fa-history"></i> Activity Log</a>
                 <a href="Reports.html" class="nav-link"><i class="fas fa-file-alt"></i> Reports</a>
                 <a href="Archives.html" class="nav-link"><i class="fas fa-archive"></i>Archived</a>
@@ -64,14 +64,21 @@
     <main class="main-content">
         <div class="page-header">
             <div class="header-text">
-                <h1>Categories</h1>
-                <p>Manage product categories</p>
+                <h1>Products</h1>
+                <p>Manage your inventory products</p>
             </div>
             
             <div class="header-actions">
-                <button class="btn-primary" id="addCategoryBtn" style="display:none;"
-                        onclick="location.href='Add_Category.html'">
-                    <i class="fas fa-plus"></i> <span class="btn-text">Add Category</span>
+                <button class="btn-outline" id="exportBtn" style="display:none;">
+                    <i class="fas fa-download"></i> <span class="btn-text">Export</span>
+                </button>
+                <button class="btn-outline admin-only" id="bulkUploadBtn" style="display:none;"
+                        onclick="window.location.href='Add_Product.html?mode=bulk'">
+                    <i class="fas fa-upload"></i> <span class="btn-text">Bulk Upload</span>
+                </button>
+                <button class="btn-primary admin-only" id="addProductBtn" style="display:none;"
+                        onclick="location.href='Add_Product.html'">
+                    <i class="fas fa-plus"></i> <span class="btn-text">Add Product</span>
                 </button>
             </div>
         </div>
@@ -80,13 +87,35 @@
             <div class="filters-container">
                 <div class="search-wrapper">
                     <i class="fas fa-search"></i>
-                    <input type="text" id="searchInput" placeholder="Search categories...">
+                    <input type="text" id="searchInput" placeholder="Search products, categories, dates...">
                 </div>
             
                 <div class="filter-controls">   
+                    <select id="filterCategory" class="control-input">
+                        <option value="">All Categories</option>
+                    </select>
+                
+                    <select id="filterPrice" class="control-input">
+                        <option value="">All Prices</option>
+                        <option value="0-50">₱0 - ₱50</option>
+                        <option value="51-100">₱51 - ₱100</option>
+                        <option value="101-500">₱101 - ₱500</option>
+                        <option value="501-1000">₱501 - ₱1000</option>
+                        <option value="1000+">₱1000+</option>
+                    </select>
+                
+                    <select id="filterStatus" class="control-input">
+                        <option value="">All Statuses</option>
+                        <option value="in-stock">In Stock (Healthy)</option>
+                        <option value="low-stock">Low Stock</option>
+                        <option value="out-of-stock">Out of Stock</option>
+                    </select>
+                
                     <select id="filterSort" class="control-input">
                         <option value="name">Name</option>
+                        <option value="price">Price</option>
                         <option value="date">Date Added</option>
+                        <option value="stock">Stock Count</option>
                     </select>
                 
                     <button id="sortDirBtn" class="btn-sort control-input">
@@ -103,9 +132,11 @@
                 <table class="products-table">
                     <thead>
                         <tr>
-                            <th style="width: 80px;">ID</th> 
-                            <th style="width: 50%;">Category Name</th>
-                            <th>Items</th>
+                            <th style="width: 80px;">ID</th> <th style="width: 35%;">Product</th>
+                            <th>Category</th>
+                            <th>Price</th>
+                            <th>Stock</th>
+                            <th>Status</th>
                             <th>Added</th>
                             <th>Actions</th>
                         </tr>
@@ -118,29 +149,25 @@
             <div class="mobile-grid mobile-only" id="mobileProductList">
                 </div>
         </div>
-          
+        
     </main>
-    <!-- DELETE CONFIRMATION MODAL -->
-    <div class="delete-modal-overlay" id="deleteModalOverlay" style="display:none;">
-        <div class="delete-modal">
-            <div class="delete-modal-icon">
+    <div id="confirmModal" class="modal-overlay" style="display: none;">
+        <div class="modal-content confirm-modal">
+            <div class="confirm-icon">
                 <i class="fas fa-archive"></i>
             </div>
-            <h3 class="delete-modal-title">Archive Category?</h3>
-            <p class="delete-modal-message">
-                You're about to archive <strong id="deleteCategoryName"></strong>. 
-                Products in this category will remain. You can restore it from Archives.
-            </p>
-            <div class="delete-modal-actions">
-                <button class="btn-modal-cancel" id="modalCancelBtn">Cancel</button>
-                <button class="btn-modal-confirm" id="modalConfirmBtn">
-                    <i class="fas fa-archive"></i> Archive
-                </button>
+            <h2>Archive Product?</h2>
+            <p>This will move <strong id="archive-product-name">the product</strong> to the archive. It will no longer show in the active inventory.</p>
+            
+            <div class="confirm-actions">
+                <button id="cancel-archive-btn" class="btn-cancel">Cancel</button>
+                <button id="confirm-archive-btn" class="btn-danger-confirm">Yes, Archive</button>
             </div>
         </div>
-    </div>    
+    </div>
+    
 
-    <script type="module" src="components(js)/Categories.js"></script>
+    <script type="module" src="js/Products.js"></script>
 
     <script>
         const hamburger = document.getElementById('hamburgerBtn');
@@ -157,6 +184,7 @@
         if(closeBtn) closeBtn.addEventListener('click', toggleSidebar);
         if(overlay) overlay.addEventListener('click', toggleSidebar);
 
+        
     </script>
 </body>
 </html>

@@ -312,6 +312,7 @@ document.addEventListener("DOMContentLoaded", () => {
             // 2. Update the UI
             allCategories = allCategories.filter(c => c.id !== pendingDeleteId);
             applyFilters();
+            sessionStorage.removeItem('dashboard_cache');
             
             // 3. Close the modal (which sets pendingDeleteName to null)
             closeDeleteModal();

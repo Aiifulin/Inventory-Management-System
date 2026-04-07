@@ -1,13 +1,11 @@
-// tests/Settings.test.js
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { 
-    checkAdminAccess, 
-    updateUserRoleLogic, 
+import {
+    checkAdminAccess,
+    updateUserRoleLogic,
     saveSettingsLogic,
     loadUsersLogic
 } from "./Settings.js";
 
-// --- HOISTED MOCKS ---
 const { mockGetDoc, mockUpdateDoc, mockSetDoc, mockGetDocs, mockDoc, mockCollection } = vi.hoisted(() => ({
     mockGetDoc: vi.fn(),
     mockUpdateDoc: vi.fn(),
@@ -17,7 +15,6 @@ const { mockGetDoc, mockUpdateDoc, mockSetDoc, mockGetDocs, mockDoc, mockCollect
     mockCollection: vi.fn()
 }));
 
-// --- MOCK FIREBASE ---
 vi.mock("firebase/firestore", () => ({
     getFirestore: vi.fn(),
     doc: mockDoc,
@@ -28,60 +25,78 @@ vi.mock("firebase/firestore", () => ({
     getDocs: mockGetDocs
 }));
 
+vi.mock("firebase/auth", () => ({
+    getAuth: vi.fn(),
+    onAuthStateChanged: vi.fn(),
+    signOut: vi.fn()
+}));
+
 describe("Settings / Admin Page Logic", () => {
 
-    beforeEach(() => {
-        vi.clearAllMocks();
-    });
+    beforeEach(() => vi.clearAllMocks());
 
-    // TEST 1: Admin Access Check
+    // ─── checkAdminAccess ─────────────────────────────────────────────────────
     describe("checkAdminAccess", () => {
         it("should return true if user role is 'admin'", async () => {
-            mockGetDoc.mockResolvedValue({
-                exists: () => true,
-                data: () => ({ role: 'admin' })
-            });
-            const result = await checkAdminAccess("uid_admin", {});
-            expect(result).toBe(true);
+            mockGetDoc.mockResolvedValue({ exists: () => true, data: () => ({ role: 'admin' }) });
+            expect(await checkAdminAccess("uid_admin", {})).toBe(true);
         });
 
         it("should return false if user role is 'user'", async () => {
-            mockGetDoc.mockResolvedValue({
-                exists: () => true,
-                data: () => ({ role: 'user' })
-            });
-            const result = await checkAdminAccess("uid_user", {});
-            expect(result).toBe(false);
+            mockGetDoc.mockResolvedValue({ exists: () => true, data: () => ({ role: 'user' }) });
+            expect(await checkAdminAccess("uid_user", {})).toBe(false);
         });
 
         it("should return true for hardcoded fallback ID even if doc missing", async () => {
             mockGetDoc.mockResolvedValue({ exists: () => false });
-            // Using the specific ID from your source code
-            const result = await checkAdminAccess("eisTKTAY9LfdMpXZ7ebo0spRDAN2", {});
-            expect(result).toBe(true);
+            expect(await checkAdminAccess("eisTKTAY9LfdMpXZ7ebo0spRDAN2", {})).toBe(true);
+        });
+
+        it("should return false for unknown UID with no document", async () => {
+            mockGetDoc.mockResolvedValue({ exists: () => false });
+            expect(await checkAdminAccess("unknown_uid", {})).toBe(false);
+        });
+
+        it("should return false on Firestore error", async () => {
+            mockGetDoc.mockRejectedValue(new Error("error"));
+            expect(await checkAdminAccess("uid1", {})).toBe(false);
         });
     });
 
-    // TEST 2: Update User Role
+    // ─── updateUserRoleLogic ──────────────────────────────────────────────────
     describe("updateUserRoleLogic", () => {
-        it("should call updateDoc with new role", async () => {
-            await updateUserRoleLogic("target_user_id", "admin", {});
-            
+        it("should call updateDoc with the new role", async () => {
+            await updateUserRoleLogic("target_uid", "admin", {});
             expect(mockUpdateDoc).toHaveBeenCalled();
-            // Verify arguments passed to updateDoc (2nd arg is the data)
             const updateCallArgs = mockUpdateDoc.mock.calls[0];
             expect(updateCallArgs[1]).toEqual({ role: "admin" });
         });
+
+        it("should call updateDoc with 'user' role", async () => {
+            await updateUserRoleLogic("target_uid", "user", {});
+            const updateCallArgs = mockUpdateDoc.mock.calls[0];
+            expect(updateCallArgs[1]).toEqual({ role: "user" });
+        });
+
+        it("should throw an error when userId is missing", async () => {
+            await expect(updateUserRoleLogic("", "admin", {}))
+                .rejects.toThrow("Invalid parameters");
+        });
+
+        it("should throw an error when newRole is missing", async () => {
+            await expect(updateUserRoleLogic("uid123", "", {}))
+                .rejects.toThrow("Invalid parameters");
+        });
     });
 
-    // TEST 3: Save Settings
+    // ─── saveSettingsLogic ────────────────────────────────────────────────────
     describe("saveSettingsLogic", () => {
-        it("should save valid threshold to global_config", async () => {
+        it("should save a valid threshold to global_config", async () => {
             await saveSettingsLogic(15, "admin_uid", {});
-
             expect(mockSetDoc).toHaveBeenCalled();
+
             const setCallArgs = mockSetDoc.mock.calls[0];
-            const data = setCallArgs[1];
+            const data    = setCallArgs[1];
             const options = setCallArgs[2];
 
             expect(data.defaultLowStockThreshold).toBe(15);
@@ -89,33 +104,56 @@ describe("Settings / Admin Page Logic", () => {
             expect(options.merge).toBe(true);
         });
 
-        it("should throw error for negative threshold", async () => {
+        it("should save a threshold of zero (valid edge case)", async () => {
+            await saveSettingsLogic(0, "uid", {});
+            const data = mockSetDoc.mock.calls[0][1];
+            expect(data.defaultLowStockThreshold).toBe(0);
+        });
+
+        it("should throw for a negative threshold", async () => {
             await expect(saveSettingsLogic(-5, "uid", {}))
                 .rejects.toThrow("Please enter a valid Low Stock Threshold");
-            
             expect(mockSetDoc).not.toHaveBeenCalled();
+        });
+
+        it("should throw for NaN threshold", async () => {
+            await expect(saveSettingsLogic(NaN, "uid", {}))
+                .rejects.toThrow("Please enter a valid Low Stock Threshold");
         });
     });
 
-    // TEST 4: Load Users Table
+    // ─── loadUsersLogic ───────────────────────────────────────────────────────
     describe("loadUsersLogic", () => {
         it("should fetch all users and format them", async () => {
             const mockData = [
                 { id: "u1", data: () => ({ name: "Alice", role: "admin" }) },
-                { id: "u2", data: () => ({ name: "Bob", role: "user" }) }
+                { id: "u2", data: () => ({ name: "Bob",   role: "user"  }) }
             ];
-
             mockGetDocs.mockResolvedValue({
                 empty: false,
                 forEach: (cb) => mockData.forEach(cb)
             });
 
             const users = await loadUsersLogic({});
-            
-            expect(users.length).toBe(2);
+            expect(users).toHaveLength(2);
             expect(users[0].name).toBe("Alice");
             expect(users[1].role).toBe("user");
         });
-    });
 
+        it("should return an empty array when no users exist", async () => {
+            mockGetDocs.mockResolvedValue({
+                empty: true,
+                forEach: () => {}
+            });
+            const users = await loadUsersLogic({});
+            expect(users).toHaveLength(0);
+        });
+
+        it("should include user IDs in the returned objects", async () => {
+            const mockData = [{ id: "u1", data: () => ({ name: "Alice" }) }];
+            mockGetDocs.mockResolvedValue({ empty: false, forEach: (cb) => mockData.forEach(cb) });
+            const users = await loadUsersLogic({});
+            expect(users[0].id).toBe("u1");
+        });
+    });
 });

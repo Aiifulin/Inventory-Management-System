@@ -165,6 +165,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 const newId = await addCategory(categoryData);
                 await logActivity("Added Category", categoryData.name);
 
+                sessionStorage.removeItem('dashboard_cache');
                 showSuccessModal(categoryData.name);
                 
 
