@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { checkAdminRole, calculateStats, loadDashboardStats } from "./Dashboard.js";
+import { checkAdminRole, calculateStats, loadDashboardStats, doSignOut } from "./Dashboard.js";
+import { signOut } from "firebase/auth";
 
 const { mockGetDocs, mockGetDoc, mockDoc, mockCollection } = vi.hoisted(() => ({
     mockGetDocs: vi.fn(),
@@ -173,5 +174,29 @@ describe("Dashboard Logic", () => {
             expect(result).not.toBeNull();
             expect(result.totalProducts).toBe(1);
         });
+    });
+
+    describe("Sign Out", () => {
+        it("should clear storage and call signOut", async () => {
+            // Arrange
+            localStorage.setItem("user_session", "test");
+            localStorage.setItem("user_uid", "123");
+            localStorage.setItem("user_role", "admin");
+            sessionStorage.setItem("something", "value");
+        
+            signOut.mockResolvedValue(); // mock Firebase signOut
+        
+            // Act
+            await doSignOut({}); // pass fake auth instance
+        
+            // Assert
+            expect(localStorage.getItem("user_session")).toBeNull();
+            expect(localStorage.getItem("user_uid")).toBeNull();
+            expect(localStorage.getItem("user_role")).toBeNull();
+            expect(sessionStorage.length).toBe(0);
+        
+            expect(signOut).toHaveBeenCalled();
+        });
+        
     });
 });

@@ -3,8 +3,11 @@ import {
     checkAdminAccess,
     updateUserRoleLogic,
     saveSettingsLogic,
-    loadUsersLogic
+    loadUsersLogic,
+    doSignOut
 } from "./Settings.js";
+
+import { signOut } from "firebase/auth";
 
 const { mockGetDoc, mockUpdateDoc, mockSetDoc, mockGetDocs, mockDoc, mockCollection } = vi.hoisted(() => ({
     mockGetDoc: vi.fn(),
@@ -154,6 +157,29 @@ describe("Settings / Admin Page Logic", () => {
             mockGetDocs.mockResolvedValue({ empty: false, forEach: (cb) => mockData.forEach(cb) });
             const users = await loadUsersLogic({});
             expect(users[0].id).toBe("u1");
+        });
+    });
+
+    describe("Sign Out", () => {
+        it("should clear storage and call signOut", async () => {
+            // Arrange
+            localStorage.setItem("user_session", "test");
+            localStorage.setItem("user_uid", "123");
+            localStorage.setItem("user_role", "admin");
+            sessionStorage.setItem("something", "value");
+        
+            signOut.mockResolvedValue(); // mock Firebase signOut
+        
+            // Act
+            await doSignOut({}); // pass fake auth instance
+        
+            // Assert
+            expect(localStorage.getItem("user_session")).toBeNull();
+            expect(localStorage.getItem("user_uid")).toBeNull();
+            expect(localStorage.getItem("user_role")).toBeNull();
+            expect(sessionStorage.length).toBe(0);
+        
+            expect(signOut).toHaveBeenCalled();
         });
     });
 });

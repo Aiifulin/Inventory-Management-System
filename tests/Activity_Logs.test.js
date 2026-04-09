@@ -5,8 +5,11 @@ import {
     sortLogsLogic,
     paginateLogsLogic,
     getLogBadgeClass,
-    checkAdminRole
+    checkAdminRole,
+    doSignOut
 } from "./Activity_Logs.js";
+
+import { signOut } from "firebase/auth";
 
 const { mockGetDocs, mockGetDoc, mockDoc, mockCollection, mockQuery, mockOrderBy } = vi.hoisted(() => ({
     mockGetDocs: vi.fn(),
@@ -237,6 +240,29 @@ describe("Activity Logs Logic", () => {
         it("should return false for non-admin", async () => {
             mockGetDoc.mockResolvedValue({ exists: () => true, data: () => ({ role: 'user' }) });
             expect(await checkAdminRole("uid1", {})).toBe(false);
+        });
+    });
+
+    describe("Sign Out", () => {
+        it("should clear storage and call signOut", async () => {
+            // Arrange
+            localStorage.setItem("user_session", "test");
+            localStorage.setItem("user_uid", "123");
+            localStorage.setItem("user_role", "admin");
+            sessionStorage.setItem("something", "value");
+        
+            signOut.mockResolvedValue(); // mock Firebase signOut
+        
+            // Act
+            await doSignOut({}); // pass fake auth instance
+        
+            // Assert
+            expect(localStorage.getItem("user_session")).toBeNull();
+            expect(localStorage.getItem("user_uid")).toBeNull();
+            expect(localStorage.getItem("user_role")).toBeNull();
+            expect(sessionStorage.length).toBe(0);
+        
+            expect(signOut).toHaveBeenCalled();
         });
     });
 });

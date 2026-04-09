@@ -1,7 +1,7 @@
 // Activity_Logs.js (NPM/Test Version)
 import { initializeApp } from "firebase/app";
 import { getFirestore, collection, query, orderBy, getDocs, doc, getDoc } from "firebase/firestore";
-import { getAuth } from "firebase/auth";
+import { getAuth, signOut } from "firebase/auth";
 
 export const firebaseConfig = {
     apiKey: "AIzaSyBeaF2VKovHASuzhvZHzOoE0yB7QnBDej0",
@@ -82,4 +82,12 @@ export async function checkAdminRole(uid, dbInstance = db) {
         if (snap.exists()) return snap.data().role?.toLowerCase() === 'admin';
         return false;
     } catch { return false; }
+}
+
+export function doSignOut(authInstance) {
+    localStorage.removeItem("user_session");
+    localStorage.removeItem("user_uid");
+    localStorage.removeItem("user_role");
+    sessionStorage.clear();
+    return signOut(authInstance);
 }

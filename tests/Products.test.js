@@ -4,8 +4,11 @@ import {
     fetchProductsLogic,
     deleteProductLogic,
     filterProductsLogic,
-    sortProductsLogic
+    sortProductsLogic,
+    doSignOut
 } from "./Products.js";
+
+import { signOut } from "firebase/auth";
 
 const { mockGetDocs, mockDeleteDoc, mockAddDoc, mockDoc, mockCollection, mockGetDoc } = vi.hoisted(() => ({
     mockGetDocs: vi.fn(),
@@ -196,6 +199,29 @@ describe("Product List Logic", () => {
             const original = [...products];
             sortProductsLogic(products, 'price', 'desc');
             expect(products[0].name).toBe(original[0].name);
+        });
+    });
+
+    describe("Sign Out", () => {
+        it("should clear storage and call signOut", async () => {
+            // Arrange
+            localStorage.setItem("user_session", "test");
+            localStorage.setItem("user_uid", "123");
+            localStorage.setItem("user_role", "admin");
+            sessionStorage.setItem("something", "value");
+        
+            signOut.mockResolvedValue(); // mock Firebase signOut
+        
+            // Act
+            await doSignOut({}); // pass fake auth instance
+        
+            // Assert
+            expect(localStorage.getItem("user_session")).toBeNull();
+            expect(localStorage.getItem("user_uid")).toBeNull();
+            expect(localStorage.getItem("user_role")).toBeNull();
+            expect(sessionStorage.length).toBe(0);
+        
+            expect(signOut).toHaveBeenCalled();
         });
     });
 });

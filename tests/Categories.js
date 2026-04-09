@@ -78,3 +78,11 @@ export async function checkDuplicateCategoryName(name, dbInstance = db) {
     const snap = await getDocs(q);
     return snap.docs.filter(d => d.data().archived !== true).length > 0;
 }
+
+export function doSignOut(authInstance) {
+    localStorage.removeItem("user_session");
+    localStorage.removeItem("user_uid");
+    localStorage.removeItem("user_role");
+    sessionStorage.clear();
+    return signOut(authInstance);
+}

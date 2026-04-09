@@ -4,7 +4,7 @@ import {
     getFirestore, collection, query, where, orderBy, limit,
     getDocs, doc, updateDoc, deleteDoc, getDoc, addDoc, serverTimestamp
 } from "firebase/firestore";
-import { getAuth } from "firebase/auth";
+import { getAuth, signOut } from "firebase/auth";
 
 export const firebaseConfig = {
     apiKey: "AIzaSyBeaF2VKovHASuzhvZHzOoE0yB7QnBDej0",
@@ -82,4 +82,12 @@ export function searchArchivedItems(items, searchTerm) {
         (item.name     || '').toLowerCase().includes(term) ||
         (item.category || '').toLowerCase().includes(term)
     );
+}
+
+export function doSignOut(authInstance) {
+    localStorage.removeItem("user_session");
+    localStorage.removeItem("user_uid");
+    localStorage.removeItem("user_role");
+    sessionStorage.clear();
+    return signOut(authInstance);
 }

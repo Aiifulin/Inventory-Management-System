@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { checkAdminRole, handleFormSubmit, sanitizeInput, logActivity } from "./Add_Product.js";
+import { checkAdminRole, handleFormSubmit, sanitizeInput, logActivity, doSignOut } from "./Add_Product.js";
+import { signOut } from "firebase/auth";
 
 const { mockGetDoc, mockAddDoc, mockGetDocs, mockDoc, mockCollection, mockQuery } = vi.hoisted(() => ({
     mockGetDoc: vi.fn(),
@@ -173,6 +174,29 @@ describe("Add Product Logic", () => {
             mockAddDoc.mockRejectedValue(new Error("Firestore error"));
             const result = await logActivity("Test", "Item", null, {});
             expect(result).toBe(false);
+        });
+    });
+
+    describe("Sign Out", () => {
+        it("should clear storage and call signOut", async () => {
+            // Arrange
+            localStorage.setItem("user_session", "test");
+            localStorage.setItem("user_uid", "123");
+            localStorage.setItem("user_role", "admin");
+            sessionStorage.setItem("something", "value");
+        
+            signOut.mockResolvedValue(); // mock Firebase signOut
+        
+            // Act
+            await doSignOut({}); // pass fake auth instance
+        
+            // Assert
+            expect(localStorage.getItem("user_session")).toBeNull();
+            expect(localStorage.getItem("user_uid")).toBeNull();
+            expect(localStorage.getItem("user_role")).toBeNull();
+            expect(sessionStorage.length).toBe(0);
+        
+            expect(signOut).toHaveBeenCalled();
         });
     });
 });

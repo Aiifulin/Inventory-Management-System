@@ -45,7 +45,7 @@ export async function checkAdminRole(uid, dbInstance = db) {
         
         if (userSnap.exists()) {
             const userData = userSnap.data();
-            return (userData.role && userData.role.toLowerCase() === 'admin');
+            return userData.role?.toLowerCase() === 'admin';
         }
         return false;
     } catch (error) {
@@ -434,4 +434,12 @@ if (typeof window !== 'undefined') {
         if(closeBtn) closeBtn.addEventListener('click', close);
         if(overlay) overlay.addEventListener('click', close);
     });
+}
+
+export function doSignOut(authInstance) {
+    localStorage.removeItem("user_session");
+    localStorage.removeItem("user_uid");
+    localStorage.removeItem("user_role");
+    sessionStorage.clear();
+    return signOut(authInstance);
 }

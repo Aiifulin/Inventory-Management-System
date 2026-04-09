@@ -371,3 +371,11 @@ function setupDynamicRows() {
         });
     }
 }
+
+export function doSignOut(authInstance) {
+    localStorage.removeItem("user_session");
+    localStorage.removeItem("user_uid");
+    localStorage.removeItem("user_role");
+    sessionStorage.clear();
+    return signOut(authInstance);
+}
