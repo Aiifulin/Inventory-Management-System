@@ -23,3 +23,5 @@ yarn-error.log*
 # OS junk
 .DS_Store
 Thumbs.db
+public/css/nfc_verification_dfd.svg
+public/css/nfc_verification_level1_dfd.svg

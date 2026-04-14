@@ -18,6 +18,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 import { initLogoutModal } from "./logout-modal.js";
+import { getStorage, ref, deleteObject } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-storage.js";
 
 // 🔹 Firebase Config
 const firebaseConfig = {
@@ -32,6 +33,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
+const storage = getStorage(app);
 
 let lastVisibleProducts = null;
 let lastVisibleCategories = null;
@@ -353,10 +355,39 @@ async function restoreProduct(id, name) {
 
 async function permanentlyDeleteProduct(id, name) {
     try {
+        // 🔹 Get product first
+        const snap = await getDoc(doc(db, "products", id));
+
+        if (snap.exists()) {
+            const data = snap.data();
+
+            // 🔹 Handle image deletion safely
+            if (!data.imageUrl) {
+                console.log("No image to delete");
+
+            } else if (!data.imageUrl.includes("firebasestorage.googleapis.com")) {
+                
+                console.log("Skipping non-Firebase image:", data.imageUrl);
+
+            } else {
+                try {
+                    const imageRef = ref(storage, data.imageUrl);
+                    await deleteObject(imageRef);
+                    console.log(" Image deleted from Firebase Storage");
+
+                } catch (err) {
+                    console.warn(" Failed to delete image:", err.message);
+                }
+            }
+        }
+
+        // 🔹 Delete Firestore document
         await deleteDoc(doc(db, "products", id));
+
         await logActivity("Delete Product Permanently", name);
         loadArchivedProducts(true);
         showToast(`"${name}" deleted forever.`, 'success');
+
     } catch (error) {
         console.error("Error deleting product:", error);
         showToast("Error during permanent deletion.", "error");

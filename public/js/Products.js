@@ -90,8 +90,10 @@ onAuthStateChanged(auth, async (user) => {
         if (isAdmin) {
             const bulkBtn = document.getElementById('bulkUploadBtn');
             const addBtn  = document.getElementById('addProductBtn');
+            const importBtn = document.getElementById('importBtn');
             if (bulkBtn) bulkBtn.style.display = 'flex';
             if (addBtn)  addBtn.style.display  = 'flex';
+            if (importBtn) importBtn.style.display = 'flex';
         }
         // Export is visible to everyone — show it now
         const exportBtn = document.getElementById('exportBtn');
@@ -535,4 +537,329 @@ async function loadCategoryFilter() {
     } catch (err) {
         console.error("Error loading category filter:", err);
     }
+}
+
+// ================================================
+// IMPORT FUNCTIONALITY
+// ================================================
+
+document.addEventListener("DOMContentLoaded", () => {
+    const importBtn = document.getElementById('importBtn');
+    const importModal = document.getElementById('importModalOverlay');
+    const closeImportModal = document.getElementById('closeImportModal');
+    const importFileInput = document.getElementById('importFileInput');
+    const processImportBtn = document.getElementById('processImportBtn');
+    const downloadTemplateBtn = document.getElementById('downloadTemplateBtn');
+
+    // Show import modal (admin only)
+    if (importBtn) {
+        importBtn.addEventListener('click', () => {
+            if (!isAdmin) {
+                showToast("Access Denied: Only admins can import products", "error");
+                return;
+            }
+            importModal.style.display = 'flex';
+        });
+    }
+
+    // Close modal
+    closeImportModal?.addEventListener('click', () => {
+        importModal.style.display = 'none';
+        importFileInput.value = '';
+        processImportBtn.disabled = true;
+    });
+
+    // Enable import button when file is selected
+    importFileInput?.addEventListener('change', (e) => {
+        processImportBtn.disabled = !e.target.files[0];
+    });
+
+    // Download Template
+    downloadTemplateBtn?.addEventListener('click', downloadImportTemplate);
+
+    // Process Import
+    processImportBtn?.addEventListener('click', processImportFile);
+});
+
+// Generate and download Excel template
+function downloadImportTemplate() {
+    const templateData = [
+        {
+            "Product Name": "Example Product",
+            "Description": "Product description (optional)",
+            "Category": "Electronics",
+            "Price": 99.99,
+            "Stock": 50,
+            "Low Stock Threshold": 10,
+            "Size": "Large",
+            "Color": "Black",
+            "Custom Variation": "Premium (optional)",
+            "Attribute Name": "Material (optional)",
+            "Attribute Value": "Plastic (optional)"
+        }
+    ];
+
+    const worksheet = XLSX.utils.json_to_sheet(templateData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Products");
+
+    XLSX.writeFile(workbook, `Product_Import_Template_${new Date().toISOString().split('T')[0]}.xlsx`);
+    showToast("Template downloaded successfully!", "success");
+}
+
+// Process the uploaded file
+async function processImportFile() {
+    const fileInput = document.getElementById('importFileInput');
+    const file = fileInput.files[0];
+
+    if (!file) {
+        showToast("Please select a file first", "error");
+        return;
+    }
+
+    const processBtn = document.getElementById('processImportBtn');
+    processBtn.disabled = true;
+    processBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+
+    try {
+        const data = await readExcelFile(file);
+        const validationResult = await validateImportData(data);
+
+        if (validationResult.errors.length > 0) {
+            displayImportErrors(validationResult.errors);
+            processBtn.disabled = false;
+            processBtn.innerHTML = '<i class="fas fa-check-circle"></i> Import Products';
+            return;
+        }
+
+        // Import valid products
+        const result = await importProducts(validationResult.validProducts);
+        
+        // Close modal
+        document.getElementById('importModalOverlay').style.display = 'none';
+        fileInput.value = '';
+
+        // Show results
+        if (result.errors.length > 0) {
+            showImportResultModal(result.imported, result.errors);
+        } else {
+            showToast(`Successfully imported ${result.imported} product(s)!`, 'success');
+        }
+
+        // Refresh product list
+        await fetchProducts();
+
+    } catch (error) {
+        console.error("Import error:", error);
+        showToast("Import failed: " + error.message, "error");
+    } finally {
+        processBtn.disabled = false;
+        processBtn.innerHTML = '<i class="fas fa-check-circle"></i> Import Products';
+    }
+}
+
+// Read Excel/CSV file
+function readExcelFile(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+
+        reader.onload = (e) => {
+            try {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                const jsonData = XLSX.utils.sheet_to_json(firstSheet);
+                resolve(jsonData);
+            } catch (err) {
+                reject(new Error("Failed to read file. Please ensure it's a valid Excel or CSV file."));
+            }
+        };
+
+        reader.onerror = () => reject(new Error("Failed to read file"));
+        reader.readAsArrayBuffer(file);
+    });
+}
+
+// Validate import data
+async function validateImportData(data) {
+    const errors = [];
+    const validProducts = [];
+    const existingNames = new Set();
+
+    // Get existing product names from Firestore
+    const snapshot = await getDocs(collection(db, "products"));
+    snapshot.forEach(doc => {
+        if (doc.data().archived !== true) {
+            existingNames.add(doc.data().name.toLowerCase());
+        }
+    });
+
+    // Get valid categories
+    const categoriesSnapshot = await getDocs(collection(db, "categories"));
+    const validCategories = new Set();
+    categoriesSnapshot.forEach(doc => {
+        if (doc.data().archived !== true) {
+            validCategories.add(doc.data().name);
+        }
+    });
+
+    data.forEach((row, index) => {
+        const rowNum = index + 2; // Excel row number (accounting for header)
+        const rowErrors = [];
+
+        // Validate required fields
+        if (!row["Product Name"]?.trim()) {
+            rowErrors.push(`Row ${rowNum}: Product Name is required`);
+        }
+
+        if (!row["Category"]) {
+            rowErrors.push(`Row ${rowNum}: Category is required`);
+        } else if (!validCategories.has(row["Category"])) {
+            rowErrors.push(`Row ${rowNum}: Category "${row["Category"]}" does not exist`);
+        }
+
+        if (row["Price"] === undefined || row["Price"] === null || row["Price"] === "") {
+            rowErrors.push(`Row ${rowNum}: Price is required`);
+        } else if (isNaN(row["Price"]) || row["Price"] < 0) {
+            rowErrors.push(`Row ${rowNum}: Price must be a valid number`);
+        }
+
+        if (row["Stock"] === undefined || row["Stock"] === null || row["Stock"] === "") {
+            rowErrors.push(`Row ${rowNum}: Stock is required`);
+        } else if (!Number.isInteger(Number(row["Stock"])) || row["Stock"] < 0) {
+            rowErrors.push(`Row ${rowNum}: Stock must be a positive integer`);
+        }
+
+        if (!row["Size"]?.trim()) {
+            rowErrors.push(`Row ${rowNum}: Size is required`);
+        }
+
+        if (!row["Color"]?.trim()) {
+            rowErrors.push(`Row ${rowNum}: Color is required`);
+        }
+
+        const productName = row["Product Name"]?.trim().toLowerCase();
+
+        if (existingNames.has(productName)) {
+            rowErrors.push(`Row ${rowNum}: Product "${row["Product Name"]}" already exists in database`);
+        }
+        
+        if (fileNames.has(productName)) {
+            rowErrors.push(`Row ${rowNum}: Duplicate product "${row["Product Name"]}" in import file`);
+        } else {
+            fileNames.add(productName);
+        }
+
+        if (rowErrors.length > 0) {
+            errors.push(...rowErrors);
+        } else {
+            validProducts.push(row);
+        }
+    });
+
+    return { validProducts, errors };
+}
+
+// Import products to Firestore
+async function importProducts(products) {
+    const imported = [];
+    const errors = [];
+    const fileNames = new Set();
+
+    for (const product of products) {
+        try {
+            const productData = {
+                name: product["Product Name"].trim(),
+                description: product["Description"]?.trim() || "",
+                category: product["Category"],
+                price: Number(product["Price"]),
+                stock: Number(product["Stock"]),
+                lowStockThreshold: Number(product["Low Stock Threshold"]) || 10,
+                imageUrl: "", // Images not supported in import
+                createdAt: serverTimestamp(),
+                createdBy: auth.currentUser.uid,
+                variations: [{
+                    size: product["Size"].trim(),
+                    color: product["Color"].trim(),
+                    custom: product["Custom Variation"]?.trim() || ""
+                }],
+                attributes: []
+            };
+
+            // Add optional attributes
+            if (product["Attribute Name"] && product["Attribute Value"]) {
+                productData.attributes.push({
+                    name: product["Attribute Name"].trim(),
+                    value: product["Attribute Value"].trim()
+                });
+            }
+
+            await addDoc(collection(db, "products"), productData);
+            await logActivity("Imported Product", productData.name);
+            imported.push(product["Product Name"]);
+
+        } catch (error) {
+            errors.push(`${product["Product Name"]}: ${error.message}`);
+        }
+    }
+
+    return { imported: imported.length, errors };
+}
+
+// Display validation errors
+function displayImportErrors(errors) {
+    const errorHtml = errors.map(err => `<li style="margin-bottom:8px;">${err}</li>`).join('');
+    
+    const modal = `
+        <div style="position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:10000; display:flex; align-items:center; justify-content:center; padding:20px;">
+            <div style="background:var(--bg-card); border-radius:12px; padding:24px; max-width:600px; width:100%; max-height:80vh; overflow-y:auto;">
+                <h3 style="margin:0 0 16px; color:#dc2626; font-size:18px;">
+                    <i class="fas fa-exclamation-triangle"></i> Import Validation Failed
+                </h3>
+                <p style="margin-bottom:16px; color:var(--text-secondary); font-size:14px;">
+                    Please fix the following errors and try again:
+                </p>
+                <ul style="margin:0 0 20px; padding-left:20px; font-size:13px; color:var(--text-main); line-height:1.8;">
+                    ${errorHtml}
+                </ul>
+                <button onclick="this.closest('[style*=fixed]').remove()" style="width:100%; padding:10px; background:var(--primary-color); color:#fff; border:none; border-radius:6px; font-weight:600; cursor:pointer;">
+                    Close
+                </button>
+            </div>
+        </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', modal);
+}
+
+// Show import result modal
+function showImportResultModal(importedCount, errors) {
+    const errorHtml = errors.length > 0 
+        ? `<div style="background:#fee2e2; border:1px solid #fca5a5; border-radius:8px; padding:12px; margin-top:16px;">
+               <h4 style="margin:0 0 8px; color:#dc2626; font-size:14px;">Errors:</h4>
+               <ul style="margin:0; padding-left:20px; font-size:13px; color:#991b1b;">
+                   ${errors.map(err => `<li>${err}</li>`).join('')}
+               </ul>
+           </div>`
+        : '';
+
+    const modal = `
+        <div style="position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:10000; display:flex; align-items:center; justify-content:center; padding:20px;">
+            <div style="background:var(--bg-card); border-radius:12px; padding:32px; max-width:500px; width:100%; text-align:center;">
+                <div style="width:64px; height:64px; background:#dcfce7; border:2px solid #86efac; border-radius:50%; display:flex; align-items:center; justify-content:center; margin:0 auto 20px; font-size:28px; color:#16a34a;">
+                    <i class="fas fa-check"></i>
+                </div>
+                <h2 style="margin:0 0 8px; font-size:20px; color:var(--text-main);">Import Complete!</h2>
+                <p style="margin:0; color:var(--text-secondary); font-size:14px;">
+                    Successfully imported <strong>${importedCount}</strong> product(s).
+                </p>
+                ${errorHtml}
+                <button onclick="this.closest('[style*=fixed]').remove()" style="width:100%; padding:12px; background:var(--primary-color); color:#fff; border:none; border-radius:8px; font-weight:600; cursor:pointer; margin-top:20px;">
+                    Close
+                </button>
+            </div>
+        </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', modal);
 }

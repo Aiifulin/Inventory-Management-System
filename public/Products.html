@@ -72,6 +72,9 @@
                 <button class="btn-outline" id="exportBtn" style="display:none;">
                     <i class="fas fa-download"></i> <span class="btn-text">Export</span>
                 </button>
+                <button class="btn-outline admin-only" id="importBtn" style="display:none;">
+                    <i class="fas fa-upload"></i> <span class="btn-text">Import</span>
+                </button>
                 <button class="btn-outline admin-only" id="bulkUploadBtn" style="display:none;"
                         onclick="window.location.href='Add_Product.html?mode=bulk'">
                     <i class="fas fa-upload"></i> <span class="btn-text">Bulk Upload</span>
@@ -181,6 +184,65 @@
             </div>
         </div>
     </div>
+    <!-- IMPORT MODAL -->
+    <div id="importModalOverlay" class="modal-overlay" style="display:none;">
+        <div class="modal-content import-modal">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                <h2 style="margin:0; font-size:20px; color:var(--text-main);">
+                    <i class="fas fa-file-import"></i> Import Products
+                </h2>
+                <button id="closeImportModal" style="background:none; border:none; font-size:20px; cursor:pointer; color:var(--text-secondary);">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+    
+            <!-- Import Guidelines -->
+            <div style="background:var(--hover-bg); border:1px solid var(--border-color); border-radius:8px; padding:16px; margin-bottom:20px;">
+                <h4 style="margin:0 0 12px; font-size:14px; color:var(--text-main); font-weight:600;">
+                    <i class="fas fa-info-circle"></i> Import Guidelines
+                </h4>
+                <ul style="margin:0; padding-left:20px; font-size:13px; color:var(--text-secondary); line-height:1.8;">
+                    <li><strong>Required Columns:</strong> Product Name, Category, Price, Stock, Size, Color</li>
+                    <li><strong>Optional Columns:</strong> Description, Custom Variation, Low Stock Threshold, Attribute Name, Attribute Value</li>
+                    <li><strong>Price:</strong> Must be a number (e.g., 99.99). Use 0 for free products.</li>
+                    <li><strong>Stock:</strong> Must be a positive integer (e.g., 50)</li>
+                    <li><strong>Category:</strong> Must match existing categories exactly (case-sensitive)</li>
+                    <li><strong>Duplicates:</strong> Products with existing names will be skipped</li>
+                    <li><strong>Images:</strong> Not supported in import. Add images manually after import.</li>
+                </ul>
+            </div>
+    
+            <!-- Download Template Button -->
+            <button id="downloadTemplateBtn" style="width:100%; padding:12px; background:var(--primary-color); color:#fff; border:none; border-radius:8px; font-size:14px; font-weight:600; cursor:pointer; margin-bottom:16px; display:flex; align-items:center; justify-content:center; gap:8px;">
+                <i class="fas fa-download"></i> Download Import Template
+            </button>
+    
+            <!-- File Input -->
+            <div style="margin-bottom:20px;">
+                <label style="display:block; margin-bottom:8px; font-size:14px; font-weight:600; color:var(--text-main);">
+                    Select Excel or CSV File
+                </label>
+                <input type="file" id="importFileInput" accept=".xlsx,.xls,.csv" style="width:100%; padding:10px; border:1px solid var(--border-color); border-radius:6px; background:var(--input-bg); color:var(--text-main); cursor:pointer;">
+            </div>
+    
+            <!-- Import Button -->
+            <button id="processImportBtn" disabled style="width:100%; padding:12px; background:#16a34a; color:#fff; border:none; border-radius:8px; font-size:14px; font-weight:600; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px;">
+                <i class="fas fa-check-circle"></i> Import Products
+            </button>
+        </div>
+    </div>
+    
+    <style>
+    .import-modal {
+        max-width:600px;
+        padding:32px;
+        text-align:left;
+    }
+    #processImportBtn:disabled {
+        opacity:0.5;
+        cursor:not-allowed;
+    }
+    </style>
     <style>
     @keyframes logoutModalPop {
         from { transform:scale(0.9);opacity:0; }

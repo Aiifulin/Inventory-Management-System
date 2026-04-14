@@ -3,6 +3,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
 import { getFirestore, doc, getDoc, updateDoc, collection, getDocs, query, where, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 import { initLogoutModal } from "./logout-modal.js";
+import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-storage.js";
 
 const firebaseConfig = {
     apiKey: "AIzaSyBeaF2VKovHASuzhvZHzOoE0yB7QnBDej0",
@@ -17,10 +18,14 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app); 
+const storage = getStorage(app);
 
 // REMOVED HARDCODED ADMIN UID
-let currentBase64Image = "";
+let selectedImageFile = null;
 let isFormDirty = false;
+let currentImageUrl = "";
+let originalImageUrl = "";
+let removeExistingImage = false;
 
 // ================================================
 // 🔥 CACHED USER DATA HELPER
@@ -210,7 +215,9 @@ function initPage() {
     function resetImage(e) {
         if(e) e.stopPropagation();
         fileInput.value = "";
-        currentBase64Image = "";
+        selectedImageFile = null;
+        currentImageUrl = "";
+        removeExistingImage = !!originalImageUrl;
         preview.src = "";
         preview.style.display = "none";
         placeholder.style.display = "block";
@@ -230,6 +237,11 @@ function initPage() {
         fileInput.addEventListener('change', function(e) {
             const file = e.target.files[0];
             if (!file) return;
+            if (!file.type.startsWith('image/')) {
+                alert("Please select a valid image file (PNG, JPG, etc.)");
+                fileInput.value = "";
+                return;
+            }
             if (file.size > 750000) {
                 alert("File is too large! Please select an image under 750KB.");
                 fileInput.value = "";
@@ -237,7 +249,8 @@ function initPage() {
             }
             const reader = new FileReader();
             reader.onloadend = function() {
-                currentBase64Image = reader.result; 
+                selectedImageFile = file;
+                removeExistingImage = false;
                 preview.src = reader.result;
                 preview.style.display = "block";
                 placeholder.style.display = "none";
@@ -266,12 +279,17 @@ function initPage() {
 
                 // Load existing image
                 if (data.imageUrl) {
-                    currentBase64Image = data.imageUrl; 
+                    currentImageUrl = data.imageUrl;
+                    originalImageUrl = data.imageUrl;
+                    removeExistingImage = false;
                     preview.src = data.imageUrl;
                     preview.style.display = "block";
                     placeholder.style.display = "none";
                     removeBtn.style.display = "flex"; 
                 } else {
+                    originalImageUrl = "";
+                    currentImageUrl = "";
+                    removeExistingImage = false;
                     removeBtn.style.display = "none"; 
                 }
 
@@ -382,18 +400,45 @@ function initPage() {
                     price: priceVal,
                     stock: stockVal,
                     lowStockThreshold: thresholdVal,
-                    imageUrl: currentBase64Image, 
+                    imageUrl: currentImageUrl || "",
                     variations: variations,
                     attributes: attributes
                 };
 
+
+                const previousImageUrl = originalImageUrl;
+
+                if (selectedImageFile) {
+                    submitBtn.innerText = "Uploading Image...";
+                
+                    const storageRef = ref(storage, `products/images/${Date.now()}_${selectedImageFile.name}`);
+                    const snapshot = await uploadBytes(storageRef, selectedImageFile);
+                    updatedData.imageUrl = await getDownloadURL(snapshot.ref);
+                } else if (removeExistingImage) {
+                    updatedData.imageUrl = "";
+                } else {
+                    updatedData.imageUrl = currentImageUrl; 
+                }
+
                 // 1. UPDATE PRODUCT
                 await updateDoc(doc(db, "products", productId), updatedData);
+
+                if (selectedImageFile && previousImageUrl && previousImageUrl !== updatedData.imageUrl) {
+                    await deleteImageByUrl(previousImageUrl);
+                }
+
+                if (!selectedImageFile && removeExistingImage && previousImageUrl) {
+                    await deleteImageByUrl(previousImageUrl);
+                }
                 
                 // 2. LOG ACTIVITY
                 await logActivity("Updated Product", updatedData.name);
 
                 isFormDirty = false;
+                currentImageUrl = updatedData.imageUrl;
+                originalImageUrl = updatedData.imageUrl;
+                removeExistingImage = false;
+                selectedImageFile = null;
                 showSuccessModal(updatedData.name);
 
             } catch (error) {
@@ -506,3 +551,23 @@ function showSuccessModal(productName) {
 // Run on page load
 document.addEventListener("DOMContentLoaded", loadCategories);
 
+
+function getPathFromUrl(url) {
+    const index = url.indexOf("/o/");
+    if (index === -1) return null;
+
+    return decodeURIComponent(url.substring(index + 3, url.indexOf("?")));
+}
+
+async function deleteImageByUrl(url) {
+    const path = getPathFromUrl(url);
+    if (!path) return;
+
+    try {
+        await deleteObject(ref(storage, path));
+    } catch (error) {
+        if (error?.code !== "storage/object-not-found") {
+            throw error;
+        }
+    }
+}
