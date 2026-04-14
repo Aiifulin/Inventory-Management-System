@@ -92,6 +92,16 @@ onAuthStateChanged(auth, async (user) => {
     if (user) {
         const main = document.getElementById('mainContent');
 
+        // Shared logout setup for both admin and non-admin users
+        const doSignOut = () => {
+            localStorage.removeItem("user_session"); localStorage.removeItem("user_uid"); localStorage.removeItem("user_role");
+            sessionStorage.clear();
+            signOut(auth).then(() => window.location.replace("index.html")).catch(() => window.location.replace("index.html"));
+        };
+        const openLogoutModal = initLogoutModal(doSignOut);
+        window.logout = function () { if (openLogoutModal) openLogoutModal(); }; 
+
+
         await displayUserRole(user.uid);
 
         const isAdmin = await checkAdminRole(user.uid);
@@ -108,6 +118,7 @@ onAuthStateChanged(auth, async (user) => {
             
             main.style.visibility = 'visible';
             document.documentElement.style.visibility = 'visible'; 
+        
             return;
         }
 
@@ -117,16 +128,6 @@ onAuthStateChanged(auth, async (user) => {
 
         main.style.visibility = 'visible';
         document.documentElement.style.visibility = 'visible'; 
-        // =======================================================
-        // Logout Confirmation Modal (shared pattern with Dashboard)
-        // =======================================================
-        const doSignOut = () => {
-            localStorage.removeItem("user_session"); localStorage.removeItem("user_uid"); localStorage.removeItem("user_role");
-            sessionStorage.clear();
-            signOut(auth).then(() => window.location.replace("index.html")).catch(() => window.location.replace("index.html"));
-        };
-        const openLogoutModal = initLogoutModal(doSignOut);
-        window.logout = function () { if (openLogoutModal) openLogoutModal(); }; 
 
     } else {
         window.location.href = "index.html";

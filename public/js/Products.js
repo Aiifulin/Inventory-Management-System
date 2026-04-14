@@ -634,7 +634,10 @@ async function processImportFile() {
 
         // Import valid products
         const result = await importProducts(validationResult.validProducts);
-        
+        if (result.imported > 0) {
+            await logActivity("Imported Products", `${result.imported} product(s) via Excel import`);
+        }
+
         // Close modal
         document.getElementById('importModalOverlay').style.display = 'none';
         fileInput.value = '';
@@ -685,6 +688,7 @@ async function validateImportData(data) {
     const errors = [];
     const validProducts = [];
     const existingNames = new Set();
+    const fileNames = new Set();
 
     // Get existing product names from Firestore
     const snapshot = await getDocs(collection(db, "products"));
