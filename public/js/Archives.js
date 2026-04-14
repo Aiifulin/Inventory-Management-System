@@ -41,6 +41,8 @@ const pageSize = 25;
 let sortDirectionProducts = "desc";
 let sortDirectionCategories = "desc";
 let pendingAction = null; // { type: 'restore'|'delete', itemType: 'product'|'category', id, name }
+let isArchivedProductsLoading = true;
+let isArchivedCategoriesLoading = true;
 
 
 // ================================================
@@ -144,6 +146,8 @@ async function loadArchivedProducts(reset = true) {
     // 🔥 STOP if not logged in (extra safety)
     if (!auth.currentUser) return;
 
+    setArchivedProductsLoading(true);
+
     let q;
     if (reset || !lastVisibleProducts) {
         q = query(
@@ -162,68 +166,72 @@ async function loadArchivedProducts(reset = true) {
         );
     }
 
-    const snapshot = await getDocs(q);
+    try {
+        const snapshot = await getDocs(q);
 
-    // 🔥 STOP if logged out during fetch
-    if (!auth.currentUser) return;
+        // 🔥 STOP if logged out during fetch
+        if (!auth.currentUser) return;
 
-    const table = document.getElementById("archiveTableProductsBody");
-    if (!table) return;
+        const table = document.getElementById("archiveTableProductsBody");
+        if (!table) return;
 
-    if (reset) table.innerHTML = "";
+        if (reset) table.innerHTML = "";
 
-    if (snapshot.empty) {
-        table.innerHTML = `
-            <tr>
-                <td colspan="5" style="text-align:center;padding:20px;color:#999;">
-                    No archived products found.
+        if (snapshot.empty) {
+            table.innerHTML = `
+                <tr>
+                    <td colspan="5" style="text-align:center;padding:20px;color:#999;">
+                        No archived products found.
+                    </td>
+                </tr>`;
+            return;
+        }
+
+        snapshot.forEach(docSnap => {
+            const product = docSnap.data();
+            const id = docSnap.id;
+
+            const archivedDate = product.archivedAt
+            ? product.archivedAt.toDate().toLocaleDateString("en-US", {
+                month: "long",
+                day: "numeric",
+                year: "numeric"
+            })
+            : "—";
+
+            const imageUrl = product.imageUrl || "placeholder.png";
+
+            const row = document.createElement("tr");
+            row.innerHTML = `
+                <td>
+                    <img src="${imageUrl}" 
+                         alt="${product.name}" 
+                         class="product-img"
+                         style="max-width: 50px; height: auto;">
                 </td>
-            </tr>`;
-        return;
-    }
+                <td>${product.name || ""}</td>
+                <td>${product.category || ""}</td>
+                <td>${archivedDate}</td>
+                <td>
+                    <div class="action-buttons">
+                        <button class="btn-restore" data-id="${id}" data-type="product">
+                            Restore
+                        </button>
+                        <button class="btn-delete" data-id="${id}" data-type="product">
+                            Delete Permanently
+                        </button>
+                    </div>
+                </td>
+            `;
 
-    snapshot.forEach(docSnap => {
-        const product = docSnap.data();
-        const id = docSnap.id;
+            table.appendChild(row);
+        });
 
-        const archivedDate = product.archivedAt
-        ? product.archivedAt.toDate().toLocaleDateString("en-US", {
-            month: "long",
-            day: "numeric",
-            year: "numeric"
-        })
-        : "—";
-
-        const imageUrl = product.imageUrl || "placeholder.png";
-
-        const row = document.createElement("tr");
-        row.innerHTML = `
-            <td>
-                <img src="${imageUrl}" 
-                     alt="${product.name}" 
-                     class="product-img"
-                     style="max-width: 50px; height: auto;">
-            </td>
-            <td>${product.name || ""}</td>
-            <td>${product.category || ""}</td>
-            <td>${archivedDate}</td>
-            <td>
-                <div class="action-buttons">
-                    <button class="btn-restore" data-id="${id}" data-type="product">
-                        Restore
-                    </button>
-                    <button class="btn-delete" data-id="${id}" data-type="product">
-                        Delete Permanently
-                    </button>
-                </div>
-            </td>
-        `;
-
-        table.appendChild(row);
-    });
-
-    if (snapshot.docs.length > 0) {
-        lastVisibleProducts = snapshot.docs[snapshot.docs.length - 1];
+        if (snapshot.docs.length > 0) {
+            lastVisibleProducts = snapshot.docs[snapshot.docs.length - 1];
+        }
+    } finally {
+        setArchivedProductsLoading(false);
     }
 }
 
@@ -234,6 +242,8 @@ async function loadArchivedCategories(reset = true) {
 
     // 🔥 STOP if not logged in
     if (!auth.currentUser) return;
+
+    setArchivedCategoriesLoading(true);
 
     let q;
     if (reset || !lastVisibleCategories) {
@@ -253,60 +263,84 @@ async function loadArchivedCategories(reset = true) {
         );
     }
 
-    const snapshot = await getDocs(q);
+    try {
+        const snapshot = await getDocs(q);
 
-    // 🔥 STOP if logged out during fetch
-    if (!auth.currentUser) return;
+        // 🔥 STOP if logged out during fetch
+        if (!auth.currentUser) return;
 
-    const table = document.getElementById("archiveTableCategoriesBody");
-    if (!table) return;
+        const table = document.getElementById("archiveTableCategoriesBody");
+        if (!table) return;
 
-    if (reset) table.innerHTML = "";
+        if (reset) table.innerHTML = "";
 
-    if (snapshot.empty) {
-        table.innerHTML = `
-            <tr>
-                <td colspan="3" style="text-align:center;padding:20px;color:#999;">
-                    No archived categories found.
+        if (snapshot.empty) {
+            table.innerHTML = `
+                <tr>
+                    <td colspan="3" style="text-align:center;padding:20px;color:#999;">
+                        No archived categories found.
+                    </td>
+                </tr>`;
+            return;
+        }
+
+        snapshot.forEach(docSnap => {
+            const category = docSnap.data();
+            const id = docSnap.id;
+
+            const archivedDate = category.archivedAt
+            ? category.archivedAt.toDate().toLocaleDateString("en-US", {
+                month: "long",
+                day: "numeric",
+                year: "numeric"
+            })
+            : "—";
+
+            const row = document.createElement("tr");
+            row.innerHTML = `
+                <td>${category.name || ""}</td>
+                <td>${archivedDate}</td>
+                <td>
+                    <div class="action-buttons">
+                        <button class="btn-restore" data-id="${id}" data-type="category">
+                            Restore
+                        </button>
+                        <button class="btn-delete" data-id="${id}" data-type="category">
+                            Delete Permanently
+                        </button>
+                    </div>
                 </td>
-            </tr>`;
-        return;
+            `;
+
+            table.appendChild(row);
+        });
+
+        if (snapshot.docs.length > 0) {
+            lastVisibleCategories = snapshot.docs[snapshot.docs.length - 1];
+        }
+    } finally {
+        setArchivedCategoriesLoading(false);
     }
+}
 
-    snapshot.forEach(docSnap => {
-        const category = docSnap.data();
-        const id = docSnap.id;
+function setArchivedProductsLoading(loading) {
+    isArchivedProductsLoading = loading;
 
-        const archivedDate = category.archivedAt
-        ? category.archivedAt.toDate().toLocaleDateString("en-US", {
-            month: "long",
-            day: "numeric",
-            year: "numeric"
-        })
-        : "—";
+    const skeleton = document.getElementById("archivedProductsSkeleton");
+    const tableContainer = document.getElementById("archivedProductsTableContainer");
 
-        const row = document.createElement("tr");
-        row.innerHTML = `
-            <td>${category.name || ""}</td>
-            <td>${archivedDate}</td>
-            <td>
-                <div class="action-buttons">
-                    <button class="btn-restore" data-id="${id}" data-type="category">
-                        Restore
-                    </button>
-                    <button class="btn-delete" data-id="${id}" data-type="category">
-                        Delete Permanently
-                    </button>
-                </div>
-            </td>
-        `;
+    skeleton?.classList.toggle("visible", loading);
+    tableContainer?.classList.toggle("hidden", loading);
+}
 
-        table.appendChild(row);
-    });
+function setArchivedCategoriesLoading(loading) {
+    isArchivedCategoriesLoading = loading;
 
-    if (snapshot.docs.length > 0) {
-        lastVisibleCategories = snapshot.docs[snapshot.docs.length - 1];
-    }
+    const skeleton = document.getElementById("archivedCategoriesSkeleton");
+    const tableContainer = document.getElementById("archivedCategoriesTableContainer");
+
+    skeleton?.classList.toggle("visible", loading);
+    tableContainer?.classList.toggle("hidden", loading);
 }
 
 // ===============================

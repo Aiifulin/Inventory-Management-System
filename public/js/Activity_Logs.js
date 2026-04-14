@@ -30,6 +30,7 @@ let allLogs      = [];   // full cached dataset
 let filteredLogs = [];   // after search filter applied
 let currentPage  = 1;
 let sortDir      = 'desc';
+let isLogsLoading = true;
 
 // ================================================
 // USER DATA CACHE (shared pattern)
@@ -109,10 +110,12 @@ onAuthStateChanged(auth, async (user) => {
 // CORE: INIT & FETCH
 // ================================================
 async function initLogs(forceRefresh = false) {
+    setLogsLoading(true);
     const cached = loadLogsCache();
 
     if (!forceRefresh && cached) {
         allLogs = cached;
+        setLogsLoading(false);
         applyFilterAndRender();
         return;
     }
@@ -141,13 +144,27 @@ async function fetchAndCacheLogs() {
         });
 
         saveLogsCache(allLogs);
-        applyFilterAndRender();
 
     } catch (err) {
         console.error("Error fetching logs:", err);
+        allLogs = [];
     } finally {
         setRefreshLoading(false);
+        setLogsLoading(false);
+        applyFilterAndRender();
     }
+}
+
+function setLogsLoading(loading) {
+    isLogsLoading = loading;
+
+    const skeleton = document.getElementById('logsSkeleton');
+    const tableWrapper = document.getElementById('logsTableWrapper');
+    const paginationBar = document.getElementById('paginationBar');
+
+    skeleton?.classList.toggle('visible', loading);
+    tableWrapper?.classList.toggle('hidden', loading);
+    paginationBar?.classList.toggle('hidden', loading);
 }
 
 // ================================================
@@ -194,6 +211,7 @@ function applyFilterAndRender() {
 function renderPage() {
     const table = document.getElementById('logTable');
     if (!table) return;
+    if (isLogsLoading) return;
 
     const totalPages = Math.max(1, Math.ceil(filteredLogs.length / PAGE_SIZE));
     if (currentPage > totalPages) currentPage = totalPages;

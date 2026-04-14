@@ -24,6 +24,7 @@ let filteredCategories = [];
 let currentSortDir = 'asc';
 let currentUser = null;
 let isAdmin = false;
+let isCategoriesLoading = true;
 
 // ================================================
 // 🔥 CACHED USER DATA HELPER
@@ -128,6 +129,8 @@ onAuthStateChanged(auth, async (user) => {
 
 // --- FETCH DATA ---
 async function fetchCategories() {
+    setCategoriesLoading(true);
+
     try {
         const querySnapshot = await getDocs(collection(db, "categories"));
         console.log("Found categories:", querySnapshot.size);
@@ -154,11 +157,27 @@ async function fetchCategories() {
             allCategories.push({ id: docSnap.id, ...data, itemCount: count });
         }
 
-        applyFilters();
-
     } catch (error) {
         console.error("Error loading categories:", error);
+        allCategories = [];
+    } finally {
+        setCategoriesLoading(false);
+        applyFilters();
     }
+}
+
+function setCategoriesLoading(loading) {
+    isCategoriesLoading = loading;
+
+    const desktopSkeleton = document.getElementById("desktopCategoriesSkeleton");
+    const mobileSkeleton = document.getElementById("mobileCategoriesSkeleton");
+    const tableContainer = document.querySelector(".table-container.desktop-only");
+    const mobileList = document.getElementById("mobileProductList");
+
+    desktopSkeleton?.classList.toggle("visible", loading);
+    mobileSkeleton?.classList.toggle("visible", loading);
+    tableContainer?.classList.toggle("hidden", loading);
+    mobileList?.classList.toggle("hidden", loading);
 }
 
 // --- FILTER & SORT ---
@@ -195,6 +214,8 @@ function applyFilters() {
 function renderTable(categoriesToRender) {
     const tableBody = document.getElementById("productTableBody");
     const mobileList = document.getElementById("mobileProductList");
+
+    if (isCategoriesLoading) return;
 
     if (tableBody) tableBody.innerHTML = "";
     if (mobileList) mobileList.innerHTML = "";

@@ -24,6 +24,7 @@ let filteredProducts = [];
 let currentSortDir = 'asc';
 let currentUser = null;
 let isAdmin = false; 
+let isProductsLoading = true;
 
 async function getCachedUserData(uid) {
     const key    = `user_data_${uid}`;
@@ -110,6 +111,8 @@ onAuthStateChanged(auth, async (user) => {
 
 // --- FETCH DATA ---
 async function fetchProducts() {
+    setProductsLoading(true);
+
     try {
 
         const querySnapshot = await getDocs(collection(db, "products"));
@@ -125,11 +128,27 @@ async function fetchProducts() {
             allProducts.push({ id: docSnap.id, ...data });
         });
 
-        applyFilters();
-
     } catch (error) {
         console.error("Error loading products:", error);
+        allProducts = [];
+    } finally {
+        setProductsLoading(false);
+        applyFilters();
     }
+}
+
+function setProductsLoading(loading) {
+    isProductsLoading = loading;
+
+    const desktopSkeleton = document.getElementById("desktopProductsSkeleton");
+    const mobileSkeleton = document.getElementById("mobileProductsSkeleton");
+    const tableContainer = document.querySelector(".table-container.desktop-only");
+    const mobileList = document.getElementById("mobileProductList");
+
+    desktopSkeleton?.classList.toggle("visible", loading);
+    mobileSkeleton?.classList.toggle("visible", loading);
+    tableContainer?.classList.toggle("hidden", loading);
+    mobileList?.classList.toggle("hidden", loading);
 }
 
 // --- FILTER & SORT ---
@@ -211,6 +230,8 @@ function renderTable(productsToRender) {
     const tableBody = document.getElementById("productTableBody");
     const mobileList = document.getElementById("mobileProductList");
     const tableHead = document.querySelector(".products-table thead tr");
+
+    if (isProductsLoading) return;
 
     if (tableHead) {
         tableHead.innerHTML = `

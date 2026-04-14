@@ -138,6 +138,99 @@ body {
 .products-table th, .categories-table th { text-align: left; padding: 12px 0; font-size: 13px; color: var(--text-main); border-bottom: 1px solid var(--border-color); background-color: var(--table-header-bg); }
 .products-table td, .categories-table td { padding: 16px 0; border-bottom: 1px solid var(--border-color); vertical-align: middle; font-size: 14px; color: var(--text-main); }
 
+.categories-skeleton.desktop-only,
+.categories-skeleton.mobile-only { display: none !important; }
+.categories-skeleton.desktop-only.visible,
+.categories-skeleton.mobile-only.visible { display: block !important; }
+.table-container.hidden,
+#mobileProductList.hidden { display: none !important; }
+
+.category-skeleton-row,
+.category-skeleton-card {
+    position: relative;
+    overflow: hidden;
+    background: var(--bg-card);
+}
+
+.category-skeleton-row::after,
+.category-skeleton-card::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.24), transparent);
+    animation: categorySkeletonShimmer 1.4s infinite;
+}
+
+[data-theme="dark"] .category-skeleton-row::after,
+[data-theme="dark"] .category-skeleton-card::after {
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.08), transparent);
+}
+
+.category-skeleton-row {
+    display: grid;
+    grid-template-columns: 70px minmax(220px, 2fr) 100px 120px 90px;
+    gap: 16px;
+    align-items: center;
+    padding: 16px 0;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.category-skeleton-line,
+.category-skeleton-action,
+.category-skeleton-button {
+    display: block;
+    height: 12px;
+    border-radius: 999px;
+    background: var(--hover-bg);
+}
+
+.category-skeleton-id { width: 54px; }
+.category-skeleton-name { width: 72%; height: 14px; }
+.category-skeleton-title { width: 66%; height: 14px; margin-bottom: 14px; }
+.category-skeleton-count { width: 74px; }
+.category-skeleton-date { width: 96px; }
+
+.category-skeleton-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.category-skeleton-action {
+    width: 18px;
+    height: 18px;
+    border-radius: 6px;
+}
+
+.category-skeleton-card {
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 16px;
+    box-shadow: 0 2px 4px var(--shadow-color);
+}
+
+.category-skeleton-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin: 14px 0 20px;
+}
+
+.category-skeleton-button {
+    height: 42px;
+    border-radius: 8px;
+    flex: 1;
+}
+
+.category-skeleton-button-small {
+    flex: 0 0 50px;
+}
+
+@keyframes categorySkeletonShimmer {
+    100% { transform: translateX(100%); }
+}
+
 .product-cell { display: flex; align-items: center; gap: 12px; margin-left: 15px; }
 .product-img-placeholder { 
     width: 45px; height: 45px; background: var(--hover-bg); border-radius: 8px; 

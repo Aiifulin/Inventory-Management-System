@@ -374,6 +374,83 @@ tbody tr td[colspan] {
     width:100%;
     overflow-x:auto;
 }
+.table-container.hidden { display: none !important; }
+
+.archives-skeleton { display: none; }
+.archives-skeleton.visible { display: block; }
+
+.archives-skeleton-row {
+    position: relative;
+    overflow: hidden;
+    display: grid;
+    gap: 16px;
+    align-items: center;
+    padding: 14px 10px;
+    border-top: 1px solid var(--border-color);
+}
+
+.archives-skeleton-row:first-child {
+    border-top: none;
+}
+
+.archives-skeleton-row::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.24), transparent);
+    animation: archivesSkeletonShimmer 1.4s infinite;
+}
+
+[data-theme="dark"] .archives-skeleton-row::after {
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent);
+}
+
+.archives-skeleton-row-products {
+    grid-template-columns: 60px minmax(160px, 1.8fr) 1fr 120px 220px;
+}
+
+.archives-skeleton-row-categories {
+    grid-template-columns: minmax(180px, 2fr) 140px 220px;
+}
+
+.archives-skeleton-line,
+.archives-skeleton-thumb,
+.archives-skeleton-button {
+    display: block;
+    background: var(--hover-bg);
+    border-radius: 999px;
+}
+
+.archives-skeleton-line { height: 12px; }
+.archives-skeleton-thumb {
+    width: 50px;
+    height: 50px;
+    border-radius: 8px;
+}
+.archives-skeleton-title { width: 72%; height: 14px; }
+.archives-skeleton-medium { width: 82%; }
+.archives-skeleton-date { width: 96px; }
+
+.archives-skeleton-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.archives-skeleton-button {
+    width: 88px;
+    height: 32px;
+    border-radius: 8px;
+}
+
+.archives-skeleton-button-danger {
+    width: 138px;
+}
+
+@keyframes archivesSkeletonShimmer {
+    100% { transform: translateX(100%); }
+}
 
 .action-buttons{
     display:flex;
@@ -393,6 +470,15 @@ tbody tr td[colspan] {
 
 .action-buttons button{
     width:100%;
+}
+
+.archives-skeleton-row-products,
+.archives-skeleton-row-categories {
+    grid-template-columns: 1fr;
+}
+
+.archives-skeleton-actions {
+    flex-direction: column;
 }
 
 }

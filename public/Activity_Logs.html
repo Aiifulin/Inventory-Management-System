@@ -85,7 +85,7 @@ html { visibility: hidden; }
         <span class="logs-total-label" id="logsTotalLabel"></span>
     </div>
 
-    <div class="table-wrapper">
+    <div class="table-wrapper hidden" id="logsTableWrapper">
         <table>
             <thead>
                 <tr>
@@ -101,8 +101,35 @@ html { visibility: hidden; }
         </table>
     </div>
 
+    <div class="logs-skeleton visible" id="logsSkeleton" aria-hidden="true">
+        <div class="logs-skeleton-row">
+            <span class="logs-skeleton-line logs-skeleton-date"></span>
+            <span class="logs-skeleton-pill"></span>
+            <span class="logs-skeleton-line logs-skeleton-target"></span>
+            <span class="logs-skeleton-line logs-skeleton-user"></span>
+        </div>
+        <div class="logs-skeleton-row">
+            <span class="logs-skeleton-line logs-skeleton-date"></span>
+            <span class="logs-skeleton-pill"></span>
+            <span class="logs-skeleton-line logs-skeleton-target"></span>
+            <span class="logs-skeleton-line logs-skeleton-user"></span>
+        </div>
+        <div class="logs-skeleton-row">
+            <span class="logs-skeleton-line logs-skeleton-date"></span>
+            <span class="logs-skeleton-pill"></span>
+            <span class="logs-skeleton-line logs-skeleton-target"></span>
+            <span class="logs-skeleton-line logs-skeleton-user"></span>
+        </div>
+        <div class="logs-skeleton-row">
+            <span class="logs-skeleton-line logs-skeleton-date"></span>
+            <span class="logs-skeleton-pill"></span>
+            <span class="logs-skeleton-line logs-skeleton-target"></span>
+            <span class="logs-skeleton-line logs-skeleton-user"></span>
+        </div>
+    </div>
+
     <!-- PAGINATION -->
-    <div class="pagination-bar" id="paginationBar">
+    <div class="pagination-bar hidden" id="paginationBar">
         <button class="btn-page" id="prevPageBtn" disabled>
             <i class="fas fa-chevron-left"></i> Prev
         </button>

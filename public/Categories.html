@@ -99,7 +99,7 @@
                 </div>
             </div>
 
-            <div class="table-container desktop-only">
+            <div class="table-container desktop-only hidden">
                 <table class="products-table">
                     <thead>
                         <tr>
@@ -115,8 +115,68 @@
                 </table>
             </div>
 
-            <div class="mobile-grid mobile-only" id="mobileProductList">
+            <div class="categories-skeleton desktop-only visible" id="desktopCategoriesSkeleton" aria-hidden="true">
+                <div class="category-skeleton-row">
+                    <span class="category-skeleton-line category-skeleton-id"></span>
+                    <span class="category-skeleton-line category-skeleton-name"></span>
+                    <span class="category-skeleton-line category-skeleton-count"></span>
+                    <span class="category-skeleton-line category-skeleton-date"></span>
+                    <div class="category-skeleton-actions">
+                        <span class="category-skeleton-action"></span>
+                        <span class="category-skeleton-action"></span>
+                    </div>
                 </div>
+                <div class="category-skeleton-row">
+                    <span class="category-skeleton-line category-skeleton-id"></span>
+                    <span class="category-skeleton-line category-skeleton-name"></span>
+                    <span class="category-skeleton-line category-skeleton-count"></span>
+                    <span class="category-skeleton-line category-skeleton-date"></span>
+                    <div class="category-skeleton-actions">
+                        <span class="category-skeleton-action"></span>
+                        <span class="category-skeleton-action"></span>
+                    </div>
+                </div>
+                <div class="category-skeleton-row">
+                    <span class="category-skeleton-line category-skeleton-id"></span>
+                    <span class="category-skeleton-line category-skeleton-name"></span>
+                    <span class="category-skeleton-line category-skeleton-count"></span>
+                    <span class="category-skeleton-line category-skeleton-date"></span>
+                    <div class="category-skeleton-actions">
+                        <span class="category-skeleton-action"></span>
+                        <span class="category-skeleton-action"></span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mobile-grid mobile-only hidden" id="mobileProductList">
+                </div>
+
+            <div class="categories-skeleton mobile-only visible" id="mobileCategoriesSkeleton" aria-hidden="true">
+                <div class="category-skeleton-card">
+                    <span class="category-skeleton-line category-skeleton-id"></span>
+                    <span class="category-skeleton-line category-skeleton-title"></span>
+                    <div class="category-skeleton-grid">
+                        <span class="category-skeleton-line category-skeleton-count"></span>
+                        <span class="category-skeleton-line category-skeleton-date"></span>
+                    </div>
+                    <div class="category-skeleton-actions">
+                        <span class="category-skeleton-button"></span>
+                        <span class="category-skeleton-button category-skeleton-button-small"></span>
+                    </div>
+                </div>
+                <div class="category-skeleton-card">
+                    <span class="category-skeleton-line category-skeleton-id"></span>
+                    <span class="category-skeleton-line category-skeleton-title"></span>
+                    <div class="category-skeleton-grid">
+                        <span class="category-skeleton-line category-skeleton-count"></span>
+                        <span class="category-skeleton-line category-skeleton-date"></span>
+                    </div>
+                    <div class="category-skeleton-actions">
+                        <span class="category-skeleton-button"></span>
+                        <span class="category-skeleton-button category-skeleton-button-small"></span>
+                    </div>
+                </div>
+            </div>
         </div>
           
     </main>

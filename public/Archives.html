@@ -101,7 +101,7 @@
                 <input type="text" id="archiveSearchProducts" placeholder="Search products by name or category...">
             </div>
 
-            <div class="table-container">
+            <div class="table-container hidden" id="archivedProductsTableContainer">
                 <table id="archiveTableProduct">
                     <thead>
                         <tr>
@@ -119,6 +119,39 @@
                     </tbody>
                 </table>
             </div>
+
+            <div class="archives-skeleton visible" id="archivedProductsSkeleton" aria-hidden="true">
+                <div class="archives-skeleton-row archives-skeleton-row-products">
+                    <span class="archives-skeleton-thumb"></span>
+                    <span class="archives-skeleton-line archives-skeleton-title"></span>
+                    <span class="archives-skeleton-line archives-skeleton-medium"></span>
+                    <span class="archives-skeleton-line archives-skeleton-date"></span>
+                    <div class="archives-skeleton-actions">
+                        <span class="archives-skeleton-button"></span>
+                        <span class="archives-skeleton-button archives-skeleton-button-danger"></span>
+                    </div>
+                </div>
+                <div class="archives-skeleton-row archives-skeleton-row-products">
+                    <span class="archives-skeleton-thumb"></span>
+                    <span class="archives-skeleton-line archives-skeleton-title"></span>
+                    <span class="archives-skeleton-line archives-skeleton-medium"></span>
+                    <span class="archives-skeleton-line archives-skeleton-date"></span>
+                    <div class="archives-skeleton-actions">
+                        <span class="archives-skeleton-button"></span>
+                        <span class="archives-skeleton-button archives-skeleton-button-danger"></span>
+                    </div>
+                </div>
+                <div class="archives-skeleton-row archives-skeleton-row-products">
+                    <span class="archives-skeleton-thumb"></span>
+                    <span class="archives-skeleton-line archives-skeleton-title"></span>
+                    <span class="archives-skeleton-line archives-skeleton-medium"></span>
+                    <span class="archives-skeleton-line archives-skeleton-date"></span>
+                    <div class="archives-skeleton-actions">
+                        <span class="archives-skeleton-button"></span>
+                        <span class="archives-skeleton-button archives-skeleton-button-danger"></span>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <br><br>
@@ -134,7 +167,7 @@
                 <input type="text" id="archiveSearchCategories" placeholder="Search categories...">
             </div>
 
-            <div class="table-container">
+            <div class="table-container hidden" id="archivedCategoriesTableContainer">
                 <table id="archiveTableCategories">
                     <thead>
                         <tr>
@@ -149,6 +182,33 @@
                         <!-- JS will populate -->
                     </tbody>
                 </table>
+            </div>
+
+            <div class="archives-skeleton visible" id="archivedCategoriesSkeleton" aria-hidden="true">
+                <div class="archives-skeleton-row archives-skeleton-row-categories">
+                    <span class="archives-skeleton-line archives-skeleton-title"></span>
+                    <span class="archives-skeleton-line archives-skeleton-date"></span>
+                    <div class="archives-skeleton-actions">
+                        <span class="archives-skeleton-button"></span>
+                        <span class="archives-skeleton-button archives-skeleton-button-danger"></span>
+                    </div>
+                </div>
+                <div class="archives-skeleton-row archives-skeleton-row-categories">
+                    <span class="archives-skeleton-line archives-skeleton-title"></span>
+                    <span class="archives-skeleton-line archives-skeleton-date"></span>
+                    <div class="archives-skeleton-actions">
+                        <span class="archives-skeleton-button"></span>
+                        <span class="archives-skeleton-button archives-skeleton-button-danger"></span>
+                    </div>
+                </div>
+                <div class="archives-skeleton-row archives-skeleton-row-categories">
+                    <span class="archives-skeleton-line archives-skeleton-title"></span>
+                    <span class="archives-skeleton-line archives-skeleton-date"></span>
+                    <div class="archives-skeleton-actions">
+                        <span class="archives-skeleton-button"></span>
+                        <span class="archives-skeleton-button archives-skeleton-button-danger"></span>
+                    </div>
+                </div>
             </div>
         </div>
 
