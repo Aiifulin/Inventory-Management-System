@@ -512,29 +512,39 @@ function exportToExcel() {
         return;
     }
 
-    // 1. Map the data to the specific columns you want
-    const dataToExport = allProducts.map(p => ({
-        "ID": p.id,
-        "Product Name": p.name,
-        "Category": p.category,
-        "Price": `₱${p.price}`,
-        "Stock": p.stock,
-        "Status": p.stock <= 0 ? "Out of Stock" : (p.stock <= 10 ? "Low Stock" : "In Stock"),
-        "Date Added": p.createdAt ? new Date(p.createdAt.seconds * 1000).toLocaleDateString() : "N/A"
-    }));
+    // Map products to match the import template format exactly
+    const dataToExport = allProducts.map(p => {
+        // Get first variation for Size, Color, Custom
+        const firstVariation = p.variations && p.variations[0] ? p.variations[0] : {};
+        
+        // Get first attribute for Attribute Name/Value
+        const firstAttribute = p.attributes && p.attributes[0] ? p.attributes[0] : {};
 
-    // 2. Create a worksheet from the data
+        return {
+            "Product Name": p.name || "",
+            "Description": p.description || "",
+            "Category": p.category || "",
+            "Price": Number(p.price) || 0,
+            "Stock": Number(p.stock) || 0,
+            "Low Stock Threshold": Number(p.lowStockThreshold) || 10,
+            "Size": firstVariation.size || "",
+            "Color": firstVariation.color || "",
+            "Custom Variation": firstVariation.custom || "",
+            "Attribute Name": firstAttribute.name || "",
+            "Attribute Value": firstAttribute.value || ""
+        };
+    });
+
+    // Create worksheet and workbook
     const worksheet = XLSX.utils.json_to_sheet(dataToExport);
-
-    // 3. Create a new workbook and append the worksheet
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Products");
 
-    // 4. Trigger the download
-    const fileName = `Inventory_Report_${new Date().toISOString().split('T')[0]}.xlsx`;
+    // Download file
+    const fileName = `Products_Backup_${new Date().toISOString().split('T')[0]}.xlsx`;
     XLSX.writeFile(workbook, fileName);
     
-    showToast("Exporting Excel file...", "success");
+    showToast("Products exported successfully!", "success");
 }
 
 async function loadCategoryFilter() {

@@ -97,12 +97,32 @@ onAuthStateChanged(auth, async (user) => {
         loadUserTable();
         initDarkMode();
 
+        initAutoBackup();
+        await loadAutoBackupSettings();
+
         main.style.visibility = 'visible';
+        //startTestAutoBackup(); for testing auto backup every 1 minute
 
     } else {
         window.location.href = "index.html";
     }
 });
+
+function showSuccessModal(title, message) {
+    const overlay = document.getElementById("successModalOverlay");
+    const titleEl = document.getElementById("successTitle");
+    const msgEl = document.getElementById("successMessage");
+    const okBtn = document.getElementById("successOkBtn");
+
+    titleEl.textContent = title;
+    msgEl.textContent = message;
+
+    overlay.style.display = "flex";
+
+    okBtn.onclick = () => {
+        overlay.style.display = "none";
+    };
+}
 
 // --- DARK MODE LOGIC ---
 function initDarkMode() {
@@ -197,10 +217,10 @@ window.updateUserRole = async function(userId) {
             role: newRole
         });
 
-        alert("User role updated successfully!");
+        showSuccessModal("Role Updated", "User role updated successfully!");
     } catch (error) {
         console.error("Error updating role:", error);
-        alert("Failed to update role.");
+        showSuccessModal("Failed to update role.", "An error occurred while updating the user role.");
     } finally {
         btn.textContent = "Update";
         btn.disabled = false;
@@ -240,14 +260,16 @@ async function loadSettings() {
     }
 }
 
-// --- SAVE SETTINGS ---
+// --- SAVE SETTINGS (UPDATED) ---
 const saveBtn = document.getElementById('saveSettingsBtn');
 if (saveBtn) {
     saveBtn.addEventListener('click', async () => {
         const thresholdVal = parseInt(document.getElementById('defaultThreshold').value);
+        const autoBackupEnabled = document.getElementById('autoBackupToggle').checked;
+        const backupIntervalDays = parseInt(document.getElementById('backupInterval').value);
 
         if (isNaN(thresholdVal) || thresholdVal < 0) {
-            alert("Please enter a valid Low Stock Threshold.");
+            showSuccessModal("Invalid Input", "Please enter a valid Low Stock Threshold.");
             return;
         }
 
@@ -256,19 +278,217 @@ if (saveBtn) {
         saveBtn.disabled = true;
 
         try {
-            await setDoc(doc(db, "settings", SETTINGS_DOC_ID), {
+            const settingsData = {
                 defaultLowStockThreshold: thresholdVal,
+                autoBackupEnabled: autoBackupEnabled,
+                backupIntervalDays: backupIntervalDays,
                 updatedAt: new Date(),
                 updatedBy: auth.currentUser.uid
-            }, { merge: true });
+            };
 
-            alert("Settings saved successfully!");
+            // If auto backup was just enabled, set initial lastBackupDate
+            if (autoBackupEnabled) {
+                const docRef = doc(db, "settings", SETTINGS_DOC_ID);
+                const docSnap = await getDoc(docRef);
+                
+                if (!docSnap.exists() || !docSnap.data().lastBackupDate) {
+                    settingsData.lastBackupDate = new Date();
+                }
+            }
+
+            await setDoc(doc(db, "settings", SETTINGS_DOC_ID), settingsData, { merge: true });
+
+            showSuccessModal("Settings Saved", "Your settings have been updated successfully.");
+            
+            // Reload settings to update UI
+            await loadAutoBackupSettings();
+
         } catch (error) {
             console.error("Error saving settings:", error);
-            alert("Error: " + error.message);
+            showSuccessModal("Error", "An error occurred while saving settings.");
         } finally {
             saveBtn.innerHTML = originalText;
             saveBtn.disabled = false;
         }
     });
+}
+// --- AUTO BACKUP LOGIC ---
+function initAutoBackup() {
+    const toggle = document.getElementById('autoBackupToggle');
+    const intervalContainer = document.getElementById('backupIntervalContainer');
+    const intervalSelect = document.getElementById('backupInterval');
+
+    // Show/hide interval selector
+    if (toggle) {
+        toggle.addEventListener('change', (e) => {
+            if (e.target.checked) {
+                intervalContainer.style.display = 'block';
+            } else {
+                intervalContainer.style.display = 'none';
+            }
+        });
+    }
+}
+
+// --- LOAD AUTO BACKUP SETTINGS ---
+async function loadAutoBackupSettings() {
+    try {
+        const docRef = doc(db, "settings", SETTINGS_DOC_ID);
+        const docSnap = await getDoc(docRef);
+
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            
+            // Load auto backup toggle
+            const toggle = document.getElementById('autoBackupToggle');
+            const intervalSelect = document.getElementById('backupInterval');
+            const intervalContainer = document.getElementById('backupIntervalContainer');
+            const lastBackupSpan = document.getElementById('lastBackupDate');
+
+            if (data.autoBackupEnabled) {
+                toggle.checked = true;
+                intervalContainer.style.display = 'block';
+            }
+
+            if (data.backupIntervalDays) {
+                intervalSelect.value = data.backupIntervalDays;
+            }
+
+            // Display last backup date
+            if (data.lastBackupDate) {
+                const lastDate = data.lastBackupDate.toDate();
+                lastBackupSpan.textContent = lastDate.toLocaleDateString("en-US", { 
+                    month: 'short', 
+                    day: 'numeric', 
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+            } else {
+                lastBackupSpan.textContent = "Never";
+            }
+
+            // Check if backup is due
+            if (data.autoBackupEnabled && data.lastBackupDate) {
+                checkAndRunBackup(data.backupIntervalDays, data.lastBackupDate.toDate());
+            }
+        }
+    } catch (error) {
+        console.error("Error loading auto backup settings:", error);
+    }
+}
+
+// --- CHECK AND RUN BACKUP IF DUE ---
+async function checkAndRunBackup(intervalDays, lastBackupDate) {
+    const now = new Date();
+    const daysSinceBackup = Math.floor((now - lastBackupDate) / (1000 * 60 * 60 * 24));
+
+    if (daysSinceBackup >= intervalDays) {
+        console.log(`Auto backup is due (${daysSinceBackup} days since last backup)`);
+        await performAutoBackup();
+    } else {
+        console.log(`Next backup in ${intervalDays - daysSinceBackup} days`);
+    }
+}
+
+// --- PERFORM AUTO BACKUP ---
+async function performAutoBackup() {
+    try {
+        // Fetch all products
+        const querySnapshot = await getDocs(collection(db, "products"));
+        const products = [];
+
+        querySnapshot.forEach((docSnap) => {
+            const data = docSnap.data();
+            if (data.archived !== true) {
+                products.push({ id: docSnap.id, ...data });
+            }
+        });
+
+        if (products.length === 0) {
+            console.log("No products to backup");
+            return;
+        }
+
+        // Map products to export format
+        const dataToExport = products.map(p => {
+            const firstVariation = p.variations && p.variations[0] ? p.variations[0] : {};
+            const firstAttribute = p.attributes && p.attributes[0] ? p.attributes[0] : {};
+
+            return {
+                "Product Name": p.name || "",
+                "Description": p.description || "",
+                "Category": p.category || "",
+                "Price": Number(p.price) || 0,
+                "Stock": Number(p.stock) || 0,
+                "Low Stock Threshold": Number(p.lowStockThreshold) || 10,
+                "Size": firstVariation.size || "",
+                "Color": firstVariation.color || "",
+                "Custom Variation": firstVariation.custom || "",
+                "Attribute Name": firstAttribute.name || "",
+                "Attribute Value": firstAttribute.value || ""
+            };
+        });
+
+        // Create Excel file
+        const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Products");
+
+        // Download file
+        const fileName = `Auto_Backup_${new Date().toISOString().split('T')[0]}.xlsx`;
+        XLSX.writeFile(workbook, fileName);
+
+        // Update last backup timestamp
+        await setDoc(doc(db, "settings", SETTINGS_DOC_ID), {
+            lastBackupDate: new Date()
+        }, { merge: true });
+
+        console.log("Auto backup completed successfully");
+        
+        // Reload settings to update UI
+        await loadAutoBackupSettings();
+
+    } catch (error) {
+        console.error("Auto backup failed:", error);
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const manualBtn = document.getElementById('manualBackupBtn');
+    
+    if (manualBtn) {
+        manualBtn.addEventListener('click', async () => {
+            // Visual feedback
+            const originalContent = manualBtn.innerHTML;
+            manualBtn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Generating...`;
+            manualBtn.disabled = true;
+
+            try {
+                // Call the function you already wrote
+                await performAutoBackup(); 
+                showSuccessModal("Backup Generated", "Your backup has been downloaded successfully.");
+            } catch (error) {
+                console.error("Manual backup failed:", error);
+                alert("Failed to generate backup. Check the console.");
+            } finally {
+                // Restore button state
+                manualBtn.innerHTML = originalContent;
+                manualBtn.disabled = false;
+            }
+        });
+    }
+});
+
+
+//TEST FOR AUTO BAK
+
+function startTestAutoBackup() {
+    console.log(" TEST MODE: Auto backup every 1 minute started");
+
+    setInterval(async () => {
+        console.log("⏱ Running test auto backup...");
+        await performAutoBackup();
+        showSuccessModal("Auto Backup", "Test auto backup executed.");
+    }, 60000); // 60,000 ms = 1 minute
 }

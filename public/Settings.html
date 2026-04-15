@@ -21,6 +21,7 @@
             window.location.replace("index.html");
         }
     </script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
 </head>
 
 <body>
@@ -103,6 +104,54 @@
                             </div>
                             <p class="help-text">New products will default to this alert level.</p>
                         </div>
+                        <div class="form-group" style="border-top: 1px solid var(--border-color); padding-top: 24px; margin-top: 24px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                                <div>
+                                    <label for="autoBackupToggle" style="font-weight: 600; font-size: 15px; margin-bottom: 4px; display:block;">
+                                        <i class="fas fa-cloud-upload-alt" style="color: var(--text-secondary); margin-right: 6px;"></i>
+                                        Auto Backup
+                                    </label>
+                                    <p class="help-text" style="margin: 0;">Automatically backup products to Excel at specified intervals.</p>
+                                </div>
+                                <label class="switch">
+                                    <input type="checkbox" id="autoBackupToggle">
+                                    <span class="slider round"></span>
+                                </label>
+                            </div>
+            
+                            <!-- Backup Interval Options (shown when enabled) -->
+                            <div id="backupIntervalContainer" style="display: none; margin-top: 16px;">
+                                <label for="backupInterval" style="font-size: 14px; font-weight: 600; margin-bottom: 8px; display: block;">Backup Frequency</label>
+                                <select id="backupInterval" class="form-input" style="width: 100%;">
+                                    <option value="1">Daily (Every 24 hours)</option>
+                                    <option value="3">Every 3 Days</option>
+                                    <option value="7" selected>Weekly (Every 7 days)</option>
+                                    <option value="14">Every 2 Weeks</option>
+                                    <option value="30">Monthly (Every 30 days)</option>
+                                </select>
+                                <p class="help-text" style="margin-top: 8px;">
+                                    Last backup: <span id="lastBackupDate" style="font-weight: 600; color: var(--text-main);">Never</span>
+                                </p>
+                            </div>
+                            <button type="button" id="manualBackupBtn" style="
+                            width: 100%; 
+                            padding: 10px; 
+                            margin-top: 12px;
+                            background: var(--primary-color); 
+                            color: white; 
+                            border: none; 
+                            border-radius: 6px; 
+                            font-size: 14px; 
+                            font-weight: 600; 
+                            cursor: pointer;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            gap: 8px;
+                        ">
+                            <i class="fas fa-download"></i> Backup Now
+                        </button>
+                        </div>
                     </form>
                 </div>
             </div>
@@ -178,6 +227,66 @@
             </div>
         </div>
     </div>
+    <div id="successModalOverlay" style="
+        display:none;
+        position:fixed;
+        inset:0;
+        background:rgba(0,0,0,0.5);
+        z-index:99999;
+        align-items:center;
+        justify-content:center;
+        padding:20px;
+    ">
+        <div style="
+            background:var(--bg-card);
+            border:1px solid var(--border-color);
+            border-radius:16px;
+            padding:32px 28px;
+            max-width:380px;
+            width:100%;
+            text-align:center;
+            box-shadow:0 20px 60px rgba(0,0,0,0.2);
+            animation:logoutModalPop 0.25s ease;
+        ">
+            <div style="
+                width:62px;
+                height:62px;
+                background:#dcfce7;
+                border:1.5px solid #86efac;
+                border-radius:50%;
+                display:flex;
+                align-items:center;
+                justify-content:center;
+                margin:0 auto 18px;
+                font-size:22px;
+                color:#16a34a;
+            ">
+                <i class="fas fa-check"></i>
+            </div>
+
+            <h3 id="successTitle" style="margin:0 0 10px;font-size:18px;font-weight:700;">
+                Success
+            </h3>
+
+            <p id="successMessage" style="margin:0 0 20px;font-size:14px;color:var(--text-secondary);">
+                Action completed.
+            </p>
+
+            <button id="successOkBtn" style="
+                width:100%;
+                padding:10px;
+                border:none;
+                border-radius:8px;
+                background:var(--primary-color);
+                color:white;
+                font-weight:600;
+                cursor:pointer;
+            ">
+                OK
+            </button>
+        </div>
+    </div>
+
     <style>
     @keyframes logoutModalPop {
         from { transform:scale(0.9);opacity:0; }
