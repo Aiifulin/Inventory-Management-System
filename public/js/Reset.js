@@ -73,26 +73,18 @@ document.getElementById("password-reset-form")
         setLoading(true);
 
         try {
-            // 1. Check if email exists
+            // Check if email exists in Firebase Auth
             const methods = await fetchSignInMethodsForEmail(auth, email);
-        
+
             if (methods.length === 0) {
                 showError("No account found with this email address.");
                 setLoading(false);
                 return;
             }
-        
-            // 2. Define exactly where the user should go back to
-            const actionCodeSettings = {
-                // This MUST be the full URL of your login page on the DEPLOYED site
-                url: 'https://grouprokuinventorymanagement.web.app/index.html', 
-                handleCodeInApp: true,
-            };
-        
-            // 3. Pass the settings to the reset function
-            await sendPasswordResetEmail(auth, email, actionCodeSettings);
-        
-            showSuccess("Reset link sent! Check your inbox.");
+
+            await sendPasswordResetEmail(auth, email);
+
+            showSuccess("Reset link sent! Check your inbox — and your spam folder just in case.");
             document.getElementById("password-reset-form").reset();
 
         } catch (err) {

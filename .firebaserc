@@ -1,5 +1,7 @@
 {
   "projects": {
-    "default": "grouprokuinventorymanagement"
-  }
+    "default": "inventory-management-sys-baccc"
+  },
+  "targets": {},
+  "etags": {}
 }
