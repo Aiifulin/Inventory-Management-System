@@ -7,7 +7,7 @@ import {
 
 const firebaseConfig = {
     apiKey: "AIzaSyBeaF2VKovHASuzhvZHzOoE0yB7QnBDej0",
-    authDomain: "inventory-management-sys-baccc.firebaseapp.com",
+    authDomain: "grouprokuinventorymanagement.web.app",
     projectId: "inventory-management-sys-baccc",
     storageBucket: "inventory-management-sys-baccc.firebasestorage.app",
     messagingSenderId: "304433839568",

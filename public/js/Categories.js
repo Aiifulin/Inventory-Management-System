@@ -2,6 +2,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
 import { getFirestore, collection, getDocs, doc, addDoc, serverTimestamp, getDoc, where, updateDoc, query} from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 import { initLogoutModal } from "./logout-modal.js";
+import { getCountFromServer } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
 // --- CONFIG ---
 const firebaseConfig = {
@@ -125,33 +126,31 @@ async function fetchCategories() {
 
     try {
         const querySnapshot = await getDocs(collection(db, "categories"));
-        console.log("Found categories:", querySnapshot.size);
-        allCategories = [];
-
-        for (const docSnap of querySnapshot.docs) {
+        
+        // Map the docs into an array of promises to run them in parallel
+        const categoryPromises = querySnapshot.docs.map(async (docSnap) => {
             const data = docSnap.data();
-            if (data.archived === true) continue;
+            if (data.archived === true) return null;
 
-            // Query products by category name
+            // Optimized: Use getCountFromServer instead of getDocs
             const productsQuery = query(
                 collection(db, "products"),
-                where("category", "==", data.name)
+                where("category", "==", data.name),
+                where("archived", "!=", true) 
             );
-            const productsSnapshot = await getDocs(productsQuery);
+            
+            const countSnapshot = await getCountFromServer(productsQuery);
+            const count = countSnapshot.data().count;
 
-            // Count only non-archived products
-            let count = 0;
-            productsSnapshot.forEach(p => {
-                const pData = p.data();
-                if (pData.archived !== true) count++;
-            });
+            return { id: docSnap.id, ...data, itemCount: count };
+        });
 
-            allCategories.push({ id: docSnap.id, ...data, itemCount: count });
-        }
+        // Wait for ALL requests to finish at once
+        const results = await Promise.all(categoryPromises);
+        allCategories = results.filter(c => c !== null);
 
     } catch (error) {
         console.error("Error loading categories:", error);
-        allCategories = [];
     } finally {
         setCategoriesLoading(false);
         applyFilters();
@@ -175,27 +174,33 @@ function setCategoriesLoading(loading) {
 // --- FILTER & SORT ---
 function applyFilters() {
     const searchVal = document.getElementById("searchInput").value.trim().toLowerCase();
-    const sortVal = document.getElementById("filterSort").value;
+    const sortVal = document.getElementById("filterSort").value; 
 
+    // 1. Filter
     let result = allCategories.filter(c => {
         const catName = (c.name || "").toLowerCase();
-    
         let dateStr = "";
-        if (c.createdAt && c.createdAt.toDate) {
+        if (c.createdAt?.toDate) {
             const d = c.createdAt.toDate();
-    
-            dateStr =
-                d.toLocaleDateString("en-US", {
-                    month: 'long',
-                    day: 'numeric',
-                    year: 'numeric'
-                }).toLowerCase();
-    
-            dateStr += " " + d.toLocaleDateString("en-US", { month: 'short' }).toLowerCase();
-            dateStr += " " + d.toLocaleDateString("en-US");
+            dateStr = d.toLocaleDateString("en-US", { month: 'long', day: 'numeric', year: 'numeric' }).toLowerCase();
         }
-    
         return catName.includes(searchVal) || dateStr.includes(searchVal);
+    });
+
+    // 2. Sort (The part that makes your buttons work)
+    result.sort((a, b) => {
+        let valA, valB;
+        if (sortVal === 'name') {
+            valA = (a.name || "").toLowerCase();
+            valB = (b.name || "").toLowerCase();
+        } else {
+            valA = a.createdAt?.seconds || 0;
+            valB = b.createdAt?.seconds || 0;
+        }
+
+        if (valA < valB) return currentSortDir === 'asc' ? -1 : 1;
+        if (valA > valB) return currentSortDir === 'asc' ? 1 : -1;
+        return 0;
     });
 
     filteredCategories = result;
