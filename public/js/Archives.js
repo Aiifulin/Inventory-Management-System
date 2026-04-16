@@ -77,17 +77,16 @@ async function checkAdminRole(uid) {
     return userData?.role?.toLowerCase() === "admin";
 }
 
-async function displayUserRole(uid) {
-    const roleEl = document.getElementById('userRoleDisplay');
-    if (!roleEl) return;
+async function displayUserName(uid) {
+    const nameEl = document.getElementById('userNameDisplay');
+    if (!nameEl) return;
 
     const userData = await getCachedUserData(uid);
-
-    let role = userData?.role || "User";
-    role = role.charAt(0).toUpperCase() + role.slice(1);
-
-    roleEl.textContent = role;
+    const name = userData?.name || "User";
+    
+    nameEl.textContent = name;
 }
+
 
 // --- AUTH CHECK WITH ROLE VALIDATION ---
 onAuthStateChanged(auth, async (user) => {
@@ -104,7 +103,7 @@ onAuthStateChanged(auth, async (user) => {
         window.logout = function () { if (openLogoutModal) openLogoutModal(); }; 
 
 
-        await displayUserRole(user.uid);
+        await displayUserName(user.uid);
 
         const isAdmin = await checkAdminRole(user.uid);
 

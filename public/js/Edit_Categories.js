@@ -40,6 +40,17 @@ async function getCachedUserData(uid) {
     return null;
 }
 
+async function displayUserName(uid) {
+    const nameEl = document.getElementById('userNameDisplay');
+    if (!nameEl) return;
+
+    const userData = await getCachedUserData(uid);
+    const name = userData?.name || "User";
+    
+    nameEl.textContent = name;
+}
+
+
 // --- AUTH CHECK WITH ROLE VALIDATION ---
 onAuthStateChanged(auth, async (user) => {
     if (user) {
@@ -50,6 +61,7 @@ onAuthStateChanged(auth, async (user) => {
             alert("Access Denied: Only Admins can edit categories.");
             window.location.href = "Categories.html";
         } else {
+            await displayUserName(user.uid);
             initPage();
             // =======================================================
             // Logout Confirmation Modal (shared pattern with Dashboard)

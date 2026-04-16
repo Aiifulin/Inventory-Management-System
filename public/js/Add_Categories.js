@@ -45,7 +45,7 @@ async function getCachedUserData(uid) {
 // --- AUTH CHECK WITH ROLE VALIDATION ---
 onAuthStateChanged(auth, async (user) => {
     if (user) {
-        await displayUserRole(user.uid);
+        await displayUserName(user.uid);
         const isAdmin = await checkAdminRole(user.uid);
         if (!isAdmin) {
             alert("Access Denied: Only Admins can add categories.");
@@ -73,16 +73,16 @@ async function checkAdminRole(uid) {
 }
 
 // --- HELPER: DISPLAY USER ROLE ---
-async function displayUserRole(uid) {
-    const roleEl = document.getElementById('userRoleDisplay');
-    if (!roleEl) return;
+async function displayUserName(uid) {
+    const nameEl = document.getElementById('userNameDisplay');
+    if (!nameEl) return;
 
     const userData = await getCachedUserData(uid);
-    let roleName = userData?.role || "User";
+    const name = userData?.name || "User";
     
-    roleName = roleName.charAt(0).toUpperCase() + roleName.slice(1);
-    roleEl.textContent = roleName;
+    nameEl.textContent = name;
 }
+
 
 // --- HELPER: ACTIVITY LOGGING FUNCTION ---
 async function logActivity(action, targetName) {

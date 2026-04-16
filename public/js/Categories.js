@@ -61,24 +61,16 @@ async function checkAdminRole(uid) {
     return userData?.role?.toLowerCase() === 'admin';
 }
 
-async function displayUserRole(uid) {
-    const roleEl = document.getElementById('userRoleDisplay');
-    if (!roleEl) {
-        const sidebarRole = document.querySelector('.sidebar-header .user-role');
-        if (sidebarRole) {
-            sidebarRole.id = 'userRoleDisplay';
-            return displayUserRole(uid);
-        }
-        return;
-    }
+async function displayUserName(uid) {
+    const nameEl = document.getElementById('userNameDisplay');
+    if (!nameEl) return;
 
     const userData = await getCachedUserData(uid);
-
-    let roleName = userData?.role || "User";
-    roleName = roleName.charAt(0).toUpperCase() + roleName.slice(1);
-
-    roleEl.textContent = roleName;
+    const name = userData?.name || "User";
+    
+    nameEl.textContent = name;
 }
+
 
 // --- HELPER: ACTIVITY LOGGING FUNCTION ---
 async function logActivity(action, targetName) {
@@ -103,7 +95,7 @@ onAuthStateChanged(auth, async (user) => {
         currentUser = user;
 
         // Both share one cached Firestore read
-        displayUserRole(user.uid);
+        displayUserName(user.uid);
         isAdmin = await checkAdminRole(user.uid);
 
         // Reveal only after role is confirmed — no flash

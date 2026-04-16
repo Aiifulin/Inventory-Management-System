@@ -40,14 +40,14 @@ async function checkAdminRole(uid) {
     return data?.role?.toLowerCase() === 'admin';
 }
 
-async function displayUserRole(uid) {
-    const roleEl = document.getElementById('userRoleDisplay');
-    if (!roleEl) return;
+async function displayUserName(uid) {
+    const nameEl = document.getElementById('userNameDisplay');
+    if (!nameEl) return;
 
-    const data = await getCachedUserData(uid);
-    const role = data?.role || "User";
-
-    roleEl.textContent = role.charAt(0).toUpperCase() + role.slice(1);
+    const userData = await getCachedUserData(uid);
+    const name = userData?.name || "User";
+    
+    nameEl.textContent = name;
 }
 
 // --- AUTH LISTENER & SECURITY CHECK ---
@@ -64,10 +64,9 @@ onAuthStateChanged(auth, async (user) => {
         const openLogoutModal = initLogoutModal(doSignOut);
         window.logout = function () { if (openLogoutModal) openLogoutModal(); };
 
-        // ✅ SHOW ROLE FIRST (instant UI)
-        await displayUserRole(user.uid);
+        
+        await displayUserName(user.uid);
 
-        // ✅ GET ADMIN STATUS (from cache)
         const isAdmin = await checkAdminRole(user.uid);
 
         if (!isAdmin) {
@@ -83,7 +82,6 @@ onAuthStateChanged(auth, async (user) => {
             return;
         }
 
-        // ✅ GET USER DATA (cached)
         const data = await getCachedUserData(user.uid);
 
         const fullUser = {

@@ -57,6 +57,17 @@ async function checkAdminRole(uid) {
     return userData?.role?.toLowerCase() === 'admin';
 }
 
+async function displayUserName(uid) {
+    const nameEl = document.getElementById('userNameDisplay');
+    if (!nameEl) return;
+
+    const userData = await getCachedUserData(uid);
+    const name = userData?.name || "User";
+    
+    nameEl.textContent = name;
+}
+
+
 // --- AUTH CHECK WITH ROLE VALIDATION ---
 onAuthStateChanged(auth, async (user) => {
     if (user) {
@@ -68,7 +79,7 @@ onAuthStateChanged(auth, async (user) => {
             alert("Access Denied: Only Admins can edit products.");
             window.location.href = "Products.html";
         } else {
-            // Only load page logic if admin is verified
+            await displayUserName(user.uid);
             initPage(); 
             // =======================================================
             // Logout Confirmation Modal (shared pattern with Dashboard)
@@ -409,10 +420,14 @@ function initPage() {
                 const previousImageUrl = originalImageUrl;
 
                 if (selectedImageFile) {
+                    submitBtn.innerText = "Optimizing Image...";
+                
+                    const resizedImage = await resizeImage(selectedImageFile, 500); 
+                
                     submitBtn.innerText = "Uploading Image...";
                 
                     const storageRef = ref(storage, `products/images/${Date.now()}_${selectedImageFile.name}`);
-                    const snapshot = await uploadBytes(storageRef, selectedImageFile);
+                    const snapshot = await uploadBytes(storageRef, resizedImage); 
                     updatedData.imageUrl = await getDownloadURL(snapshot.ref);
                 } else if (removeExistingImage) {
                     updatedData.imageUrl = "";
@@ -449,6 +464,34 @@ function initPage() {
             }
         });
     }
+}
+
+async function resizeImage(file, maxWidth = 500) {
+    return new Promise((resolve) => {
+        const img = new Image();
+        const reader = new FileReader();
+
+        reader.onload = e => {
+            img.src = e.target.result;
+        };
+
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const scale = maxWidth / img.width;
+
+            canvas.width = maxWidth;
+            canvas.height = img.height * scale;
+
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+            canvas.toBlob(blob => {
+                resolve(blob);
+            }, 'image/jpeg', 0.7); // compress to 70%
+        };
+
+        reader.readAsDataURL(file);
+    });
 }
 
 // --- HELPER FUNCTIONS ---

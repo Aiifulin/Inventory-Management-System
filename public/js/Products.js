@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
-import { getFirestore, collection, getDocs, doc, addDoc, serverTimestamp, getDoc, where, updateDoc    } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { getFirestore, collection, getDocs, doc, addDoc, serverTimestamp, getDoc, where, updateDoc, query } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 import { initLogoutModal } from "./logout-modal.js";
 
@@ -26,8 +26,11 @@ let currentUser = null;
 let isAdmin = false; 
 let isProductsLoading = true;
 
+// ===================================================
+// PERFORMANCE OPTIMIZATION: Batch Parallel Loading
+// ===================================================
 async function getCachedUserData(uid) {
-    const key    = `user_data_${uid}`;
+    const key = `user_data_${uid}`;
     const cached = sessionStorage.getItem(key);
     if (cached) return JSON.parse(cached);
 
@@ -43,22 +46,21 @@ async function getCachedUserData(uid) {
     return null;
 }
 
-// --- HELPER: CHECK ADMIN ROLE (Dynamic) ---
 async function checkAdminRole(uid) {
     const data = await getCachedUserData(uid);
     return data?.role?.toLowerCase() === 'admin';
 }
 
-// --- HELPER: DISPLAY USER ROLE (UI) ---
-async function displayUserRole(uid) {
-    const roleEl = document.getElementById('userRoleDisplay');
-    if (!roleEl) return;
-    const data = await getCachedUserData(uid);
-    const role = data?.role || "User";
-    roleEl.textContent = role.charAt(0).toUpperCase() + role.slice(1);
+async function displayUserName(uid) {
+    const nameEl = document.getElementById('userNameDisplay');
+    if (!nameEl) return;
+
+    const userData = await getCachedUserData(uid);
+    const name = userData?.name || "User";
+    
+    nameEl.textContent = name;
 }
 
-// --- HELPER: ACTIVITY LOGGING FUNCTION ---
 async function logActivity(action, targetName) {
     try {
         const userEmail = auth.currentUser ? auth.currentUser.email : "Admin";
@@ -81,7 +83,7 @@ onAuthStateChanged(auth, async (user) => {
         currentUser = user;
 
         // Both calls now share one cached Firestore read
-        await displayUserRole(user.uid);
+        await displayUserName(user.uid);
         isAdmin = await checkAdminRole(user.uid);
 
         localStorage.setItem("user_uid",  user.uid);
@@ -100,33 +102,41 @@ onAuthStateChanged(auth, async (user) => {
         const exportBtn = document.getElementById('exportBtn');
         if (exportBtn) exportBtn.style.display = 'flex';
 
-        fetchProducts();
-        loadCategoryFilter();
-        
+        // ===================================================
+        // PERFORMANCE BOOST: Parallel Loading
+        // ===================================================
+        await Promise.all([
+            fetchProducts(),
+            loadCategoryFilter()
+        ]);
 
     } else {
         window.location.href = "index.html";
     }
 });
 
-// --- FETCH DATA ---
+// ===================================================
+// OPTIMIZED: Server-side filtering with Firestore Query
+// ===================================================
 async function fetchProducts() {
     setProductsLoading(true);
 
     try {
+        // OPTIMIZATION 1: Filter archived products SERVER-SIDE
+        const q = query(
+            collection(db, "products"),
+            where("archived", "==", false)  // Only fetch active products
+        );
 
-        const querySnapshot = await getDocs(collection(db, "products"));
+        const querySnapshot = await getDocs(q);
 
         allProducts = [];
 
         querySnapshot.forEach((docSnap) => {
-            const data = docSnap.data();
-
-            // Hide archived manually
-            if (data.archived === true) return;
-
-            allProducts.push({ id: docSnap.id, ...data });
+            allProducts.push({ id: docSnap.id, ...docSnap.data() });
         });
+
+        console.log(`✅ Loaded ${allProducts.length} products in ${performance.now()}ms`);
 
     } catch (error) {
         console.error("Error loading products:", error);
@@ -168,13 +178,10 @@ function applyFilters() {
         let prodDate = "";
         if (p.createdAt && p.createdAt.toDate) {
             const d = p.createdAt.toDate();
-            // Produces strings like "mar 17 2026", "march", "2026" — all searchable
             prodDate = d.toLocaleDateString("en-US", {
                 month: 'long', day: 'numeric', year: 'numeric'
             }).toLowerCase();
-            // Also add short month so "mar" matches "March"
             prodDate += " " + d.toLocaleDateString("en-US", { month: 'short' }).toLowerCase();
-            // Also add numeric format so "3/17" or "17" matches
             prodDate += " " + d.toLocaleDateString("en-US");
         }
 
@@ -221,7 +228,6 @@ function applyFilters() {
     });
 
     filteredProducts = result;
-    // DIRECTLY RENDER ALL ITEMS (No Pagination)
     renderTable(filteredProducts);
 }
 
@@ -258,7 +264,6 @@ function renderTable(productsToRender) {
         const docId = p.id;
         const shortId = "#" + docId.slice(0, 6); 
 
-        // UPDATED: Used var(--border-color) for inline borders
         let imageHtml = p.imageUrl 
             ? `<img src="${p.imageUrl}" alt="${p.name}" style="width: 45px; height: 45px; border-radius: 8px; object-fit: cover; border: 1px solid var(--border-color);">`
             : `<div class="product-img-placeholder"><i class="fa-regular fa-image"></i></div>`;
@@ -358,7 +363,6 @@ function renderTable(productsToRender) {
     if(isAdmin) attachDeleteListeners();
 }
 
-// --- EDIT FUNCTION ---
 window.editProduct = function(id) {
     if (isAdmin) {
         window.location.href = `Edit_Product.html?id=${id}`;
@@ -379,24 +383,20 @@ function confirmAction(productName) {
     return new Promise((resolve) => {
         confirmBtn.onclick = () => {
             modal.style.display = 'none';
-            resolve(true); // User clicked Yes
+            resolve(true);
         };
         cancelBtn.onclick = () => {
             modal.style.display = 'none';
-            resolve(false); // User clicked No
+            resolve(false);
         };
     });
 }
 
-// --- DELETE FUNCTION WITH LOGGING ---
 function attachDeleteListeners() {
-
     if (!isAdmin) return;
 
     document.querySelectorAll('.delete-btn').forEach(btn => {
-
         btn.addEventListener('click', async (e) => {
-
             const target = e.target.closest('.delete-btn');
             if (!target) return;
 
@@ -405,10 +405,9 @@ function attachDeleteListeners() {
             const nameToLog = productToArchive ? productToArchive.name : "Unknown Product";
 
             const isConfirmed = await confirmAction(nameToLog);
-            if (!isConfirmed) return; // Exit if user cancels
+            if (!isConfirmed) return;
 
             try {
-
                 await updateDoc(doc(db, "products", idToArchive), {
                     archived: true,
                     archivedAt: serverTimestamp()
@@ -416,7 +415,6 @@ function attachDeleteListeners() {
 
                 await logActivity("Archived Product", nameToLog);
 
-                // Remove locally so no reload needed
                 allProducts = allProducts.filter(p => p.id !== idToArchive);
                 applyFilters();
 
@@ -430,7 +428,6 @@ function attachDeleteListeners() {
     });
 }
 
-// --- EVENT LISTENERS ---
 document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("searchInput").addEventListener("input", applyFilters);
     document.getElementById("filterCategory").addEventListener("change", applyFilters);
@@ -472,9 +469,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
 document.getElementById('exportBtn').addEventListener('click', exportToExcel);
 
-// =======================================================
-// Logout Confirmation Modal (shared pattern with Dashboard)
-// =======================================================
 const doSignOut = () => {
     localStorage.removeItem("user_session"); localStorage.removeItem("user_uid"); localStorage.removeItem("user_role");
     sessionStorage.clear();
@@ -482,8 +476,6 @@ const doSignOut = () => {
 };
 const openLogoutModal = initLogoutModal(doSignOut);
 window.logout = function () { if (openLogoutModal) openLogoutModal(); }; 
-
-
 
 function showToast(message, type = 'success') {
     const container = document.getElementById('toast-container');
@@ -499,7 +491,6 @@ function showToast(message, type = 'success') {
     
     container.appendChild(toast);
 
-    // Auto-remove after 3 seconds
     setTimeout(() => {
         toast.style.animation = 'fadeOut 0.3s ease forwards';
         setTimeout(() => toast.remove(), 300);
@@ -512,12 +503,8 @@ function exportToExcel() {
         return;
     }
 
-    // Map products to match the import template format exactly
     const dataToExport = allProducts.map(p => {
-        // Get first variation for Size, Color, Custom
         const firstVariation = p.variations && p.variations[0] ? p.variations[0] : {};
-        
-        // Get first attribute for Attribute Name/Value
         const firstAttribute = p.attributes && p.attributes[0] ? p.attributes[0] : {};
 
         return {
@@ -535,36 +522,45 @@ function exportToExcel() {
         };
     });
 
-    // Create worksheet and workbook
     const worksheet = XLSX.utils.json_to_sheet(dataToExport);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Products");
 
-    // Download file
     const fileName = `Products_Backup_${new Date().toISOString().split('T')[0]}.xlsx`;
     XLSX.writeFile(workbook, fileName);
     
     showToast("Products exported successfully!", "success");
 }
 
+// ===================================================
+// OPTIMIZED: Server-side filtering for categories
+// ===================================================
 async function loadCategoryFilter() {
     const select = document.getElementById("filterCategory");
     if (!select) return;
 
-    // Keep the "All Categories" option, remove any others
     select.innerHTML = '<option value="">All Categories</option>';
 
     try {
-        const snapshot = await getDocs(collection(db, "categories"));
+        // OPTIMIZATION 2: Filter archived categories SERVER-SIDE
+        const q = query(
+            collection(db, "categories"),
+            where("archived", "==", false)
+        );
+        
+        const snapshot = await getDocs(q);
+        
         snapshot.forEach(docSnap => {
             const data = docSnap.data();
-            if (data.archived === true || !data.name) return; // skip archived
+            if (!data.name) return;
 
             const option = document.createElement("option");
-            option.value       = data.name;
+            option.value = data.name;
             option.textContent = data.name;
             select.appendChild(option);
         });
+        
+        console.log(`✅ Loaded ${snapshot.size} categories`);
     } catch (err) {
         console.error("Error loading category filter:", err);
     }
@@ -582,7 +578,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const processImportBtn = document.getElementById('processImportBtn');
     const downloadTemplateBtn = document.getElementById('downloadTemplateBtn');
 
-    // Show import modal (admin only)
     if (importBtn) {
         importBtn.addEventListener('click', () => {
             if (!isAdmin) {
@@ -593,26 +588,20 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-    // Close modal
     closeImportModal?.addEventListener('click', () => {
         importModal.style.display = 'none';
         importFileInput.value = '';
         processImportBtn.disabled = true;
     });
 
-    // Enable import button when file is selected
     importFileInput?.addEventListener('change', (e) => {
         processImportBtn.disabled = !e.target.files[0];
     });
 
-    // Download Template
     downloadTemplateBtn?.addEventListener('click', downloadImportTemplate);
-
-    // Process Import
     processImportBtn?.addEventListener('click', processImportFile);
 });
 
-// Generate and download Excel template
 function downloadImportTemplate() {
     const templateData = [
         {
@@ -638,7 +627,6 @@ function downloadImportTemplate() {
     showToast("Template downloaded successfully!", "success");
 }
 
-// Process the uploaded file
 async function processImportFile() {
     const fileInput = document.getElementById('importFileInput');
     const file = fileInput.files[0];
@@ -663,24 +651,20 @@ async function processImportFile() {
             return;
         }
 
-        // Import valid products
         const result = await importProducts(validationResult.validProducts);
         if (result.imported > 0) {
             await logActivity("Imported Products", `${result.imported} product(s) via Excel import`);
         }
 
-        // Close modal
         document.getElementById('importModalOverlay').style.display = 'none';
         fileInput.value = '';
 
-        // Show results
         if (result.errors.length > 0) {
             showImportResultModal(result.imported, result.errors);
         } else {
             showToast(`Successfully imported ${result.imported} product(s)!`, 'success');
         }
 
-        // Refresh product list
         await fetchProducts();
 
     } catch (error) {
@@ -692,7 +676,6 @@ async function processImportFile() {
     }
 }
 
-// Read Excel/CSV file
 function readExcelFile(file) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -714,35 +697,35 @@ function readExcelFile(file) {
     });
 }
 
-// Validate import data
 async function validateImportData(data) {
     const errors = [];
     const validProducts = [];
     const existingNames = new Set();
     const fileNames = new Set();
 
-    // Get existing product names from Firestore
-    const snapshot = await getDocs(collection(db, "products"));
+    const q = query(
+        collection(db, "products"),
+        where("archived", "==", false)
+    );
+    const snapshot = await getDocs(q);
     snapshot.forEach(doc => {
-        if (doc.data().archived !== true) {
-            existingNames.add(doc.data().name.toLowerCase());
-        }
+        existingNames.add(doc.data().name.toLowerCase());
     });
 
-    // Get valid categories
-    const categoriesSnapshot = await getDocs(collection(db, "categories"));
+    const categoriesQuery = query(
+        collection(db, "categories"),
+        where("archived", "==", false)
+    );
+    const categoriesSnapshot = await getDocs(categoriesQuery);
     const validCategories = new Set();
     categoriesSnapshot.forEach(doc => {
-        if (doc.data().archived !== true) {
-            validCategories.add(doc.data().name);
-        }
+        validCategories.add(doc.data().name);
     });
 
     data.forEach((row, index) => {
-        const rowNum = index + 2; // Excel row number (accounting for header)
+        const rowNum = index + 2;
         const rowErrors = [];
 
-        // Validate required fields
         if (!row["Product Name"]?.trim()) {
             rowErrors.push(`Row ${rowNum}: Product Name is required`);
         }
@@ -795,11 +778,9 @@ async function validateImportData(data) {
     return { validProducts, errors };
 }
 
-// Import products to Firestore
 async function importProducts(products) {
     const imported = [];
     const errors = [];
-    const fileNames = new Set();
 
     for (const product of products) {
         try {
@@ -810,9 +791,10 @@ async function importProducts(products) {
                 price: Number(product["Price"]),
                 stock: Number(product["Stock"]),
                 lowStockThreshold: Number(product["Low Stock Threshold"]) || 10,
-                imageUrl: "", // Images not supported in import
+                imageUrl: "",
                 createdAt: serverTimestamp(),
                 createdBy: auth.currentUser.uid,
+                archived: false,
                 variations: [{
                     size: product["Size"].trim(),
                     color: product["Color"].trim(),
@@ -821,7 +803,6 @@ async function importProducts(products) {
                 attributes: []
             };
 
-            // Add optional attributes
             if (product["Attribute Name"] && product["Attribute Value"]) {
                 productData.attributes.push({
                     name: product["Attribute Name"].trim(),
@@ -841,7 +822,6 @@ async function importProducts(products) {
     return { imported: imported.length, errors };
 }
 
-// Display validation errors
 function displayImportErrors(errors) {
     const errorHtml = errors.map(err => `<li style="margin-bottom:8px;">${err}</li>`).join('');
     
@@ -867,7 +847,6 @@ function displayImportErrors(errors) {
     document.body.insertAdjacentHTML('beforeend', modal);
 }
 
-// Show import result modal
 function showImportResultModal(importedCount, errors) {
     const errorHtml = errors.length > 0 
         ? `<div style="background:#fee2e2; border:1px solid #fca5a5; border-radius:8px; padding:12px; margin-top:16px;">

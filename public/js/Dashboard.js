@@ -66,16 +66,16 @@
         return null;
     }
 
-    async function displayUserRole(uid) {
-        const roleEl = document.getElementById('userRoleDisplay');
-        if (!roleEl) return;
-
+    async function displayUserName(uid) {
+        const nameEl = document.getElementById('userNameDisplay');
+        if (!nameEl) return;
+    
         const userData = await getCachedUserData(uid);
-        let role = userData?.role || "User";
+        const name = userData?.name || "User";
         
-        // Format: "admin" -> "Admin"
-        roleEl.textContent = role.charAt(0).toUpperCase() + role.slice(1);
+        nameEl.textContent = name;
     }
+    
 
     async function checkAdminRole(uid) {
         const userData = await getCachedUserData(uid);
@@ -88,7 +88,7 @@
     onAuthStateChanged(auth, async (user) => {
         if (user) {
             // Both share the same single cached Firestore read
-            displayUserRole(user.uid);
+            displayUserName(user.uid);
             const isAdmin = await checkAdminRole(user.uid);
 
             // Only reveal after role is confirmed — no flash
@@ -499,6 +499,7 @@
             signOut(auth).then(() => window.location.replace("index.html")).catch(() => window.location.replace("index.html"));
         };
         const openLogoutModal = initLogoutModal(doSignOut);
+
         window.logout = function () { if (openLogoutModal) openLogoutModal(); };    
     });
 

@@ -82,7 +82,7 @@ onAuthStateChanged(auth, async (user) => {
     }
 
     // Admin path — reveal form and load page
-    displayUserRole(user.uid);
+    displayUserName(user.uid);
     loadDefaultThreshold();
     main.style.visibility = 'visible';
 
@@ -103,17 +103,16 @@ async function checkAdminRole(uid) {
     return userData?.role?.toLowerCase() === 'admin';
 }
 
-async function displayUserRole(uid) {
-    const el = document.getElementById("userRoleDisplay");
-    if (!el) return;
+async function displayUserName(uid) {
+    const nameEl = document.getElementById('userNameDisplay');
+    if (!nameEl) return;
 
     const userData = await getCachedUserData(uid);
-
-    let role = userData?.role || "User";
-    role = role.charAt(0).toUpperCase() + role.slice(1);
-
-    el.textContent = role;
+    const name = userData?.name || "User";
+    
+    nameEl.textContent = name;
 }
+
 
 
 // --- HELPER: ACTIVITY LOGGING FUNCTION ---
@@ -389,13 +388,43 @@ document.addEventListener("DOMContentLoaded", () => {
                 let imageUrl = "";
                 
                 if (selectedImageFile) {
+                    submitBtn.innerText = "Optimizing Image...";
+                
+                    const resizedImage = await resizeImage(selectedImageFile, 500); 
+                
                     submitBtn.innerText = "Uploading Image...";
                 
-                    // Creates a unique path: products/images/<timestamp>_<filename>
                     const storageRef = ref(storage, `products/images/${Date.now()}_${selectedImageFile.name}`);
-                    const snapshot = await uploadBytes(storageRef, selectedImageFile);
+                    const snapshot = await uploadBytes(storageRef, resizedImage); 
                     imageUrl = await getDownloadURL(snapshot.ref);
-                }                
+                }         
+                
+                // --- Harvest Variations FIRST ---
+                const variations = [];
+                document.querySelectorAll('.variations-row').forEach(row => {
+                    const size = sanitizeInput(row.querySelector('.var-size').value);
+                    const color = sanitizeInput(row.querySelector('.var-color').value);
+                    const custom = sanitizeInput(row.querySelector('.var-custom').value);
+                
+                    if (size && color) {
+                        variations.push({ size, color, custom });
+                    }
+                });
+                
+                if (variations.length === 0) {
+                    throw new Error("Please add at least one valid Product Variation.");
+                }
+                
+                // --- Harvest Attributes ---
+                const attributes = [];
+                document.querySelectorAll('.custom-attr-row').forEach(row => {
+                    const name = sanitizeInput(row.querySelector('.attr-name').value);
+                    const value = sanitizeInput(row.querySelector('.attr-value').value);
+                
+                    if (name && value) {
+                        attributes.push({ name, value });
+                    }
+                });
 
                 const productData = {
                     name: sanitizeInput(rawName), 
@@ -404,27 +433,18 @@ document.addEventListener("DOMContentLoaded", () => {
                     price: priceVal, 
                     stock: stockVal,
                     lowStockThreshold: thresholdVal,
-                    imageUrl: imageUrl,          // <-- now a real hosted URL, or "" if none
+                    imageUrl: imageUrl,
                     createdAt: serverTimestamp(),
                     createdBy: auth.currentUser.uid,
-                    variations: [],
-                    attributes: []
+                
+                    archived: false,
+                    archivedAt: null,
+                
+                    variations: variations,
+                    attributes: attributes
                 };
 
-                // Harvest Variations
-                document.querySelectorAll('.variations-row').forEach(row => {
-                    const size = sanitizeInput(row.querySelector('.var-size').value);
-                    const color = sanitizeInput(row.querySelector('.var-color').value);
-                    const custom = sanitizeInput(row.querySelector('.var-custom').value);
-                    if(size && color) productData.variations.push({ size, color, custom });
-                });
-
-                // Harvest Attributes
-                document.querySelectorAll('.custom-attr-row').forEach(row => {
-                    const name = sanitizeInput(row.querySelector('.attr-name').value);
-                    const value = sanitizeInput(row.querySelector('.attr-value').value);
-                    if(name && value) productData.attributes.push({ name, value });
-                });
+                
 
                 if (productData.variations.length === 0) {
                     throw new Error("Please add at least one valid Product Variation.");
@@ -467,6 +487,34 @@ document.addEventListener("DOMContentLoaded", () => {
                 submitBtn.innerText = "Add Product"; 
                 submitBtn.disabled = false;
             }
+        });
+    }
+
+    async function resizeImage(file, maxWidth = 500) {
+        return new Promise((resolve) => {
+            const img = new Image();
+            const reader = new FileReader();
+    
+            reader.onload = e => {
+                img.src = e.target.result;
+            };
+    
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                const scale = maxWidth / img.width;
+    
+                canvas.width = maxWidth;
+                canvas.height = img.height * scale;
+    
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    
+                canvas.toBlob(blob => {
+                    resolve(blob);
+                }, 'image/jpeg', 0.7); // compress to 70%
+            };
+    
+            reader.readAsDataURL(file);
         });
     }
 
@@ -711,24 +759,30 @@ document.addEventListener("DOMContentLoaded", () => {
                     // 1. Upload image if exists
                     let imageUrl = "";
                     if (product.imageFile) {
+                        const resizedImage = await resizeImage(product.imageFile, 500); 
+                    
                         const storageRef = ref(storage, `products/images/${Date.now()}_${product.imageFile.name}`);
-                        const snapshot = await uploadBytes(storageRef, product.imageFile);
+                        const snapshot = await uploadBytes(storageRef, resizedImage); 
                         imageUrl = await getDownloadURL(snapshot.ref);
                     }
     
                     // 2. Save to Firestore
                     const productData = {
-                        name:              product.name,
-                        description:       product.description,
-                        category:          product.category,
-                        price:             product.price,
-                        stock:             product.stock,
+                        name: product.name,
+                        description: product.description,
+                        category: product.category,
+                        price: product.price,
+                        stock: product.stock,
                         lowStockThreshold: product.lowStockThreshold,
-                        imageUrl:          imageUrl,
-                        createdAt:         serverTimestamp(),
-                        createdBy:         auth.currentUser.uid,
-                        variations:        product.variations,
-                        attributes:        product.attributes
+                        imageUrl: imageUrl,
+                        createdAt: serverTimestamp(),
+                        createdBy: auth.currentUser.uid,
+                    
+                        archived: false,
+                        archivedAt: null,
+                    
+                        variations: product.variations,
+                        attributes: product.attributes
                     };
                     await addDoc(collection(db, "products"), productData);
                     await logActivity("Added Product", product.name);

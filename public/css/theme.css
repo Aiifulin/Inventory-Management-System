@@ -62,3 +62,8 @@ body {
     min-height: 100vh;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
+
+.sidebar-header .user-name { 
+    font-size: 13px; 
+    color: var(--text-secondary); 
+}

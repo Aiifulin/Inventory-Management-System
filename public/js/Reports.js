@@ -45,16 +45,23 @@ async function checkAdminRole(uid) {
   return data?.role?.toLowerCase() === 'admin';
 }
 
+async function displayUserName(uid) {
+  const nameEl = document.getElementById('userNameDisplay');
+  if (!nameEl) return;
+
+  const userData = await getCachedUserData(uid);
+  const name = userData?.name || "User";
+  
+  nameEl.textContent = name;
+}
+
 onAuthStateChanged(auth, async (user) => {
   if (user) {
       const userData = await getCachedUserData(user.uid);
       const isAdmin  = userData?.role?.toLowerCase() === 'admin';
 
-      // Display role
-      const roleEl = document.getElementById('userRoleDisplay');
-      if (roleEl && userData?.role) {
-          roleEl.textContent = userData.role.charAt(0).toUpperCase() + userData.role.slice(1);
-      }
+      // Display user name
+      await displayUserName(user.uid);
 
       const main = document.getElementById('mainContent');
 

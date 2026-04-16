@@ -52,13 +52,16 @@ async function getCachedUserData(uid) {
     return null;
 }
 
-async function displayUserRole(uid) {
-    const el = document.getElementById('userRoleDisplay');
-    if (!el) return;
-    const data = await getCachedUserData(uid);
-    const role = data?.role || "User";
-    el.textContent = role.charAt(0).toUpperCase() + role.slice(1);
+async function displayUserName(uid) {
+    const nameEl = document.getElementById('userNameDisplay');
+    if (!nameEl) return;
+
+    const userData = await getCachedUserData(uid);
+    const name = userData?.name || "User";
+    
+    nameEl.textContent = name;
 }
+
 
 async function checkAdminRole(uid) {
     const data = await getCachedUserData(uid);
@@ -90,7 +93,7 @@ onAuthStateChanged(auth, async (user) => {
         return;
     }
 
-    await displayUserRole(user.uid);
+    await displayUserName(user.uid);
     document.documentElement.style.visibility = "visible";
 
     await initLogs();

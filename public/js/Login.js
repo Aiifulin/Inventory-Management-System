@@ -3,7 +3,8 @@
  ***********************************************/
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
-import { getFirestore } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+
 
 /************************************************
  * FIREBASE CONFIGURATION
@@ -43,10 +44,23 @@ const login = function () {
     spinner.style.display = "inline-block";
 
     signInWithEmailAndPassword(auth, email, pass)
-        .then((userCredential) => {
+        .then(async (userCredential) => {
+            const uid = userCredential.user.uid;
+        
             localStorage.setItem("user_session", "true");
-            localStorage.setItem("user_uid", userCredential.user.uid);
-            showLoginSuccess();
+            localStorage.setItem("user_uid", uid);
+        
+            let userName = "User";
+            try {
+                const snap = await getDoc(doc(db, "users", uid));
+                if (snap.exists()) {
+                    userName = snap.data().name || "User";
+                }
+            } catch (err) {
+                console.error("Error fetching user name:", err);
+            }
+        
+            showLoginSuccess(userName); 
         })
         .catch((err) => {
             console.error(err.code, err.message);
@@ -74,13 +88,15 @@ const login = function () {
         });
 };
 
-function showLoginSuccess() {
+function showLoginSuccess(userName) {
     const overlay  = document.getElementById('loginSuccessOverlay');
     const bar      = document.getElementById('loginProgressBar');
+    const title    = document.querySelector('.login-success-title');
+
+    title.textContent = `Welcome back, ${userName}!`;
 
     overlay.style.display = 'flex';
 
-    // Animate progress bar over 2 seconds then redirect
     let width = 0;
     const interval = setInterval(() => {
         width += 2;
@@ -89,7 +105,7 @@ function showLoginSuccess() {
             clearInterval(interval);
             window.location.href = "Dashboard.html";
         }
-    }, 40); // 40ms × 50 steps = 2 seconds
+    }, 35);
 }
 
 /************************************************
