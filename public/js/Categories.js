@@ -4,6 +4,8 @@ import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/fi
 import { initLogoutModal } from "./logout-modal.js";
 import { getCountFromServer } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { initializeFirestore, persistentLocalCache } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { getDocsFromCache, getDocsFromServer } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+
 
 // --- CONFIG ---
 const firebaseConfig = {
@@ -127,36 +129,64 @@ onAuthStateChanged(auth, async (user) => {
 async function fetchCategories() {
     setCategoriesLoading(true);
 
-    try {
-        const querySnapshot = await getDocs(collection(db, "categories"));
-        
-        // Map the docs into an array of promises to run them in parallel
+    const colRef = collection(db, "categories");
+
+    // 🔹 Helper to process snapshot (reuse your logic)
+    async function processCategories(querySnapshot) {
+        const isFromCache = querySnapshot.metadata.fromCache;
+    
         const categoryPromises = querySnapshot.docs.map(async (docSnap) => {
             const data = docSnap.data();
             if (data.archived === true) return null;
-
-            // Optimized: Use getCountFromServer instead of getDocs
-            const productsQuery = query(
-                collection(db, "products"),
-                where("category", "==", data.name),
-                where("archived", "!=", true) 
-            );
-            
-            const countSnapshot = await getCountFromServer(productsQuery);
-            const count = countSnapshot.data().count;
-
+    
+            let count = 0;
+    
+            if (!isFromCache) {
+                const productsQuery = query(
+                    collection(db, "products"),
+                    where("category", "==", data.name),
+                    where("archived", "!=", true)
+                );
+    
+                const countSnapshot = await getCountFromServer(productsQuery);
+                count = countSnapshot.data().count;
+            }
+    
             return { id: docSnap.id, ...data, itemCount: count };
         });
-
-        // Wait for ALL requests to finish at once
+    
         const results = await Promise.all(categoryPromises);
         allCategories = results.filter(c => c !== null);
+    
+        applyFilters();
+    }
+
+    try {
+        // ===============================
+        // 1. LOAD FROM CACHE (FAST)
+        // ===============================
+        // CACHE
+        getDocsFromCache(colRef)
+            .then(async snapshot => {
+                console.log("Loaded from cache");
+                await processCategories(snapshot);
+        
+                // ✅ show UI immediately after cache
+                setCategoriesLoading(false);
+            })
+            .catch(() => {
+                console.log("No cache available");
+            });
+        
+        // SERVER
+        const freshSnapshot = await getDocsFromServer(colRef);
+        console.log("Loaded from server");
+        await processCategories(freshSnapshot);
 
     } catch (error) {
         console.error("Error loading categories:", error);
     } finally {
         setCategoriesLoading(false);
-        applyFilters();
     }
 }
 
