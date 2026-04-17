@@ -55,6 +55,7 @@ const login = function () {
                 const snap = await getDoc(doc(db, "users", uid));
                 if (snap.exists()) {
                     userName = snap.data().name || "User";
+                    
                 }
             } catch (err) {
                 console.error("Error fetching user name:", err);
