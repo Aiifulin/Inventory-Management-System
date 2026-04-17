@@ -28,6 +28,91 @@ const auth = getAuth(app);
 const chartInstances = {};
 
 // ===============================
+// DATE RANGE STATE
+// ===============================
+let activeDateRange = { from: null, to: null }; // null = no filter (All time)
+
+function setDateRange(from, to) {
+  activeDateRange = { from, to };
+}
+
+function isInRange(timestamp) {
+  if (!activeDateRange.from && !activeDateRange.to) return true; // All time
+  if (!timestamp) return false;
+  const date = timestamp.seconds
+    ? new Date(timestamp.seconds * 1000)
+    : new Date(timestamp);
+  if (activeDateRange.from && date < activeDateRange.from) return false;
+  if (activeDateRange.to   && date > activeDateRange.to)   return false;
+  return true;
+}
+
+function formatRangeLabel(from, to) {
+  if (!from && !to) return "All time";
+  const opts = { month: "short", day: "numeric", year: "numeric" };
+  return `${from ? from.toLocaleDateString("en-US", opts) : "—"} – ${to ? to.toLocaleDateString("en-US", opts) : "Today"}`;
+}
+
+function initDateFilter() {
+  const pills    = document.querySelectorAll(".date-pill");
+  const customWrap = document.getElementById("customDateWrap");
+  const badge    = document.getElementById("activeRangeBadge");
+  const btnApply = document.getElementById("btnApplyDate");
+
+  pills.forEach(pill => {
+    pill.addEventListener("click", () => {
+      pills.forEach(p => p.classList.remove("active"));
+      pill.classList.add("active");
+
+      const range = pill.dataset.range;
+      const now   = new Date();
+      now.setHours(23, 59, 59, 999);
+
+      if (range === "custom") {
+        customWrap.classList.add("visible");
+        return;
+      }
+
+      customWrap.classList.remove("visible");
+
+      if (range === "all") {
+        setDateRange(null, null);
+        if (badge) badge.textContent = "All time";
+      } else {
+        const from = new Date();
+        if (range === "30d") from.setDate(from.getDate() - 30);
+        else if (range === "3m") from.setMonth(from.getMonth() - 3);
+        else if (range === "1y") from.setFullYear(from.getFullYear() - 1);
+        from.setHours(0, 0, 0, 0);
+
+        setDateRange(from, now);
+        if (badge) badge.textContent = formatRangeLabel(from, now);
+      }
+
+      // Re-render charts + banner with new range
+      loadAllCharts();
+    });
+  });
+
+  if (btnApply) {
+    btnApply.addEventListener("click", () => {
+      const fromVal = document.getElementById("dateFrom").value;
+      const toVal   = document.getElementById("dateTo").value;
+      if (!fromVal || !toVal) { alert("Please select both a start and end date."); return; }
+
+      const from = new Date(fromVal); from.setHours(0, 0, 0, 0);
+      const to   = new Date(toVal);   to.setHours(23, 59, 59, 999);
+
+      if (from > to) { alert("Start date must be before end date."); return; }
+
+      setDateRange(from, to);
+      if (badge) badge.textContent = formatRangeLabel(from, to);
+      loadAllCharts();
+    });
+  }
+}
+
+// ===============================
 // USER / AUTH
 // ===============================
 async function getCachedUserData(uid) {
@@ -156,6 +241,7 @@ function renderInventoryChart(productsSnap) {
   productsSnap.forEach(docSnap => {
     const p = docSnap.data();
     if (p.archived === true) return;
+    if (!isInRange(p.createdAt)) return;
     const stock     = Number(p.stock) || 0;
     const threshold = Number(p.lowStockThreshold) || 10;
     if (stock === 0)             outOfStock++;
@@ -223,6 +309,7 @@ function renderCategoryChart(productsSnap, categoriesSnap) {
   productsSnap.forEach(docSnap => {
     const p = docSnap.data();
     if (p.archived === true) return;
+    if (!isInRange(p.createdAt)) return;
     const cat = p.category || 'Uncategorized';
     categoryCount[cat] = (categoryCount[cat] || 0) + 1;
   });
@@ -298,6 +385,7 @@ function renderLowStockChart(productsSnap) {
   productsSnap.forEach(docSnap => {
     const p = docSnap.data();
     if (p.archived === true) return;
+    if (!isInRange(p.createdAt)) return;
     const stock     = Number(p.stock) || 0;
     const threshold = Number(p.lowStockThreshold) || 10;
     if (stock <= threshold) {
@@ -399,6 +487,7 @@ function renderActivityChart(activitiesSnap) {
 
   activitiesSnap.forEach(docSnap => {
     const log    = docSnap.data();
+    if (!isInRange(log.timestamp)) return;
     const action = (log.action || "").toLowerCase();
     if      (action.includes("add"))                                    counts.Added++;
     else if (action.includes("edit") || action.includes("update"))      counts.Updated++;
@@ -748,6 +837,7 @@ async function loadActivityReport(btn) {
 
     snapshot.forEach(docSnap => {
       const log    = docSnap.data();
+      if (!isInRange(log.timestamp)) return;
       const action = (log.action || "").toLowerCase();
       let actionType = "Other";
       if      (action.includes("add"))                                    actionType = "Added";
@@ -794,4 +884,5 @@ function attachReportListeners() {
   if (btnCategory)      btnCategory.addEventListener("click",      () => loadCategoryReport(btnCategory));
   if (btnLowStock)      btnLowStock.addEventListener("click",      () => loadLowStockReport(btnLowStock));
   if (btnStockMovement) btnStockMovement.addEventListener("click", () => loadActivityReport(btnStockMovement));
+  initDateFilter();
 }

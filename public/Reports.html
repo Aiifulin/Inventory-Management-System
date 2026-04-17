@@ -91,6 +91,27 @@
         </div>
       </div>
     </div>
+    <!-- DATE RANGE FILTER -->
+    <div class="date-filter-bar" id="dateFilterBar">
+      <span class="date-filter-label">
+        <i class="fas fa-calendar-alt"></i> Period:
+      </span>
+      <div class="pill-group">
+        <button class="date-pill" data-range="30d">Last 30 days</button>
+        <button class="date-pill" data-range="3m">Last 3 months</button>
+        <button class="date-pill" data-range="1y">Last year</button>
+        <button class="date-pill active" data-range="all">All time</button>
+        <button class="date-pill" data-range="custom">Custom</button>
+      </div>
+      <div class="custom-date-wrap" id="customDateWrap">
+        <input type="date" id="dateFrom" />
+        <span>to</span>
+        <input type="date" id="dateTo" />
+        <button class="btn-apply-date" id="btnApplyDate">Apply</button>
+      </div>
+      <span class="active-range-badge" id="activeRangeBadge">All time</span>
+    </div>
+    
 
     <!-- Export Options -->
     <div class="export-options">

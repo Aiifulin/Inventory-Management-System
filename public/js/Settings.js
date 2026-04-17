@@ -53,10 +53,18 @@ async function displayUserName(uid) {
     nameEl.textContent = name;
 }
 
+function setSettingsLoading(loading) {
+    const skeleton = document.getElementById('settingsSkeleton');
+    const content  = document.getElementById('settingsContent');
+    if (skeleton) skeleton.style.display = loading ? 'flex' : 'none';
+    if (content)  content.style.display  = loading ? 'none' : 'flex';
+}
+
 // --- AUTH LISTENER & SECURITY CHECK ---
 onAuthStateChanged(auth, async (user) => {
     if (user) {
         const main = document.getElementById('mainContent');
+        main.style.visibility = 'visible';
 
         // Shared logout setup for both admin and non-admin users
         const doSignOut = () => {
@@ -94,14 +102,23 @@ onAuthStateChanged(auth, async (user) => {
         };
 
         populateAdminInfo(fullUser);
-        loadSettings();
-        loadUserTable();
+        setSettingsLoading(true);
+
+        await Promise.all([
+            loadSettings(),
+            loadUserTable(),
+        ]);
+        
         initDarkMode();
+        initAutoBackup();
+        await loadAutoBackupSettings();
+        
+        setSettingsLoading(false);
 
         initAutoBackup();
         await loadAutoBackupSettings();
 
-        main.style.visibility = 'visible';
+        
         //startTestAutoBackup(); for testing auto backup every 1 minute
 
     } else {
