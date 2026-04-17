@@ -19,6 +19,7 @@ import {
 import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 import { initLogoutModal } from "./logout-modal.js";
 import { getStorage, ref, deleteObject } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-storage.js";
+import { initializeFirestore, persistentLocalCache } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
 // 🔹 Firebase Config
 const firebaseConfig = {
@@ -31,7 +32,9 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+const db = initializeFirestore(app, {
+    localCache: persistentLocalCache()
+});
 const auth = getAuth(app);
 const storage = getStorage(app);
 

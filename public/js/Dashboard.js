@@ -2,6 +2,7 @@
     import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
     import { getFirestore, collection, query, orderBy, limit, doc, getDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
     import { initLogoutModal } from "./logout-modal.js";
+    import { initializeFirestore, persistentLocalCache } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
     // --- CONFIG ---
     const firebaseConfig = {
@@ -16,7 +17,11 @@
 
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
-    const db = getFirestore(app);
+
+
+    const db = initializeFirestore(app, {
+        localCache: persistentLocalCache()
+    });
 
     // --- GLOBALS ---
     let barChartInstance = null;

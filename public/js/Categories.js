@@ -3,6 +3,7 @@ import { getFirestore, collection, getDocs, doc, addDoc, serverTimestamp, getDoc
 import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 import { initLogoutModal } from "./logout-modal.js";
 import { getCountFromServer } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { initializeFirestore, persistentLocalCache } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
 // --- CONFIG ---
 const firebaseConfig = {
@@ -16,7 +17,9 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+const db = initializeFirestore(app, {
+    localCache: persistentLocalCache()
+});
 const auth = getAuth(app);
 
 // --- GLOBAL STATE ---
@@ -332,11 +335,32 @@ document.addEventListener("DOMContentLoaded", () => {
         confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Archiving...';
     
         try {
+            // 1. Archive category
             await updateDoc(doc(db, "categories", pendingDeleteId), {
                 archived: true,
                 archivedAt: serverTimestamp()
             });
-    
+            
+            const productsQuery = query(
+                collection(db, "products"),
+                where("category", "==", categoryName)
+            );
+            
+            const productsSnapshot = await getDocs(productsQuery);
+            
+            const updatePromises = [];
+            
+            productsSnapshot.forEach((productDoc) => {
+                updatePromises.push(
+                    updateDoc(doc(db, "products", productDoc.id), {
+                        category: "Uncategorized"
+                    })
+                );
+            });
+            
+            await Promise.all(updatePromises);
+            
+            // 3. Log AFTER everything succeeds
             await logActivity("Archived Category", categoryName);
     
             // 2. Update the UI
