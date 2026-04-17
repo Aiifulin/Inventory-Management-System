@@ -22,6 +22,7 @@
   <link rel="stylesheet" href="css/theme.css"/>
   <link rel="stylesheet" href="css/Reports.css"/>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 </head>
 <body>
 
@@ -64,6 +65,33 @@
       </div>
     </div>
 
+    <!-- INVENTORY VALUE SUMMARY BANNER -->
+    <div class="inventory-summary-banner" id="inventorySummaryBanner" style="display:none;">
+      <div class="summary-stat">
+        <i class="fas fa-boxes-stacked"></i>
+        <div>
+          <span class="summary-label">Total Products</span>
+          <span class="summary-value" id="summaryTotalProducts">—</span>
+        </div>
+      </div>
+      <div class="summary-divider"></div>
+      <div class="summary-stat">
+        <i class="fas fa-cubes"></i>
+        <div>
+          <span class="summary-label">Total Stock Units</span>
+          <span class="summary-value" id="summaryTotalStock">—</span>
+        </div>
+      </div>
+      <div class="summary-divider"></div>
+      <div class="summary-stat highlight">
+        <i class="fas fa-peso-sign"></i>
+        <div>
+          <span class="summary-label">Total Inventory Value</span>
+          <span class="summary-value" id="summaryTotalValue">—</span>
+        </div>
+      </div>
+    </div>
+
     <!-- Export Options -->
     <div class="export-options">
       <label for="exportFormat"><i class="fas fa-file-export" style="margin-right:6px; color:var(--text-secondary);"></i>Export format:</label>
@@ -89,6 +117,12 @@
             <p>Full overview of all active products — name, category, stock, price, and total inventory value.</p>
           </div>
         </div>
+        <!-- Chart: Stock status donut -->
+        <div class="report-chart-wrap">
+          <div class="chart-loading" id="chartLoadingInventory"><i class="fas fa-spinner fa-spin"></i></div>
+          <canvas id="chartInventory" style="display:none;"></canvas>
+          <div class="chart-legend" id="legendInventory"></div>
+        </div>
         <div class="report-card-footer">
           <button class="btn-report" id="btnInventory">
             <i class="fa-solid fa-download"></i> Generate Report
@@ -107,6 +141,11 @@
             <p>Breakdown of product counts and total stock levels grouped by category.</p>
           </div>
         </div>
+        <!-- Chart: Products per category bar -->
+        <div class="report-chart-wrap">
+          <div class="chart-loading" id="chartLoadingCategory"><i class="fas fa-spinner fa-spin"></i></div>
+          <canvas id="chartCategory" style="display:none;"></canvas>
+        </div>
         <div class="report-card-footer">
           <button class="btn-report" id="btnCategory">
             <i class="fa-solid fa-download"></i> Generate Report
@@ -123,6 +162,14 @@
           <div class="report-info">
             <h3>Low Stock Report</h3>
             <p>All products at or below their low stock threshold that require restocking attention.</p>
+          </div>
+        </div>
+        <!-- Chart: Low stock items horizontal bar -->
+        <div class="report-chart-wrap">
+          <div class="chart-loading" id="chartLoadingLowStock"><i class="fas fa-spinner fa-spin"></i></div>
+          <canvas id="chartLowStock" style="display:none;"></canvas>
+          <div class="chart-empty" id="chartLowStockEmpty" style="display:none;">
+            <i class="fas fa-check-circle" style="color:#16a34a;"></i> All products well stocked
           </div>
         </div>
         <div class="report-card-footer">
@@ -143,6 +190,12 @@
             <p>Recent inventory activity log — added, updated, archived, and deleted product events.</p>
           </div>
         </div>
+        <!-- Chart: Activity type breakdown -->
+        <div class="report-chart-wrap">
+          <div class="chart-loading" id="chartLoadingActivity"><i class="fas fa-spinner fa-spin"></i></div>
+          <canvas id="chartActivity" style="display:none;"></canvas>
+          <div class="chart-legend" id="legendActivity"></div>
+        </div>
         <div class="report-card-footer">
           <button class="btn-report" id="btnStockMovement">
             <i class="fa-solid fa-download"></i> Generate Report
@@ -152,6 +205,7 @@
 
     </div>
   </main>
+
   <!-- LOGOUT CONFIRMATION MODAL -->
   <div id="logoutModalOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:99999;align-items:center;justify-content:center;padding:20px;">
       <div style="background:var(--bg-card);border:1px solid var(--border-color);border-radius:16px;padding:32px 28px;max-width:380px;width:100%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.2);animation:logoutModalPop 0.25s ease;">

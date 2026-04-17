@@ -554,12 +554,16 @@ document.addEventListener("DOMContentLoaded", () => {
     
         if (!rawName) throw new Error("Product Name is required.");
     
-        const priceVal    = parseFloat(document.querySelector('input[type="number"][step="0.01"]').value) || 0;
-        const stockVal    = parseInt(document.querySelector('input[placeholder="0"]').value) || 0;
+        const priceVal     = parseFloat(document.querySelector('input[type="number"][step="0.01"]').value) || 0;
+        const stockVal     = parseInt(document.querySelector('input[placeholder="0"]').value) || 0;
         const thresholdVal = parseInt(document.querySelector('input[placeholder="10"]').value) || 10;
     
         if (priceVal < 0 || stockVal < 0 || thresholdVal < 0)
             throw new Error("Price and Stock values cannot be negative.");
+    
+        // ✅ Category validation — outside the loop, before the return
+        const categoryVal = document.getElementById('categorySelect').value;
+        if (!categoryVal) throw new Error("Please select a category.");
     
         // Duplicate check against already-queued names
         const alreadyQueued = draftProducts.some(p => p.name.toLowerCase() === rawName.toLowerCase());
@@ -589,12 +593,12 @@ document.addEventListener("DOMContentLoaded", () => {
         return {
             name:              sanitizeInput(rawName),
             description:       sanitizeInput(document.querySelector('textarea').value),
-            category:          document.querySelector('select').value,
+            category:          categoryVal,  
             price:             priceVal,
             stock:             stockVal,
             lowStockThreshold: thresholdVal,
-            imageFile:         selectedImageFile,          // raw File — uploaded at Finalize
-            imagePreviewUrl:   preview.src || null,        // blob URL for preview card
+            imageFile:         selectedImageFile,
+            imagePreviewUrl:   preview.src || null,
             variations,
             attributes
         };
@@ -604,6 +608,7 @@ document.addEventListener("DOMContentLoaded", () => {
     function resetFormForNext() {
         form.reset();
         resetImage();
+        loadCategories();
     
         // Reset variations to one empty row
         if (variationContainer) {
@@ -694,7 +699,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 ? `<div class="preview-card-img"><img src="${product.imagePreviewUrl}" alt="preview"></div>`
                 : `<div class="preview-card-img no-image"><i class="fas fa-image"></i></div>`;
     
-            card.innerHTML = `
+                card.innerHTML = `
                 ${imgHtml}
                 <div class="preview-card-body">
                     <div class="preview-card-name">${product.name}</div>
@@ -705,6 +710,9 @@ document.addEventListener("DOMContentLoaded", () => {
                 </div>
                 <button class="btn-remove-card" title="Remove from queue" data-index="${index}">
                     <i class="fas fa-times"></i>
+                </button>
+                <button class="btn-edit-card" title="Edit this product" data-index="${index}">
+                    <i class="fas fa-pen"></i>
                 </button>`;
     
             previewGrid.appendChild(card);
@@ -729,12 +737,86 @@ document.addEventListener("DOMContentLoaded", () => {
     
     // Remove a card from queue
     previewGrid?.addEventListener('click', (e) => {
-        const btn = e.target.closest('.btn-remove-card');
-        if (!btn) return;
-        const idx = parseInt(btn.dataset.index);
+        const removeBtn = e.target.closest('.btn-remove-card');
+        if (removeBtn) {
+            const idx = parseInt(removeBtn.dataset.index);
+            draftProducts.splice(idx, 1);
+            updateBulkUI();
+            renderPreviewCards();
+            return;
+        }
+    
+        const editBtn = e.target.closest('.btn-edit-card');
+        if (!editBtn) return;
+    
+        const idx = parseInt(editBtn.dataset.index);
+        const product = draftProducts[idx];
+    
+        // Close the preview modal
+        overlay.style.display = 'none';
+    
+        // Populate form fields
+        document.querySelector('input[placeholder="Enter product name"]').value = product.name;
+        document.querySelector('textarea').value = product.description || '';
+        document.querySelector('input[type="number"][step="0.01"]').value = product.price;
+        document.querySelector('input[placeholder="0"]').value = product.stock;
+        document.querySelector('input[placeholder="10"]').value = product.lowStockThreshold;
+
+        // Wait for category options to be ready before setting value
+        const categorySelect = document.getElementById('categorySelect');
+        const setCategoryWhenReady = () => {
+            if (categorySelect.options.length > 1) {
+                categorySelect.value = product.category;
+            } else {
+                setTimeout(setCategoryWhenReady, 50);
+            }
+        };
+        setCategoryWhenReady();
+    
+        // Restore image preview if it existed
+        if (product.imagePreviewUrl) {
+            preview.src = product.imagePreviewUrl;
+            preview.style.display = 'block';
+            placeholder.style.display = 'none';
+            removeBtn.style.display = 'flex';
+            selectedImageFile = product.imageFile || null;
+        }
+    
+        // Restore variations
+        if (variationContainer && product.variations.length > 0) {
+            variationContainer.innerHTML = product.variations.map(v => `
+                <div class="variations-row">
+                    <div class="input-group"><input type="text" class="var-size" placeholder="Ex: Large" value="${v.size}" required></div>
+                    <div class="input-group"><input type="text" class="var-color" placeholder="Ex: Red" value="${v.color}" required></div>
+                    <div class="input-group"><input type="text" class="var-custom" placeholder="Optional" value="${v.custom || ''}"></div>
+                    <button type="button" class="btn-delete remove-row-btn"><i class="fas fa-trash"></i></button>
+                </div>`).join('');
+            variationContainer.querySelectorAll('input').forEach(inp => applyCharLimit(inp));
+        }
+    
+        // Restore attributes
+        if (attrContainer && product.attributes.length > 0) {
+            attrContainer.innerHTML = product.attributes.map(a => `
+                <div class="custom-attr-row">
+                    <div class="input-group"><input type="text" class="attr-name" placeholder="Ex: Material" value="${a.name}"></div>
+                    <div class="input-group"><input type="text" class="attr-value" placeholder="Ex: Cotton" value="${a.value}"></div>
+                    <button type="button" class="btn-delete remove-attr-btn"><i class="fas fa-trash"></i></button>
+                </div>`).join('');
+            attrContainer.querySelectorAll('input').forEach(inp => applyCharLimit(inp));
+        } else if (attrContainer) {
+            attrContainer.innerHTML = `
+                <div class="custom-attr-row">
+                    <div class="input-group"><input type="text" class="attr-name" placeholder="Ex: Material"></div>
+                    <div class="input-group"><input type="text" class="attr-value" placeholder="Ex: Cotton"></div>
+                    <button type="button" class="btn-delete remove-attr-btn"><i class="fas fa-trash"></i></button>
+                </div>`;
+        }
+    
+        // Remove from queue — it'll be re-added when user clicks Next
         draftProducts.splice(idx, 1);
         updateBulkUI();
-        renderPreviewCards();
+    
+        window.scrollTo({ top: 0, behavior: 'smooth' });
     });
     
     // --- CONFIRM SAVE ALL ---

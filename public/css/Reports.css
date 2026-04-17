@@ -352,3 +352,161 @@ body {
 @media (max-width: 1024px) {
   .reports-grid { grid-template-columns: 1fr; }
 }
+
+/* =======================================
+   APPEND THESE STYLES TO YOUR Reports.css
+   ======================================= */
+
+/* --- INVENTORY SUMMARY BANNER --- */
+.inventory-summary-banner {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 18px 28px;
+  margin-bottom: 20px;
+  box-shadow: 0 1px 3px var(--shadow-color);
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.summary-stat {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex: 1;
+  min-width: 160px;
+}
+
+.summary-stat i {
+  font-size: 22px;
+  color: var(--text-secondary);
+  width: 32px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.summary-stat.highlight i {
+  color: #16a34a;
+}
+
+.summary-stat div {
+  display: flex;
+  flex-direction: column;
+}
+
+.summary-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.summary-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-main);
+  margin-top: 2px;
+}
+
+.summary-stat.highlight .summary-value {
+  color: #16a34a;
+}
+
+.summary-divider {
+  width: 1px;
+  height: 40px;
+  background: var(--border-color);
+  flex-shrink: 0;
+}
+
+/* --- CHART AREA INSIDE REPORT CARD --- */
+.report-chart-wrap {
+  padding: 0 16px 4px;
+  min-height: 160px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.report-chart-wrap canvas {
+  max-height: 180px;
+  width: 100% !important;
+}
+
+/* Doughnut charts — constrain width so they don't stretch */
+#chartInventory,
+#chartActivity {
+  max-width: 180px !important;
+  max-height: 180px !important;
+  align-self: center;
+}
+
+.chart-loading {
+  font-size: 20px;
+  color: var(--text-secondary);
+  opacity: 0.5;
+  padding: 24px 0;
+}
+
+.chart-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  font-weight: 500;
+  padding: 24px 0;
+}
+
+/* --- CUSTOM CHART LEGENDS --- */
+.chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  justify-content: center;
+  padding: 8px 0 4px;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.legend-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.legend-label {
+  color: var(--text-secondary);
+}
+
+.legend-count {
+  font-weight: 700;
+  color: var(--text-main);
+  margin-left: 2px;
+}
+
+/* Responsive banner */
+@media (max-width: 600px) {
+  .inventory-summary-banner {
+    flex-direction: column;
+    padding: 16px 18px;
+  }
+  .summary-divider {
+    width: 100%;
+    height: 1px;
+  }
+}

@@ -20,11 +20,12 @@ const firebaseConfig = {
   measurementId: "G-68CR9JCJV8"
 };
 
-const app  = initializeApp(firebaseConfig);
-const db = initializeFirestore(app, {
-  localCache: persistentLocalCache()
-});
+const app = initializeApp(firebaseConfig);
+const db  = initializeFirestore(app, { localCache: persistentLocalCache() });
 const auth = getAuth(app);
+
+// Track chart instances so we can destroy before re-rendering
+const chartInstances = {};
 
 // ===============================
 // USER / AUTH
@@ -43,64 +44,452 @@ async function getCachedUserData(uid) {
   return null;
 }
 
-async function checkAdminRole(uid) {
-  const data = await getCachedUserData(uid);
-  return data?.role?.toLowerCase() === 'admin';
-}
-
 async function displayUserName(uid) {
   const nameEl = document.getElementById('userNameDisplay');
   if (!nameEl) return;
-
   const userData = await getCachedUserData(uid);
-  const name = userData?.name || "User";
-  
-  nameEl.textContent = name;
+  nameEl.textContent = userData?.name || "User";
 }
 
 onAuthStateChanged(auth, async (user) => {
   if (user) {
-      const userData = await getCachedUserData(user.uid);
-      const isAdmin  = userData?.role?.toLowerCase() === 'admin';
+    const userData = await getCachedUserData(user.uid);
+    const isAdmin  = userData?.role?.toLowerCase() === 'admin';
 
-      // Display user name
-      await displayUserName(user.uid);
+    await displayUserName(user.uid);
 
-      const main = document.getElementById('mainContent');
+    const main = document.getElementById('mainContent');
 
-      if (!isAdmin) {
-          // Replace content BEFORE revealing so non-admins never see the reports UI
-          main.innerHTML = `
-          <div style="display:flex; flex-direction:column; align-items:center; 
-                      justify-content:center; height:60vh; text-align:center; 
-                      color:var(--text-secondary);">
-              <i class="fas fa-lock" style="font-size:48px; margin-bottom:16px;"></i>
-              <h2 style="margin:0 0 8px; color:var(--text-main); font-size:20px;">Access Denied</h2>
-              <p style="margin:0; font-size:14px;">You do not have permission to view Settings.</p>
-              
-          </div>`;
+    if (!isAdmin) {
+      main.innerHTML = `
+        <div style="display:flex;flex-direction:column;align-items:center;
+                    justify-content:center;height:60vh;text-align:center;
+                    color:var(--text-secondary);">
+          <i class="fas fa-lock" style="font-size:48px;margin-bottom:16px;"></i>
+          <h2 style="margin:0 0 8px;color:var(--text-main);font-size:20px;">Access Denied</h2>
+          <p style="margin:0;font-size:14px;">You do not have permission to view Reports.</p>
+        </div>`;
       main.style.visibility = 'visible';
-      } else {
-          attachReportListeners();
-      }
+    } else {
+      attachReportListeners();
+      loadAllCharts(); // Load charts on page open
+    }
 
-      // Reveal only after content is ready — no flicker either way
-      main.style.visibility = 'visible';
-      // =======================================================
-      // Logout Confirmation Modal (shared pattern with Dashboard)
-      // =======================================================
-      const doSignOut = () => {
-          localStorage.removeItem("user_session"); localStorage.removeItem("user_uid"); localStorage.removeItem("user_role");
-          sessionStorage.clear();
-          signOut(auth).then(() => window.location.replace("index.html")).catch(() => window.location.replace("index.html"));
-      };
-      const openLogoutModal = initLogoutModal(doSignOut);
-      window.logout = function () { if (openLogoutModal) openLogoutModal(); }; 
+    main.style.visibility = 'visible';
+
+    const doSignOut = () => {
+      localStorage.removeItem("user_session");
+      localStorage.removeItem("user_uid");
+      localStorage.removeItem("user_role");
+      sessionStorage.clear();
+      signOut(auth)
+        .then(() => window.location.replace("index.html"))
+        .catch(() => window.location.replace("index.html"));
+    };
+    const openLogoutModal = initLogoutModal(doSignOut);
+    window.logout = function () { if (openLogoutModal) openLogoutModal(); };
 
   } else {
-      window.location.href = "index.html";
+    window.location.href = "index.html";
   }
 });
+
+// ===============================
+// CHART HELPERS
+// ===============================
+
+// Detect dark mode for chart colors
+function isDark() {
+  return document.documentElement.getAttribute('data-theme') === 'dark';
+}
+
+function chartTextColor() {
+  return isDark() ? '#cbd5e1' : '#475569';
+}
+
+function chartGridColor() {
+  return isDark() ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.07)';
+}
+
+function destroyChart(id) {
+  if (chartInstances[id]) {
+    chartInstances[id].destroy();
+    delete chartInstances[id];
+  }
+}
+
+function showChart(canvasId, loadingId) {
+  const canvas  = document.getElementById(canvasId);
+  const loading = document.getElementById(loadingId);
+  if (canvas)  canvas.style.display  = 'block';
+  if (loading) loading.style.display = 'none';
+}
+
+// ===============================
+// LOAD ALL CHARTS ON PAGE OPEN
+// ===============================
+async function loadAllCharts() {
+  try {
+    const [productsSnap, categoriesSnap, activitiesSnap] = await Promise.all([
+      getDocs(collection(db, "products")),
+      getDocs(collection(db, "categories")),
+      getDocs(query(collection(db, "activities"), orderBy("timestamp", "desc"), limit(200)))
+    ]);
+
+    renderInventoryChart(productsSnap);
+    renderCategoryChart(productsSnap, categoriesSnap);
+    renderLowStockChart(productsSnap);
+    renderActivityChart(activitiesSnap);
+    renderInventorySummaryBanner(productsSnap);
+
+  } catch (err) {
+    console.error("Chart load error:", err);
+  }
+}
+
+// ===============================
+// CHART 1: INVENTORY — Donut (In Stock / Low Stock / Out of Stock)
+// ===============================
+function renderInventoryChart(productsSnap) {
+  let inStock = 0, lowStock = 0, outOfStock = 0;
+
+  productsSnap.forEach(docSnap => {
+    const p = docSnap.data();
+    if (p.archived === true) return;
+    const stock     = Number(p.stock) || 0;
+    const threshold = Number(p.lowStockThreshold) || 10;
+    if (stock === 0)             outOfStock++;
+    else if (stock <= threshold) lowStock++;
+    else                         inStock++;
+  });
+
+  destroyChart('chartInventory');
+  showChart('chartInventory', 'chartLoadingInventory');
+
+  const ctx = document.getElementById('chartInventory').getContext('2d');
+  chartInstances['chartInventory'] = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: ['In Stock', 'Low Stock', 'Out of Stock'],
+      datasets: [{
+        data: [inStock, lowStock, outOfStock],
+        backgroundColor: ['#22c55e', '#f59e0b', '#ef4444'],
+        borderWidth: 0,
+        hoverOffset: 6
+      }]
+    },
+    options: {
+      cutout: '68%',
+      responsive: true,
+      maintainAspectRatio: true,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => ` ${ctx.label}: ${ctx.raw} product(s)`
+          }
+        }
+      }
+    }
+  });
+
+  // Custom legend
+  const legend = document.getElementById('legendInventory');
+  if (legend) {
+    const colors  = ['#22c55e', '#f59e0b', '#ef4444'];
+    const labels  = ['In Stock', 'Low Stock', 'Out of Stock'];
+    const values  = [inStock, lowStock, outOfStock];
+    legend.innerHTML = labels.map((l, i) => `
+      <div class="legend-item">
+        <span class="legend-dot" style="background:${colors[i]}"></span>
+        <span class="legend-label">${l}</span>
+        <span class="legend-count">${values[i]}</span>
+      </div>`).join('');
+  }
+}
+
+// ===============================
+// CHART 2: CATEGORY — Horizontal Bar (Products per category)
+// ===============================
+function renderCategoryChart(productsSnap, categoriesSnap) {
+  const categoryCount = {};
+
+  // Seed from active categories
+  categoriesSnap.forEach(docSnap => {
+    const c = docSnap.data();
+    if (c.archived !== true && c.name) categoryCount[c.name] = 0;
+  });
+
+  productsSnap.forEach(docSnap => {
+    const p = docSnap.data();
+    if (p.archived === true) return;
+    const cat = p.category || 'Uncategorized';
+    categoryCount[cat] = (categoryCount[cat] || 0) + 1;
+  });
+
+  // Filter to categories that have at least 1 product, sort desc, top 8
+  const sorted = Object.entries(categoryCount)
+    .filter(([, v]) => v > 0)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 8);
+
+  const labels = sorted.map(([k]) => k);
+  const values = sorted.map(([, v]) => v);
+
+  const palette = [
+    '#3b82f6','#06b6d4','#8b5cf6','#f59e0b',
+    '#22c55e','#ef4444','#ec4899','#f97316'
+  ];
+
+  destroyChart('chartCategory');
+  showChart('chartCategory', 'chartLoadingCategory');
+
+  const ctx = document.getElementById('chartCategory').getContext('2d');
+  chartInstances['chartCategory'] = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Products',
+        data: values,
+        backgroundColor: labels.map((_, i) => palette[i % palette.length]),
+        borderRadius: 6,
+        borderSkipped: false
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: true,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: { label: ctx => ` ${ctx.raw} product(s)` }
+        }
+      },
+      scales: {
+        x: {
+          beginAtZero: true,
+          ticks: {
+            color: chartTextColor(),
+            stepSize: 1,
+            font: { size: 11 }
+          },
+          grid: { color: chartGridColor() }
+        },
+        y: {
+          ticks: {
+            color: chartTextColor(),
+            font: { size: 11 }
+          },
+          grid: { display: false }
+        }
+      }
+    }
+  });
+}
+
+// ===============================
+// CHART 3: LOW STOCK — Bar (current stock vs threshold, top 8 worst)
+// ===============================
+function renderLowStockChart(productsSnap) {
+  const lowItems = [];
+
+  productsSnap.forEach(docSnap => {
+    const p = docSnap.data();
+    if (p.archived === true) return;
+    const stock     = Number(p.stock) || 0;
+    const threshold = Number(p.lowStockThreshold) || 10;
+    if (stock <= threshold) {
+      lowItems.push({ name: p.name || 'Unknown', stock, threshold });
+    }
+  });
+
+  // Sort: out-of-stock first, then by stock asc, top 8
+  lowItems.sort((a, b) => a.stock - b.stock);
+  const top = lowItems.slice(0, 8);
+
+  const loadingEl = document.getElementById('chartLoadingLowStock');
+  const emptyEl   = document.getElementById('chartLowStockEmpty');
+  const canvas    = document.getElementById('chartLowStock');
+
+  if (loadingEl) loadingEl.style.display = 'none';
+
+  if (top.length === 0) {
+    if (emptyEl) emptyEl.style.display = 'flex';
+    if (canvas)  canvas.style.display  = 'none';
+    return;
+  }
+
+  if (canvas)  canvas.style.display  = 'block';
+  if (emptyEl) emptyEl.style.display = 'none';
+
+  destroyChart('chartLowStock');
+
+  const ctx = canvas.getContext('2d');
+  chartInstances['chartLowStock'] = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: top.map(i => i.name),
+      datasets: [
+        {
+          label: 'Current Stock',
+          data: top.map(i => i.stock),
+          backgroundColor: top.map(i => i.stock === 0 ? '#ef4444' : '#f59e0b'),
+          borderRadius: 4,
+          borderSkipped: false
+        },
+        {
+          label: 'Threshold',
+          data: top.map(i => i.threshold),
+          backgroundColor: 'rgba(148,163,184,0.25)',
+          borderColor: 'rgba(148,163,184,0.6)',
+          borderWidth: 1,
+          borderRadius: 4,
+          borderSkipped: false
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      plugins: {
+        legend: {
+          display: true,
+          position: 'top',
+          labels: {
+            color: chartTextColor(),
+            font: { size: 11 },
+            boxWidth: 12,
+            padding: 10
+          }
+        },
+        tooltip: {
+          callbacks: { label: ctx => ` ${ctx.dataset.label}: ${ctx.raw}` }
+        }
+      },
+      scales: {
+        x: {
+          ticks: {
+            color: chartTextColor(),
+            font: { size: 10 },
+            maxRotation: 30
+          },
+          grid: { display: false }
+        },
+        y: {
+          beginAtZero: true,
+          ticks: {
+            color: chartTextColor(),
+            font: { size: 11 },
+            stepSize: 1
+          },
+          grid: { color: chartGridColor() }
+        }
+      }
+    }
+  });
+}
+
+// ===============================
+// CHART 4: ACTIVITY — Doughnut (action type breakdown)
+// ===============================
+function renderActivityChart(activitiesSnap) {
+  const counts = { Added: 0, Updated: 0, Deleted: 0, Archived: 0, Restored: 0, Other: 0 };
+
+  activitiesSnap.forEach(docSnap => {
+    const log    = docSnap.data();
+    const action = (log.action || "").toLowerCase();
+    if      (action.includes("add"))                                    counts.Added++;
+    else if (action.includes("edit") || action.includes("update"))      counts.Updated++;
+    else if (action.includes("delete"))                                 counts.Deleted++;
+    else if (action.includes("archive"))                                counts.Archived++;
+    else if (action.includes("restore"))                                counts.Restored++;
+    else                                                                counts.Other++;
+  });
+
+  // Filter out zeros
+  const entries = Object.entries(counts).filter(([, v]) => v > 0);
+  const labels  = entries.map(([k]) => k);
+  const values  = entries.map(([, v]) => v);
+  const colors  = {
+    Added:    '#22c55e',
+    Updated:  '#3b82f6',
+    Deleted:  '#ef4444',
+    Archived: '#f59e0b',
+    Restored: '#06b6d4',
+    Other:    '#94a3b8'
+  };
+
+  destroyChart('chartActivity');
+  showChart('chartActivity', 'chartLoadingActivity');
+
+  const ctx = document.getElementById('chartActivity').getContext('2d');
+  chartInstances['chartActivity'] = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels,
+      datasets: [{
+        data: values,
+        backgroundColor: labels.map(l => colors[l] || '#94a3b8'),
+        borderWidth: 0,
+        hoverOffset: 6
+      }]
+    },
+    options: {
+      cutout: '68%',
+      responsive: true,
+      maintainAspectRatio: true,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: { label: ctx => ` ${ctx.label}: ${ctx.raw} action(s)` }
+        }
+      }
+    }
+  });
+
+  // Custom legend
+  const legend = document.getElementById('legendActivity');
+  if (legend) {
+    legend.innerHTML = labels.map((l, i) => `
+      <div class="legend-item">
+        <span class="legend-dot" style="background:${colors[l]}"></span>
+        <span class="legend-label">${l}</span>
+        <span class="legend-count">${values[i]}</span>
+      </div>`).join('');
+  }
+}
+
+// ===============================
+// INVENTORY SUMMARY BANNER
+// ===============================
+function renderInventorySummaryBanner(productsSnap) {
+  let totalProducts = 0;
+  let totalStock    = 0;
+  let totalValue    = 0;
+
+  productsSnap.forEach(docSnap => {
+    const p = docSnap.data();
+    if (p.archived === true) return;
+    const stock = Number(p.stock) || 0;
+    const price = Number(p.price) || 0;
+    totalProducts++;
+    totalStock += stock;
+    totalValue += stock * price;
+  });
+
+  const banner = document.getElementById('inventorySummaryBanner');
+  if (banner) banner.style.display = 'flex';
+
+  const elProducts = document.getElementById('summaryTotalProducts');
+  const elStock    = document.getElementById('summaryTotalStock');
+  const elValue    = document.getElementById('summaryTotalValue');
+
+  if (elProducts) elProducts.textContent = totalProducts.toLocaleString();
+  if (elStock)    elStock.textContent    = totalStock.toLocaleString();
+  if (elValue)    elValue.textContent    = `₱${totalValue.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
 
 // ===============================
 // EXPORT HELPERS
@@ -132,8 +521,8 @@ function downloadCSV(filename, data) {
 }
 
 function downloadExcel(filename, data) {
-  const worksheet  = XLSX.utils.json_to_sheet(data);
-  const workbook   = XLSX.utils.book_new();
+  const worksheet = XLSX.utils.json_to_sheet(data);
+  const workbook  = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, "Report");
   XLSX.writeFile(workbook, filename);
 }
@@ -156,7 +545,7 @@ function setButtonLoading(btn, loading) {
   if (loading) {
     btn.disabled = true;
     btn.dataset.originalHtml = btn.innerHTML;
-    btn.innerHTML = '<i class="fa-solid fa-spinner"></i> Generating...';
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generating...';
   } else {
     btn.disabled = false;
     btn.innerHTML = btn.dataset.originalHtml || '<i class="fa-solid fa-download"></i> Generate Report';
@@ -171,30 +560,48 @@ async function loadInventoryReport(btn) {
   try {
     const snapshot = await getDocs(collection(db, "products"));
     const reportData = [];
+    let grandTotalValue = 0;
 
     snapshot.forEach(docSnap => {
       const p = docSnap.data();
-      if (p.archived === true) return; // skip archived
-      const stock = Number(p.stock) || 0;
-      const price = Number(p.price) || 0;
+      if (p.archived === true) return;
+      const stock     = Number(p.stock) || 0;
+      const price     = Number(p.price) || 0;
       const threshold = Number(p.lowStockThreshold) || 10;
+      const itemValue = stock * price;
+      grandTotalValue += itemValue;
 
       let status = "In Stock";
-      if (stock === 0)          status = "Out of Stock";
+      if (stock === 0)             status = "Out of Stock";
       else if (stock <= threshold) status = "Low Stock";
 
       reportData.push({
-        "Product ID":       docSnap.id,
-        "Product Name":     p.name || "",
-        "Category":         p.category || "",
-        "Price (₱)":        price.toFixed(2),
-        "Stock":            stock,
-        "Low Stock Threshold": threshold,
-        "Status":           status,
-        "Inventory Value (₱)": (stock * price).toFixed(2),
-        "Date Added":       p.createdAt ? new Date(p.createdAt.seconds * 1000).toLocaleDateString() : "N/A"
+        "Product ID":            docSnap.id,
+        "Product Name":          p.name || "",
+        "Category":              p.category || "",
+        "Price (₱)":             price.toFixed(2),
+        "Stock":                 stock,
+        "Low Stock Threshold":   threshold,
+        "Status":                status,
+        "Inventory Value (₱)":   itemValue.toFixed(2),
+        "Date Added":            p.createdAt ? new Date(p.createdAt.seconds * 1000).toLocaleDateString() : "N/A"
       });
     });
+
+    // Append a total row at the bottom
+    if (reportData.length > 0) {
+      reportData.push({
+        "Product ID":          "—",
+        "Product Name":        "TOTAL",
+        "Category":            "—",
+        "Price (₱)":           "—",
+        "Stock":               reportData.reduce((s, r) => s + Number(r["Stock"]), 0),
+        "Low Stock Threshold": "—",
+        "Status":              "—",
+        "Inventory Value (₱)": grandTotalValue.toFixed(2),
+        "Date Added":          "—"
+      });
+    }
 
     exportData(`InventoryReport_${getDateStamp()}`, reportData);
   } catch (err) {
@@ -216,25 +623,23 @@ async function loadCategoryReport(btn) {
       getDocs(collection(db, "categories"))
     ]);
 
-    // Build a map of all active categories
     const categoryMap = {};
     categoriesSnap.forEach(docSnap => {
       const c = docSnap.data();
       if (c.archived !== true && c.name) {
         categoryMap[c.name] = {
-          "Category Name": c.name,
-          "Total Products": 0,
-          "Total Stock":    0,
+          "Category Name":   c.name,
+          "Total Products":  0,
+          "Total Stock":     0,
           "Total Value (₱)": 0,
-          "Out of Stock":   0,
-          "Low Stock":      0,
-          "In Stock":       0,
-          "Date Created":   c.createdAt ? new Date(c.createdAt.seconds * 1000).toLocaleDateString() : "N/A"
+          "Out of Stock":    0,
+          "Low Stock":       0,
+          "In Stock":        0,
+          "Date Created":    c.createdAt ? new Date(c.createdAt.seconds * 1000).toLocaleDateString() : "N/A"
         };
       }
     });
 
-    // Tally products per category
     productsSnap.forEach(docSnap => {
       const p = docSnap.data();
       if (p.archived === true) return;
@@ -245,14 +650,14 @@ async function loadCategoryReport(btn) {
 
       if (!categoryMap[cat]) {
         categoryMap[cat] = {
-          "Category Name": cat,
-          "Total Products": 0,
-          "Total Stock":    0,
+          "Category Name":   cat,
+          "Total Products":  0,
+          "Total Stock":     0,
           "Total Value (₱)": 0,
-          "Out of Stock":   0,
-          "Low Stock":      0,
-          "In Stock":       0,
-          "Date Created":   "N/A"
+          "Out of Stock":    0,
+          "Low Stock":       0,
+          "In Stock":        0,
+          "Date Created":    "N/A"
         };
       }
 
@@ -270,9 +675,7 @@ async function loadCategoryReport(btn) {
       "Total Value (₱)": Number(c["Total Value (₱)"]).toFixed(2)
     }));
 
-    // Sort by total products descending
     reportData.sort((a, b) => b["Total Products"] - a["Total Products"]);
-
     exportData(`CategoryReport_${getDateStamp()}`, reportData);
   } catch (err) {
     console.error("Category report error:", err);
@@ -300,20 +703,19 @@ async function loadLowStockReport(btn) {
 
       if (stock <= threshold) {
         reportData.push({
-          "Product ID":       docSnap.id,
-          "Product Name":     p.name || "",
-          "Category":         p.category || "",
-          "Current Stock":    stock,
-          "Threshold":        threshold,
-          "Units Needed":     Math.max(0, threshold - stock + 1),
-          "Price (₱)":        price.toFixed(2),
-          "Status":           stock === 0 ? "Out of Stock" : "Low Stock",
-          "Date Added":       p.createdAt ? new Date(p.createdAt.seconds * 1000).toLocaleDateString() : "N/A"
+          "Product ID":    docSnap.id,
+          "Product Name":  p.name || "",
+          "Category":      p.category || "",
+          "Current Stock": stock,
+          "Threshold":     threshold,
+          "Units Needed":  Math.max(0, threshold - stock + 1),
+          "Price (₱)":     price.toFixed(2),
+          "Status":        stock === 0 ? "Out of Stock" : "Low Stock",
+          "Date Added":    p.createdAt ? new Date(p.createdAt.seconds * 1000).toLocaleDateString() : "N/A"
         });
       }
     });
 
-    // Sort: out of stock first, then by stock ascending
     reportData.sort((a, b) => {
       if (a["Current Stock"] === 0 && b["Current Stock"] !== 0) return -1;
       if (a["Current Stock"] !== 0 && b["Current Stock"] === 0) return  1;
@@ -345,23 +747,21 @@ async function loadActivityReport(btn) {
     const reportData = [];
 
     snapshot.forEach(docSnap => {
-      const log = docSnap.data();
-
-      // Determine action category
+      const log    = docSnap.data();
       const action = (log.action || "").toLowerCase();
       let actionType = "Other";
-      if (action.includes("add"))                                   actionType = "Added";
-      else if (action.includes("edit") || action.includes("update")) actionType = "Updated";
-      else if (action.includes("delete"))                            actionType = "Deleted";
-      else if (action.includes("archive"))                           actionType = "Archived";
-      else if (action.includes("restore"))                           actionType = "Restored";
+      if      (action.includes("add"))                                    actionType = "Added";
+      else if (action.includes("edit") || action.includes("update"))      actionType = "Updated";
+      else if (action.includes("delete"))                                 actionType = "Deleted";
+      else if (action.includes("archive"))                                actionType = "Archived";
+      else if (action.includes("restore"))                                actionType = "Restored";
 
       reportData.push({
-        "Date":        log.timestamp ? new Date(log.timestamp.seconds * 1000).toLocaleString() : "N/A",
-        "Action":      log.action || "",
-        "Action Type": actionType,
-        "Item":        log.target || "",
-        "Performed By": log.user  || "Admin"
+        "Date":         log.timestamp ? new Date(log.timestamp.seconds * 1000).toLocaleString() : "N/A",
+        "Action":       log.action || "",
+        "Action Type":  actionType,
+        "Item":         log.target  || "",
+        "Performed By": log.user    || "Admin"
       });
     });
 
@@ -385,9 +785,9 @@ function getDateStamp() {
 // EVENT LISTENERS
 // ===============================
 function attachReportListeners() {
-  const btnInventory    = document.getElementById("btnInventory");
-  const btnCategory     = document.getElementById("btnCategory");
-  const btnLowStock     = document.getElementById("btnLowStock");
+  const btnInventory     = document.getElementById("btnInventory");
+  const btnCategory      = document.getElementById("btnCategory");
+  const btnLowStock      = document.getElementById("btnLowStock");
   const btnStockMovement = document.getElementById("btnStockMovement");
 
   if (btnInventory)     btnInventory.addEventListener("click",     () => loadInventoryReport(btnInventory));

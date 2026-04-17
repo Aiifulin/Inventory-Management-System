@@ -224,11 +224,19 @@ body {
 .products-table th, .categories-table th { text-align: left; padding: 12px 0; font-size: 13px; color: var(--text-main); border-bottom: 1px solid var(--border-color); background-color: var(--table-header-bg); }
 .products-table td, .categories-table td { padding: 16px 0; border-bottom: 1px solid var(--border-color); vertical-align: middle; font-size: 14px; color: var(--text-main); }
 
-.categories-skeleton.desktop-only,
-.categories-skeleton.mobile-only { display: none !important; }
-.categories-skeleton.desktop-only.visible,
-.categories-skeleton.mobile-only.visible { display: block !important; }
-.table-container.hidden,
+.categories-skeleton { display: none; }
+.categories-skeleton.visible { display: block; }
+
+@media (min-width: 769px) {
+    .categories-skeleton.mobile-only { display: none !important; }
+}
+
+@media (min-width: 768px) {
+    .categories-skeleton.mobile-only { display: none !important; }
+}
+
+
+.table-container.hidden { display: none !important; }
 #mobileProductList.hidden { display: none !important; }
 
 .category-skeleton-row,
@@ -260,6 +268,9 @@ body {
     align-items: center;
     padding: 16px 0;
     border-bottom: 1px solid var(--border-color);
+    width: 100%;           /* ADD */
+    box-sizing: border-box; /* ADD */
+    overflow: hidden;       /* ADD */
 }
 
 .category-skeleton-line,
@@ -280,6 +291,9 @@ body {
 .category-skeleton-actions {
     display: flex;
     gap: 10px;
+    align-items: center;   /* ADD */
+    flex-shrink: 0;         /* ADD */
+    width: fit-content;     /* ADD */
 }
 
 .category-skeleton-action {
@@ -307,10 +321,13 @@ body {
     height: 42px;
     border-radius: 8px;
     flex: 1;
+    max-width: 160px;  /* ADD */
+    min-width: 0;      /* ADD */
 }
 
 .category-skeleton-button-small {
     flex: 0 0 50px;
+    max-width: 50px;   /* ADD */
 }
 
 @keyframes categorySkeletonShimmer {
@@ -531,4 +548,22 @@ body {
 
 @keyframes fadeOut {
     to { transform: translateX(20px); opacity: 0; }
+}
+
+/* REPLACE the skeleton visibility block with this */
+
+/* Desktop skeleton: show only on desktop when visible */
+.categories-skeleton.desktop-only {
+    display: none;
+}
+.categories-skeleton.desktop-only.visible {
+    display: block;
+}
+
+/* Mobile skeleton: show only on mobile when visible */
+.categories-skeleton.mobile-only { display: none !important; }
+
+@media (max-width: 768px) {
+    .categories-skeleton.mobile-only { display: none !important; }
+    .categories-skeleton.mobile-only.visible { display: block !important; }
 }

@@ -5,6 +5,7 @@ import { initLogoutModal } from "./logout-modal.js";
 import { getCountFromServer } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { initializeFirestore, persistentLocalCache } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { getDocsFromCache, getDocsFromServer } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { onSnapshot } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
 
 // --- CONFIG ---
@@ -129,63 +130,30 @@ onAuthStateChanged(auth, async (user) => {
 async function fetchCategories() {
     setCategoriesLoading(true);
 
-    const colRef = collection(db, "categories");
-
-    // 🔹 Helper to process snapshot (reuse your logic)
-    async function processCategories(querySnapshot) {
-        const isFromCache = querySnapshot.metadata.fromCache;
-    
-        const categoryPromises = querySnapshot.docs.map(async (docSnap) => {
-            const data = docSnap.data();
-            if (data.archived === true) return null;
-    
-            let count = 0;
-    
-            if (!isFromCache) {
-                const productsQuery = query(
-                    collection(db, "products"),
-                    where("category", "==", data.name),
-                    where("archived", "!=", true)
-                );
-    
-                const countSnapshot = await getCountFromServer(productsQuery);
-                count = countSnapshot.data().count;
-            }
-    
-            return { id: docSnap.id, ...data, itemCount: count };
-        });
-    
-        const results = await Promise.all(categoryPromises);
-        allCategories = results.filter(c => c !== null);
-    
-        applyFilters();
-    }
-
     try {
-        // ===============================
-        // 1. LOAD FROM CACHE (FAST)
-        // ===============================
-        // CACHE
-        getDocsFromCache(colRef)
-            .then(async snapshot => {
-                console.log("Loaded from cache");
-                await processCategories(snapshot);
-        
-                // ✅ show UI immediately after cache
-                setCategoriesLoading(false);
-            })
-            .catch(() => {
-                console.log("No cache available");
-            });
-        
-        // SERVER
-        const freshSnapshot = await getDocsFromServer(colRef);
-        console.log("Loaded from server");
-        await processCategories(freshSnapshot);
+        // ✅ Use getDocs instead of onSnapshot for cache-first behavior
+        const q = query(
+            collection(db, "categories"),
+            where("archived", "==", false)
+        );
+
+        const querySnapshot = await getDocs(q);
+
+        allCategories = querySnapshot.docs.map(docSnap => ({
+            id: docSnap.id,
+            ...docSnap.data(),
+            itemCount: 0
+        }));
+
+        setCategoriesLoading(false);
+        applyFilters();
+
+        // Background count loading (non-blocking)
+        loadCategoryCounts(querySnapshot.docs);
 
     } catch (error) {
         console.error("Error loading categories:", error);
-    } finally {
+        allCategories = [];
         setCategoriesLoading(false);
     }
 }
@@ -197,11 +165,15 @@ function setCategoriesLoading(loading) {
     const mobileSkeleton = document.getElementById("mobileCategoriesSkeleton");
     const tableContainer = document.querySelector(".table-container.desktop-only");
     const mobileList = document.getElementById("mobileProductList");
+    
+    console.log("setCategoriesLoading:", loading, { desktopSkeleton, mobileSkeleton, tableContainer, mobileList }); // ← ADD THIS
+
 
     desktopSkeleton?.classList.toggle("visible", loading);
     mobileSkeleton?.classList.toggle("visible", loading);
     tableContainer?.classList.toggle("hidden", loading);
     mobileList?.classList.toggle("hidden", loading);
+    
 }
 
 // --- FILTER & SORT ---
@@ -240,12 +212,48 @@ function applyFilters() {
     renderTable(filteredCategories);
 }
 
+async function loadCategoryCounts(docs) {
+    const updates = await Promise.all(
+        docs.map(async (docSnap) => {
+            const data = docSnap.data();
+            if (data.archived === true) return null;
+
+            try {
+                const q = query(
+                    collection(db, "products"),
+                    where("category", "==", data.name),
+                    where("archived", "==", false) // ✅ FIXED operator
+                );
+
+                const snap = await getCountFromServer(q);
+
+                return {
+                    id: docSnap.id,
+                    count: snap.data().count
+                };
+            } catch (err) {
+                console.error("Count error:", err);
+                return null;
+            }
+        })
+    );
+
+    // ✅ 3. PATCH COUNTS WITHOUT RE-RENDERING EVERYTHING
+    updates.forEach(update => {
+        if (!update) return;
+
+        const cat = allCategories.find(c => c.id === update.id);
+        if (cat) cat.itemCount = update.count;
+    });
+
+    applyFilters(); // ⚡ smooth update (no flicker)
+}
+
 // --- RENDER TABLE ---
 function renderTable(categoriesToRender) {
     const tableBody = document.getElementById("productTableBody");
     const mobileList = document.getElementById("mobileProductList");
 
-    if (isCategoriesLoading) return;
 
     if (tableBody) tableBody.innerHTML = "";
     if (mobileList) mobileList.innerHTML = "";
