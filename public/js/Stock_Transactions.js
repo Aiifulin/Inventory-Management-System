@@ -1,27 +1,11 @@
 // Stock_Transactions.js
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
-import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 import {
     collection, doc, getDoc, getDocs, addDoc, setDoc, deleteDoc,
     updateDoc, query, orderBy, where, serverTimestamp, Timestamp, limit
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
-import { initializeFirestore, persistentLocalCache } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { initLogoutModal } from "./logout-modal.js";
-
-// ─── Firebase ────────────────────────────────────────────────────────────────
-const firebaseConfig = {
-    apiKey:            "AIzaSyBeaF2VKovHASuzhvZHzOoE0yB7QnBDej0",
-    authDomain:        "inventory-management-sys-baccc.firebaseapp.com",
-    projectId:         "inventory-management-sys-baccc",
-    storageBucket:     "inventory-management-sys-baccc.firebasestorage.app",
-    messagingSenderId: "304433839568",
-    appId:             "1:304433839568:web:50dafae1296e6bb0d30dd5",
-    measurementId:     "G-68CR9JCJV8"
-};
-
-const app  = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db   = initializeFirestore(app, { localCache: persistentLocalCache() });
+import { db, auth, storage } from "./firebase.js";
 
 // ─── Firestore path helpers ───────────────────────────────────────────────────
 const txCol   = (year) => collection(db, "stock_transactions", String(year), "transactions");
@@ -41,38 +25,8 @@ let activeYear = new Date().getFullYear();
 let txCache    = {};
 let allYears   = [];
 
-// Status modal state
 let statusModalTxId   = null;
 let statusModalTxYear = null;
-
-// ─── Auth ─────────────────────────────────────────────────────────────────────
-onAuthStateChanged(auth, async (user) => {
-    if (!user) { window.location.replace("index.html"); return; }
-
-    currentUser = user;
-    const data  = await getCachedUserData(user.uid);
-    isAdmin     = data?.role?.toLowerCase() === "admin";
-
-    const nameEl = document.getElementById("userNameDisplay");
-    if (nameEl) nameEl.textContent = data?.name || "User";
-
-    const openBtn = document.getElementById("openModalBtn");
-    if (openBtn && isAdmin) openBtn.style.display = "inline-flex";
-
-    document.documentElement.style.visibility = "visible";
-
-    const doSignOut = () => {
-        ["user_session", "user_uid", "user_role"].forEach(k => localStorage.removeItem(k));
-        sessionStorage.clear();
-        signOut(auth)
-            .then(() => window.location.replace("index.html"))
-            .catch(() => window.location.replace("index.html"));
-    };
-    const openLogout = initLogoutModal(doSignOut);
-    window.logout = () => { if (openLogout) openLogout(); };
-
-    await Promise.all([loadProducts(), initYearTabs()]);
-});
 
 // ─── User helpers ─────────────────────────────────────────────────────────────
 async function getCachedUserData(uid) {
@@ -89,20 +43,49 @@ async function getCachedUserData(uid) {
     return null;
 }
 
+// ================================================
+// AUTH — parallel: user data + products + year tabs fire at the same time
+// ================================================
+onAuthStateChanged(auth, async (user) => {
+    if (!user) { window.location.replace("index.html"); return; }
+
+    currentUser = user;
+
+    // 🔥 Fire user data, products load, AND year tabs init simultaneously
+    const [userData] = await Promise.all([
+        getCachedUserData(user.uid),
+        loadProducts(),
+        initYearTabs()
+    ]);
+
+    isAdmin = userData?.role?.toLowerCase() === "admin";
+
+    const nameEl = document.getElementById("userNameDisplay");
+    if (nameEl) nameEl.textContent = userData?.name || "User";
+
+    const openBtn = document.getElementById("openModalBtn");
+    if (openBtn && isAdmin) openBtn.style.display = "inline-flex";
+
+    document.documentElement.style.visibility = "visible";
+
+    const doSignOut = () => {
+        ["user_session", "user_uid", "user_role"].forEach(k => localStorage.removeItem(k));
+        sessionStorage.clear();
+        signOut(auth).then(() => window.location.replace("index.html")).catch(() => window.location.replace("index.html"));
+    };
+    const openLogout = initLogoutModal(doSignOut);
+    window.logout = () => { if (openLogout) openLogout(); };
+});
+
 // ─── Load products ────────────────────────────────────────────────────────────
 async function loadProducts() {
     try {
-        const snap = await getDocs(
-            query(collection(db, "products"), where("archived", "==", false))
-        );
+        const snap = await getDocs(query(collection(db, "products"), where("archived", "==", false)));
 
-        // Populate modal product select
-        const modalSelect = document.getElementById("modalProduct");
-        modalSelect.innerHTML = '<option value="" disabled selected>Select a product…</option>';
-
-        // Populate filter product select
+        const modalSelect  = document.getElementById("modalProduct");
         const filterSelect = document.getElementById("filterProduct");
-        filterSelect.innerHTML = '<option value="">All Products</option>';
+        if (modalSelect)  modalSelect.innerHTML  = '<option value="" disabled selected>Select a product…</option>';
+        if (filterSelect) filterSelect.innerHTML = '<option value="">All Products</option>';
 
         snap.forEach(docSnap => {
             const d = docSnap.data();
@@ -112,20 +95,24 @@ async function loadProducts() {
                 lowStockThreshold: Number(d.lowStockThreshold) || 10
             };
 
-            const opt1       = document.createElement("option");
-            opt1.value       = docSnap.id;
-            opt1.textContent = d.name || docSnap.id;
-            modalSelect.appendChild(opt1);
+            if (modalSelect) {
+                const opt       = document.createElement("option");
+                opt.value       = docSnap.id;
+                opt.textContent = d.name || docSnap.id;
+                modalSelect.appendChild(opt);
+            }
 
-            const opt2       = document.createElement("option");
-            opt2.value       = docSnap.id;
-            opt2.textContent = d.name || docSnap.id;
-            filterSelect.appendChild(opt2);
+            if (filterSelect) {
+                const opt       = document.createElement("option");
+                opt.value       = docSnap.id;
+                opt.textContent = d.name || docSnap.id;
+                filterSelect.appendChild(opt);
+            }
         });
     } catch (e) { console.error("loadProducts:", e); }
 }
 
-// ─── Migration (flat → year subcollections) ───────────────────────────────────
+// ─── Migration ────────────────────────────────────────────────────────────────
 async function migrateFlatDocs() {
     try {
         const rootSnap  = await getDocs(collection(db, "stock_transactions"));
@@ -145,7 +132,7 @@ async function migrateFlatDocs() {
     } catch (e) { console.error("migrateFlatDocs:", e); }
 }
 
-// ─── Year tabs init ───────────────────────────────────────────────────────────
+// ─── Year tabs ────────────────────────────────────────────────────────────────
 async function initYearTabs() {
     setLoading(true);
     const currentYear = new Date().getFullYear();
@@ -166,47 +153,35 @@ async function initYearTabs() {
     await loadYearTransactions(activeYear);
 }
 
-// ─── Render year tab buttons ──────────────────────────────────────────────────
 function renderYearTabs() {
     const container = document.getElementById("yearTabs");
     if (!container) return;
     container.style.display = "flex";
     container.innerHTML = allYears.map(year => {
         const cached     = txCache[year];
-        const countBadge = cached != null
-            ? `<span class="tab-count">(${cached.length})</span>`
-            : "";
-        return `<button class="year-tab${year === activeYear ? " active" : ""}"
-                        data-year="${year}">${year}${countBadge}</button>`;
+        const countBadge = cached != null ? `<span class="tab-count">(${cached.length})</span>` : "";
+        return `<button class="year-tab${year === activeYear ? " active" : ""}" data-year="${year}">${year}${countBadge}</button>`;
     }).join("");
     container.querySelectorAll(".year-tab").forEach(btn => {
         btn.addEventListener("click", () => switchYear(Number(btn.dataset.year)));
     });
 }
 
-// ─── Switch active year ───────────────────────────────────────────────────────
 async function switchYear(year) {
     if (year === activeYear && txCache[year] != null) return;
     activeYear = year;
     renderYearTabs();
-    if (txCache[year] != null) {
-        applyFilters();
-        updateSummaryStats();
-    } else {
-        await loadYearTransactions(year);
-    }
+    if (txCache[year] != null) { applyFilters(); updateSummaryStats(); }
+    else await loadYearTransactions(year);
 }
 
-// ─── Format date for display ──────────────────────────────────────────────────
 function formatDate(ts) {
     if (!ts?.seconds) return "";
     return new Date(ts.seconds * 1000).toLocaleString("en-US", {
-        month: "short", day: "numeric", year: "numeric",
-        hour: "2-digit", minute: "2-digit"
+        month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit"
     });
 }
 
-// ─── Fetch one year's transactions ────────────────────────────────────────────
 async function loadYearTransactions(year) {
     setLoading(true);
     try {
@@ -215,23 +190,23 @@ async function loadYearTransactions(year) {
         snap.forEach(docSnap => {
             const d = docSnap.data();
             rows.push({
-                id:          docSnap.id,
+                id:            docSnap.id,
                 year,
-                productId:   d.productId    || "",
-                productName: d.productName  || "",
-                type:        d.type         || "",
-                status:      d.status       || "Completed",
-                qty:         Number(d.qty)  || 0,
-                stockBefore: Number(d.stockBefore) || 0,
-                stockAfter:  Number(d.stockAfter)  || 0,
-                note:        d.note         || "",
-                createdBy:   d.createdBy    || "",
+                productId:     d.productId    || "",
+                productName:   d.productName  || "",
+                type:          d.type         || "",
+                status:        d.status       || "Completed",
+                qty:           Number(d.qty)  || 0,
+                stockBefore:   Number(d.stockBefore) || 0,
+                stockAfter:    Number(d.stockAfter)  || 0,
+                note:          d.note         || "",
+                createdBy:     d.createdBy    || "",
                 createdByName: d.createdByName || "",
-                editedBy:    d.editedBy     || "",
-                createdAt:   d.createdAt    || null,
-                updatedAt:   d.updatedAt    || null,
-                dateStr:     formatDate(d.createdAt),
-                updatedStr:  formatDate(d.updatedAt)
+                editedBy:      d.editedBy     || "",
+                createdAt:     d.createdAt    || null,
+                updatedAt:     d.updatedAt    || null,
+                dateStr:       formatDate(d.createdAt),
+                updatedStr:    formatDate(d.updatedAt)
             });
         });
         txCache[year] = rows;
@@ -256,44 +231,26 @@ function applyFilters() {
     const dateTo    = document.getElementById("filterDateTo")?.value    || "";
     const source    = txCache[activeYear] || [];
 
-    // Active dot indicator
-    const hasAdvanced = status || productId || dateFrom || dateTo;
     const dot = document.getElementById("filterActiveDot");
-    if (dot) dot.style.display = hasAdvanced ? "block" : "none";
+    if (dot) dot.style.display = (status || productId || dateFrom || dateTo) ? "block" : "none";
 
     filteredTx = source.filter(tx => {
-        // text search
-        const matchSearch = !search || (
+        const matchSearch  = !search || (
             tx.productName.toLowerCase().includes(search) ||
             tx.type.toLowerCase().includes(search)        ||
             tx.note.toLowerCase().includes(search)        ||
             tx.dateStr.toLowerCase().includes(search)     ||
             tx.status.toLowerCase().includes(search)
         );
-
-        // type filter
-        const matchType = !type || tx.type === type;
-
-        // status filter
-        const matchStatus = !status || tx.status === status;
-
-        // product filter
+        const matchType    = !type    || tx.type    === type;
+        const matchStatus  = !status  || tx.status  === status;
         const matchProduct = !productId || tx.productId === productId;
 
-        // date range filter — compare against createdAt seconds
         let matchDate = true;
         if (tx.createdAt?.seconds) {
             const txDate = new Date(tx.createdAt.seconds * 1000);
-            if (dateFrom) {
-                const from = new Date(dateFrom);
-                from.setHours(0, 0, 0, 0);
-                if (txDate < from) matchDate = false;
-            }
-            if (matchDate && dateTo) {
-                const to = new Date(dateTo);
-                to.setHours(23, 59, 59, 999);
-                if (txDate > to) matchDate = false;
-            }
+            if (dateFrom) { const from = new Date(dateFrom); from.setHours(0,0,0,0); if (txDate < from) matchDate = false; }
+            if (matchDate && dateTo) { const to = new Date(dateTo); to.setHours(23,59,59,999); if (txDate > to) matchDate = false; }
         }
 
         return matchSearch && matchType && matchStatus && matchProduct && matchDate;
@@ -303,7 +260,7 @@ function applyFilters() {
     renderPage();
 }
 
-// ─── Render table page ────────────────────────────────────────────────────────
+// ─── Render table ─────────────────────────────────────────────────────────────
 function renderPage() {
     const tbody = document.getElementById("txTableBody");
     if (!tbody || isLoading) return;
@@ -316,58 +273,36 @@ function renderPage() {
 
     if (filteredTx.length === 0) {
         const source = txCache[activeYear] || [];
-        const msg    = source.length === 0
-            ? `No transactions recorded for ${activeYear}.`
-            : "No transactions match your filters.";
-        tbody.innerHTML = `
-            <tr class="empty-state">
-                <td colspan="9">
-                    <div class="empty-state-icon"><i class="fas fa-arrows-rotate"></i></div>
-                    ${msg}
-                </td>
-            </tr>`;
+        const msg    = source.length === 0 ? `No transactions recorded for ${activeYear}.` : "No transactions match your filters.";
+        tbody.innerHTML = `<tr class="empty-state"><td colspan="9"><div class="empty-state-icon"><i class="fas fa-arrows-rotate"></i></div>${msg}</td></tr>`;
     } else {
         tbody.innerHTML = rows.map(tx => {
             const isPositive = tx.type === "Stock In";
             const deltaSign  = isPositive ? "+" : "-";
             const deltaClass = isPositive ? "positive" : "negative";
+            const badgeClass = { "Stock In": "stock-in", "Sold": "sold", "Adjustment": "adjustment", "Damaged": "damaged" }[tx.type] || "adjustment";
 
-            const badgeClass = {
-                "Stock In":   "stock-in",
-                "Sold":       "sold",
-                "Adjustment": "adjustment",
-                "Damaged":    "damaged"
-            }[tx.type] || "adjustment";
-
-            // Status badge
             const statusKey   = (tx.status || "Completed").toLowerCase();
             const statusIcons = { completed: "✅", pending: "⏳", cancelled: "❌" };
             const statusIcon  = statusIcons[statusKey] || "✅";
             const clickable   = isAdmin ? " clickable" : "";
-            const clickAttr   = isAdmin
-                ? `data-txid="${tx.id}" data-year="${tx.year}" data-txname="${escHtml(tx.productName)} — ${escHtml(tx.type)}"`
-                : "";
+            const clickAttr   = isAdmin ? `data-txid="${tx.id}" data-year="${tx.year}" data-txname="${escHtml(tx.productName)} — ${escHtml(tx.type)}"` : "";
             const title       = isAdmin ? `title="Click to change status"` : "";
-
             const statusBadge = `<span class="status-badge ${statusKey}${clickable}" ${clickAttr} ${title}>${statusIcon} ${tx.status}</span>`;
 
-            // Stock-after colour
             const threshold  = productsMap[tx.productId]?.lowStockThreshold || 10;
-            const afterClass = tx.stockAfter === 0 ? "danger"
-                             : tx.stockAfter <= threshold ? "warn"
-                             : "ok";
+            const afterClass = tx.stockAfter === 0 ? "danger" : tx.stockAfter <= threshold ? "warn" : "ok";
 
-            // Audit cell
-            const editedDot = tx.updatedAt ? `<span class="edited-dot" title="Edited"></span>` : "";
+            const editedDot = tx.updatedAt
+                ? `<span style="font-size:10px;font-weight:600;margin-left:6px;vertical-align:middle;padding:1px 5px;border-radius:4px;background:rgba(245,158,11,0.15);color:#d97706;border:1px solid rgba(245,158,11,0.3);letter-spacing:0.02em;" title="Edited">edited</span>`
+                : "";
 
-            // "Updated On" — show edit date if edited, otherwise show created date
             const updatedOnCell = tx.updatedAt
                 ? `<span class="audit-line"><i class="fas fa-pen" style="font-size:11px;margin-right:4px;"></i>${tx.updatedStr || "—"}</span>`
                 : tx.dateStr
                 ? `<span class="audit-line" style="color:var(--text-secondary);"><i class="fas fa-clock" style="font-size:11px;margin-right:4px;"></i>${tx.dateStr}</span>`
                 : `<span style="color:var(--text-secondary);font-size:12px;">—</span>`;
-            
-            // "Updated By" — show editor if edited, otherwise show creator name
+
             const updatedByCell = tx.editedBy
                 ? escHtml(tx.editedBy)
                 : tx.createdByName
@@ -389,14 +324,9 @@ function renderPage() {
                 </tr>`;
         }).join("");
 
-        // Wire admin status-click events
         if (isAdmin) {
             tbody.querySelectorAll(".status-badge.clickable").forEach(el => {
-                el.addEventListener("click", () => openStatusModal(
-                    el.dataset.txid,
-                    Number(el.dataset.year),
-                    el.dataset.txname
-                ));
+                el.addEventListener("click", () => openStatusModal(el.dataset.txid, Number(el.dataset.year), el.dataset.txname));
             });
         }
     }
@@ -406,16 +336,10 @@ function renderPage() {
     document.getElementById("nextBtn").disabled      = currentPage >= totalPages;
 }
 
-// ─── HTML escape ──────────────────────────────────────────────────────────────
 function escHtml(str) {
-    return String(str || "")
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;");
+    return String(str || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
-// ─── Summary stats ────────────────────────────────────────────────────────────
 function updateSummaryStats() {
     const source = txCache[activeYear] || [];
     let stockInQty = 0, soldQty = 0, otherCount = 0;
@@ -430,7 +354,6 @@ function updateSummaryStats() {
     document.getElementById("statOther").textContent   = otherCount.toLocaleString();
 }
 
-// ─── Loading state ────────────────────────────────────────────────────────────
 function setLoading(loading) {
     isLoading = loading;
     document.getElementById("txSkeleton")?.classList.toggle("visible", loading);
@@ -438,18 +361,14 @@ function setLoading(loading) {
     document.getElementById("paginationBar")?.classList.toggle("hidden", loading);
 }
 
-// ─── Activity log ─────────────────────────────────────────────────────────────
 async function logActivity(action, target) {
     try {
         await addDoc(collection(db, "activities"), {
-            action, target,
-            user:      currentUser?.email || "Admin",
-            timestamp: serverTimestamp()
+            action, target, user: currentUser?.email || "Admin", timestamp: serverTimestamp()
         });
     } catch (e) { console.error("logActivity:", e); }
 }
 
-// ─── Live stock preview ───────────────────────────────────────────────────────
 function updateStockPreview() {
     const productId = document.getElementById("modalProduct").value;
     const type      = document.getElementById("modalType").value;
@@ -471,18 +390,14 @@ function updateStockPreview() {
     afterEl.textContent = after;
     afterEl.className   = `after ${afterClass}`;
 
-    // Pending note
     const statusVal = document.getElementById("modalStatus")?.value;
-    noteEl.textContent = statusVal === "Pending"
-        ? "⏳ Stock will update when Completed"
-        : statusVal === "Cancelled"
-        ? "❌ Cancelled — stock won't change"
-        : "";
+    noteEl.textContent = statusVal === "Pending" ? "⏳ Stock will update when Completed"
+                       : statusVal === "Cancelled" ? "❌ Cancelled — stock won't change"
+                       : "";
 
     preview.style.display = "flex";
 }
 
-// ─── Save transaction ─────────────────────────────────────────────────────────
 async function saveTransaction() {
     const productId  = document.getElementById("modalProduct").value;
     const type       = document.getElementById("modalType").value;
@@ -500,17 +415,12 @@ async function saveTransaction() {
 
     const isIn        = type === "Stock In";
     const stockBefore = product.stock;
-
-    // Only change stock if status is Completed
-    const stockAfter = status === "Completed"
+    const stockAfter  = status === "Completed"
         ? (isIn ? stockBefore + qty : Math.max(0, stockBefore - qty))
         : stockBefore;
 
     if (status === "Completed" && !isIn && qty > stockBefore) {
-        const proceed = confirm(
-            `⚠️ Warning: You are trying to remove ${qty} unit(s) but only ${stockBefore} remain.\n\n` +
-            `Stock will be set to 0. Continue?`
-        );
+        const proceed = confirm(`⚠️ Warning: You are trying to remove ${qty} unit(s) but only ${stockBefore} remain.\n\nStock will be set to 0. Continue?`);
         if (!proceed) return;
     }
 
@@ -518,27 +428,21 @@ async function saveTransaction() {
     confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving…';
 
     try {
-        const thisYear = new Date().getFullYear();
-        const now      = serverTimestamp();
-        const userData = await getCachedUserData(currentUser.uid);
+        const thisYear  = new Date().getFullYear();
+        const now       = serverTimestamp();
+        const userData  = await getCachedUserData(currentUser.uid);
         const adminName = userData?.name || currentUser?.email || "Admin";
         
         const txData = {
-            productId,
-            productName: product.name,
-            type, qty, status,
+            productId, productName: product.name, type, qty, status,
             stockBefore, stockAfter, note,
-            createdBy:     currentUser?.uid || "",
-            createdByName: adminName,
-            createdAt:     now,
-            updatedAt:     null,
-            editedBy:      ""
+            createdBy: currentUser?.uid || "", createdByName: adminName,
+            createdAt: now, updatedAt: null, editedBy: ""
         };
 
         await addDoc(txCol(thisYear), txData);
         await setDoc(yearDoc(thisYear), { exists: true }, { merge: true });
 
-        // Update product stock only for Completed transactions
         if (status === "Completed") {
             await updateDoc(doc(db, "products", productId), { stock: stockAfter });
             productsMap[productId].stock = stockAfter;
@@ -571,25 +475,22 @@ async function saveTransaction() {
 // ─── Status modal ─────────────────────────────────────────────────────────────
 function openStatusModal(txId, year, txName) {
     if (!isAdmin) return;
-
     statusModalTxId   = txId;
     statusModalTxYear = year;
 
-    // Find the tx in cache
     const tx = (txCache[year] || []).find(t => t.id === txId);
     if (!tx) return;
 
-    document.getElementById("statusModalTxName").textContent  = txName;
-    document.getElementById("statusModalSelect").value        = tx.status || "Completed";
+    document.getElementById("statusModalTxName").textContent = txName;
+    document.getElementById("statusModalSelect").value       = tx.status || "Completed";
 
-    // Populate audit info
-    const auditBox       = document.getElementById("statusModalAudit");
-    const auditCreated   = document.getElementById("auditCreated");
-    const auditUpdated   = document.getElementById("auditUpdated");
-    const auditEditedBy  = document.getElementById("auditEditedBy");
+    const auditBox        = document.getElementById("statusModalAudit");
+    const auditCreated    = document.getElementById("auditCreated");
+    const auditUpdated    = document.getElementById("auditUpdated");
+    const auditEditedBy   = document.getElementById("auditEditedBy");
     const auditUpdatedRow = document.getElementById("auditUpdatedRow");
 
-    auditBox.style.display = "flex";
+    auditBox.style.display   = "flex";
     auditCreated.textContent = tx.dateStr || "—";
 
     if (tx.updatedAt) {
@@ -614,9 +515,7 @@ async function confirmStatusChange() {
 
     const newStatus = document.getElementById("statusModalSelect").value;
     const btn       = document.getElementById("confirmStatusBtn");
-
-    // Find the tx in cache to know old status
-    const tx = (txCache[statusModalTxYear] || []).find(t => t.id === statusModalTxId);
+    const tx        = (txCache[statusModalTxYear] || []).find(t => t.id === statusModalTxId);
     if (!tx) { closeStatusModal(); return; }
 
     btn.disabled = true;
@@ -625,33 +524,23 @@ async function confirmStatusChange() {
     try {
         const userData   = await getCachedUserData(currentUser.uid);
         const editorName = userData?.name || currentUser?.email || "Admin";
-        const updateData = {
-            status:    newStatus,
-            updatedAt: serverTimestamp(),
-            editedBy:  editorName
-        };
+        const updateData = { status: newStatus, updatedAt: serverTimestamp(), editedBy: editorName };
 
-        // If status flips from non-Completed → Completed, apply stock change
         const wasCompleted = tx.status === "Completed";
         const nowCompleted = newStatus  === "Completed";
         const product      = productsMap[tx.productId];
 
         if (!wasCompleted && nowCompleted && product) {
-            const isIn      = tx.type === "Stock In";
-            const newStock  = isIn
-                ? product.stock + tx.qty
-                : Math.max(0, product.stock - tx.qty);
+            const isIn     = tx.type === "Stock In";
+            const newStock = isIn ? product.stock + tx.qty : Math.max(0, product.stock - tx.qty);
             updateData.stockAfter = newStock;
             await updateDoc(doc(db, "products", tx.productId), { stock: newStock });
             productsMap[tx.productId].stock = newStock;
         }
 
-        // If status flips FROM Completed → something else, reverse the stock
         if (wasCompleted && !nowCompleted && product) {
-            const isIn      = tx.type === "Stock In";
-            const reversed  = isIn
-                ? Math.max(0, product.stock - tx.qty)
-                : product.stock + tx.qty;
+            const isIn     = tx.type === "Stock In";
+            const reversed = isIn ? Math.max(0, product.stock - tx.qty) : product.stock + tx.qty;
             updateData.stockAfter = reversed;
             await updateDoc(doc(db, "products", tx.productId), { stock: reversed });
             productsMap[tx.productId].stock = reversed;
@@ -659,20 +548,14 @@ async function confirmStatusChange() {
 
         await updateDoc(txDoc(statusModalTxYear, statusModalTxId), updateData);
 
-        // Update local cache
         const cached = txCache[statusModalTxYear];
         if (cached) {
             const idx = cached.findIndex(t => t.id === statusModalTxId);
             if (idx !== -1) {
                 cached[idx] = {
-                    ...cached[idx],
-                    status:     newStatus,
-                    editedBy:   editorName,
+                    ...cached[idx], status: newStatus, editedBy: editorName,
                     updatedAt:  { seconds: Math.floor(Date.now() / 1000) },
-                    updatedStr: new Date().toLocaleString("en-US", {
-                        month: "short", day: "numeric", year: "numeric",
-                        hour: "2-digit", minute: "2-digit"
-                    })
+                    updatedStr: new Date().toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" })
                 };
             }
         }
@@ -687,7 +570,7 @@ async function confirmStatusChange() {
         console.error("confirmStatusChange:", e);
         showToast("Error updating status: " + e.message, "error");
     } finally {
-        btn.disabled = false;
+        btn.disabled  = false;
         btn.innerHTML = '<i class="fas fa-check"></i> Update Status';
     }
 }
@@ -703,9 +586,7 @@ function openTxModal() {
     document.getElementById("txModal").style.display     = "flex";
 }
 
-function closeTxModal() {
-    document.getElementById("txModal").style.display = "none";
-}
+function closeTxModal() { document.getElementById("txModal").style.display = "none"; }
 
 function showResultModal(title, message, isError = false) {
     const wrap = document.getElementById("resultIconWrap");
@@ -717,7 +598,6 @@ function showResultModal(title, message, isError = false) {
     document.getElementById("resultModal").style.display = "flex";
 }
 
-// ─── Toast ────────────────────────────────────────────────────────────────────
 function showToast(message, type = "success") {
     const container = document.getElementById("toastContainer");
     const toast     = document.createElement("div");
@@ -732,7 +612,6 @@ function showToast(message, type = "success") {
 
 // ─── DOM event wiring ─────────────────────────────────────────────────────────
 document.addEventListener("DOMContentLoaded", () => {
-    // Sidebar
     const hamburger = document.getElementById("hamburgerBtn");
     const closeBtn  = document.getElementById("closeBtn");
     const sidebar   = document.getElementById("sidebar");
@@ -745,7 +624,6 @@ document.addEventListener("DOMContentLoaded", () => {
     closeBtn?.addEventListener("click", closeSidebar);
     overlay?.addEventListener("click", closeSidebar);
 
-    // New transaction modal
     document.getElementById("openModalBtn")?.addEventListener("click", openTxModal);
     document.getElementById("closeModalBtn")?.addEventListener("click", closeTxModal);
     document.getElementById("cancelModalBtn")?.addEventListener("click", closeTxModal);
@@ -754,18 +632,15 @@ document.addEventListener("DOMContentLoaded", () => {
     });
     document.getElementById("confirmTxBtn")?.addEventListener("click", saveTransaction);
 
-    // Live preview triggers (include status)
     ["modalProduct", "modalType", "modalQty", "modalStatus"].forEach(id => {
         document.getElementById(id)?.addEventListener("input",  updateStockPreview);
         document.getElementById(id)?.addEventListener("change", updateStockPreview);
     });
 
-    // Result modal
     document.getElementById("resultOkBtn")?.addEventListener("click", () => {
         document.getElementById("resultModal").style.display = "none";
     });
 
-    // Status modal
     document.getElementById("closeStatusModalBtn")?.addEventListener("click", closeStatusModal);
     document.getElementById("cancelStatusModalBtn")?.addEventListener("click", closeStatusModal);
     document.getElementById("statusModal")?.addEventListener("click", e => {
@@ -773,7 +648,6 @@ document.addEventListener("DOMContentLoaded", () => {
     });
     document.getElementById("confirmStatusBtn")?.addEventListener("click", confirmStatusChange);
 
-    // Filters toggle
     const filterToggleBtn = document.getElementById("filterToggleBtn");
     const filterPanel     = document.getElementById("filterPanel");
     filterToggleBtn?.addEventListener("click", () => {
@@ -782,7 +656,6 @@ document.addEventListener("DOMContentLoaded", () => {
         filterToggleBtn.classList.toggle("active", !isOpen);
     });
 
-    // Clear filters
     document.getElementById("clearFiltersBtn")?.addEventListener("click", () => {
         document.getElementById("filterDateFrom").value = "";
         document.getElementById("filterDateTo").value   = "";
@@ -793,7 +666,6 @@ document.addEventListener("DOMContentLoaded", () => {
         applyFilters();
     });
 
-    // Search + filter inputs
     document.getElementById("searchInput")?.addEventListener("input",  applyFilters);
     document.getElementById("filterType")?.addEventListener("change",  applyFilters);
     document.getElementById("filterStatus")?.addEventListener("change",  applyFilters);
@@ -801,20 +673,11 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("filterDateFrom")?.addEventListener("change", applyFilters);
     document.getElementById("filterDateTo")?.addEventListener("change",   applyFilters);
 
-    // Pagination
     document.getElementById("prevBtn")?.addEventListener("click", () => {
-        if (currentPage > 1) {
-            currentPage--;
-            renderPage();
-            window.scrollTo({ top: 0, behavior: "smooth" });
-        }
+        if (currentPage > 1) { currentPage--; renderPage(); window.scrollTo({ top: 0, behavior: "smooth" }); }
     });
     document.getElementById("nextBtn")?.addEventListener("click", () => {
         const total = Math.ceil(filteredTx.length / PAGE_SIZE);
-        if (currentPage < total) {
-            currentPage++;
-            renderPage();
-            window.scrollTo({ top: 0, behavior: "smooth" });
-        }
+        if (currentPage < total) { currentPage++; renderPage(); window.scrollTo({ top: 0, behavior: "smooth" }); }
     });
 });

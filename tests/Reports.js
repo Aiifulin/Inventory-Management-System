@@ -19,7 +19,7 @@ const firebaseConfig = {
 };
 
 const app  = initializeApp(firebaseConfig);
-const db   = getFirestore(app);
+const db = initializeFirestore(app, {});
 const auth = getAuth(app);
 
 // ===============================

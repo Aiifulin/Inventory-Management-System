@@ -27,7 +27,7 @@ let app, auth, db;
 try {
     app = initializeApp(firebaseConfig);
     auth = getAuth(app);
-    db = getFirestore(app);
+    const db = initializeFirestore(app, {});
 } catch (e) {
     console.warn("Firebase not initialized (expected during simple unit testing)");
 }

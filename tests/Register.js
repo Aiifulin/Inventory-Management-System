@@ -18,7 +18,7 @@ let app, auth, db;
 try {
     app = initializeApp(firebaseConfig);
     auth = getAuth(app);
-    db = getFirestore(app);
+    const db = initializeFirestore(app, {});
 } catch (e) { /* Test Env */ }
 
 // --- EXPORTED LOGIC ---

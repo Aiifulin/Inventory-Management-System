@@ -25,7 +25,8 @@ let app, auth, db;
 try {
     app = initializeApp(firebaseConfig);
     auth = getAuth(app);
-    db = getFirestore(app);
+    const db = initializeFirestore(app, {});
+
 } catch (e) {
     // Suppress errors if running in a test environment
 }

@@ -1,129 +1,82 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
-import { getFirestore, collection, getDocs, doc, addDoc, serverTimestamp, getDoc, where, updateDoc, query} from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
-import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+import { collection, getDocs, doc, addDoc, serverTimestamp, getDoc, where, updateDoc, query} from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 import { initLogoutModal } from "./logout-modal.js";
 import { getCountFromServer } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
-import { initializeFirestore, persistentLocalCache } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
-import { getDocsFromCache, getDocsFromServer } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
-import { onSnapshot } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { db, auth, storage } from "./firebase.js";
 
-
-// --- CONFIG ---
-const firebaseConfig = {
-    apiKey: "AIzaSyBeaF2VKovHASuzhvZHzOoE0yB7QnBDej0",
-    authDomain: "inventory-management-sys-baccc.firebaseapp.com",
-    projectId: "inventory-management-sys-baccc",
-    storageBucket: "inventory-management-sys-baccc.firebasestorage.app",
-    messagingSenderId: "304433839568",
-    appId: "1:304433839568:web:50dafae1296e6bb0d30dd5",
-    measurementId: "G-68CR9JCJV8"
-};
-
-const app = initializeApp(firebaseConfig);
-const db = initializeFirestore(app, {
-    localCache: persistentLocalCache()
-});
-const auth = getAuth(app);
 
 // --- GLOBAL STATE ---
-let allCategories = [];
+let allCategories      = [];
 let filteredCategories = []; 
-let currentSortDir = 'asc';
-let currentUser = null;
-let isAdmin = false;
+let currentSortDir     = 'asc';
+let currentUser        = null;
+let isAdmin            = false;
 let isCategoriesLoading = true;
 
-// ================================================
-// 🔥 CACHED USER DATA HELPER
-// ================================================
 async function getCachedUserData(uid) {
     const CACHE_KEY = `user_data_${uid}`;
-
-    // 1. Check sessionStorage first
     const cached = sessionStorage.getItem(CACHE_KEY);
-    if (cached) {
-        return JSON.parse(cached);
-    }
-
-    // 2. If not cached, fetch from Firestore
+    if (cached) return JSON.parse(cached);
     try {
         const snap = await getDoc(doc(db, "users", uid));
         if (snap.exists()) {
             const data = snap.data();
-
-            // Store in session cache
             sessionStorage.setItem(CACHE_KEY, JSON.stringify(data));
-
             return data;
         }
     } catch (err) {
         console.error("Error fetching user data:", err);
     }
-
     return null;
 }
 
-async function checkAdminRole(uid) {
-    const userData = await getCachedUserData(uid);
-    return userData?.role?.toLowerCase() === 'admin';
-}
-
-async function displayUserName(uid) {
-    const nameEl = document.getElementById('userNameDisplay');
-    if (!nameEl) return;
-
-    const userData = await getCachedUserData(uid);
-    const name = userData?.name || "User";
-    
-    nameEl.textContent = name;
-}
-
-
-// --- HELPER: ACTIVITY LOGGING FUNCTION ---
 async function logActivity(action, targetName) {
     try {
         const userEmail = auth.currentUser ? auth.currentUser.email : "Admin";
-        
         await addDoc(collection(db, "activities"), {
-            action: action,          
-            target: targetName,      
-            user: userEmail,
-            timestamp: serverTimestamp()
+            action, target: targetName, user: userEmail, timestamp: serverTimestamp()
         });
-        console.log("Activity logged successfully");
     } catch (e) {
         console.error("Error logging activity", e);
     }
 }
 
-// --- AUTH CHECK & INITIAL LOAD ---
+// ================================================
+// AUTH — parallel: user data + categories fire at the same time
+// ================================================
 onAuthStateChanged(auth, async (user) => {
-    if (user) {
-        currentUser = user;
+    if (!user) { window.location.href = "index.html"; return; }
 
-        // Both share one cached Firestore read
-        displayUserName(user.uid);
-        isAdmin = await checkAdminRole(user.uid);
+    currentUser = user;
 
-        // Reveal only after role is confirmed — no flash
-        const addBtn = document.getElementById('addCategoryBtn');
-        if (addBtn) addBtn.style.display = isAdmin ? 'flex' : 'none';
+    // 🔥 Fire user data AND category fetch simultaneously
+    const [userData] = await Promise.all([
+        getCachedUserData(user.uid),
+        fetchCategories()
+    ]);
 
-        fetchCategories();
+    isAdmin = userData?.role?.toLowerCase() === 'admin';
 
-        // =======================================================
-        // Logout Confirmation Modal (shared pattern with Dashboard)
-        // =======================================================
-        const doSignOut = () => {
-            localStorage.removeItem("user_session"); localStorage.removeItem("user_uid"); localStorage.removeItem("user_role");
-            sessionStorage.clear();
-            signOut(auth).then(() => window.location.replace("index.html")).catch(() => window.location.replace("index.html"));
-        };
-        const openLogoutModal = initLogoutModal(doSignOut);
-        window.logout = function () { if (openLogoutModal) openLogoutModal(); }; 
-    } else {
-        window.location.href = "index.html";
-    }
+    const nameEl = document.getElementById('userNameDisplay');
+    if (nameEl) nameEl.textContent = userData?.name || "User";
+
+    // Show/hide add button now that role is known
+    const addBtn = document.getElementById('addCategoryBtn');
+    if (addBtn) addBtn.style.display = isAdmin ? 'flex' : 'none';
+
+    // Re-render so admin action icons appear
+    renderTable(filteredCategories);
+
+    // Logout modal
+    const doSignOut = () => {
+        localStorage.removeItem("user_session");
+        localStorage.removeItem("user_uid");
+        localStorage.removeItem("user_role");
+        sessionStorage.clear();
+        signOut(auth).then(() => window.location.replace("index.html")).catch(() => window.location.replace("index.html"));
+    };
+    const openLogoutModal = initLogoutModal(doSignOut);
+    window.logout = function () { if (openLogoutModal) openLogoutModal(); };
 });
 
 // --- FETCH DATA ---
@@ -131,12 +84,7 @@ async function fetchCategories() {
     setCategoriesLoading(true);
 
     try {
-        // ✅ Use getDocs instead of onSnapshot for cache-first behavior
-        const q = query(
-            collection(db, "categories"),
-            where("archived", "==", false)
-        );
-
+        const q = query(collection(db, "categories"), where("archived", "==", false));
         const querySnapshot = await getDocs(q);
 
         allCategories = querySnapshot.docs.map(docSnap => ({
@@ -146,9 +94,9 @@ async function fetchCategories() {
         }));
 
         setCategoriesLoading(false);
-        applyFilters();
+        applyFilters(); // ← render immediately with itemCount: 0
 
-        // Background count loading (non-blocking)
+        // 🔥 Fire counts without await — patches UI in background, no blocking
         loadCategoryCounts(querySnapshot.docs);
 
     } catch (error) {
@@ -162,26 +110,21 @@ function setCategoriesLoading(loading) {
     isCategoriesLoading = loading;
 
     const desktopSkeleton = document.getElementById("desktopCategoriesSkeleton");
-    const mobileSkeleton = document.getElementById("mobileCategoriesSkeleton");
-    const tableContainer = document.querySelector(".table-container.desktop-only");
-    const mobileList = document.getElementById("mobileProductList");
-    
-    console.log("setCategoriesLoading:", loading, { desktopSkeleton, mobileSkeleton, tableContainer, mobileList }); // ← ADD THIS
-
+    const mobileSkeleton  = document.getElementById("mobileCategoriesSkeleton");
+    const tableContainer  = document.querySelector(".table-container.desktop-only");
+    const mobileList      = document.getElementById("mobileProductList");
 
     desktopSkeleton?.classList.toggle("visible", loading);
     mobileSkeleton?.classList.toggle("visible", loading);
     tableContainer?.classList.toggle("hidden", loading);
     mobileList?.classList.toggle("hidden", loading);
-    
 }
 
 // --- FILTER & SORT ---
 function applyFilters() {
     const searchVal = document.getElementById("searchInput").value.trim().toLowerCase();
-    const sortVal = document.getElementById("filterSort").value; 
+    const sortVal   = document.getElementById("filterSort").value; 
 
-    // 1. Filter
     let result = allCategories.filter(c => {
         const catName = (c.name || "").toLowerCase();
         let dateStr = "";
@@ -192,7 +135,6 @@ function applyFilters() {
         return catName.includes(searchVal) || dateStr.includes(searchVal);
     });
 
-    // 2. Sort (The part that makes your buttons work)
     result.sort((a, b) => {
         let valA, valB;
         if (sortVal === 'name') {
@@ -202,7 +144,6 @@ function applyFilters() {
             valA = a.createdAt?.seconds || 0;
             valB = b.createdAt?.seconds || 0;
         }
-
         if (valA < valB) return currentSortDir === 'asc' ? -1 : 1;
         if (valA > valB) return currentSortDir === 'asc' ? 1 : -1;
         return 0;
@@ -213,24 +154,15 @@ function applyFilters() {
 }
 
 async function loadCategoryCounts(docs) {
+    // 🔥 All count queries in parallel
     const updates = await Promise.all(
         docs.map(async (docSnap) => {
             const data = docSnap.data();
             if (data.archived === true) return null;
-
             try {
-                const q = query(
-                    collection(db, "products"),
-                    where("category", "==", data.name),
-                    where("archived", "==", false) // ✅ FIXED operator
-                );
-
+                const q    = query(collection(db, "products"), where("category", "==", data.name), where("archived", "==", false));
                 const snap = await getCountFromServer(q);
-
-                return {
-                    id: docSnap.id,
-                    count: snap.data().count
-                };
+                return { id: docSnap.id, count: snap.data().count };
             } catch (err) {
                 console.error("Count error:", err);
                 return null;
@@ -238,36 +170,33 @@ async function loadCategoryCounts(docs) {
         })
     );
 
-    // ✅ 3. PATCH COUNTS WITHOUT RE-RENDERING EVERYTHING
     updates.forEach(update => {
         if (!update) return;
-
         const cat = allCategories.find(c => c.id === update.id);
         if (cat) cat.itemCount = update.count;
     });
 
-    applyFilters(); // ⚡ smooth update (no flicker)
+    applyFilters(); // smooth patch update
 }
 
 // --- RENDER TABLE ---
 function renderTable(categoriesToRender) {
-    const tableBody = document.getElementById("productTableBody");
+    const tableBody  = document.getElementById("productTableBody");
     const mobileList = document.getElementById("mobileProductList");
 
-
-    if (tableBody) tableBody.innerHTML = "";
+    if (tableBody)  tableBody.innerHTML  = "";
     if (mobileList) mobileList.innerHTML = "";
 
     if (categoriesToRender.length === 0) {
-        if(tableBody) tableBody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:30px; color:#9ca3af;">No categories found.</td></tr>`;
-        if(mobileList) mobileList.innerHTML = `<div style="text-align:center; padding:30px; color:#9ca3af;">No categories found.</div>`;
+        if (tableBody)  tableBody.innerHTML  = `<tr><td colspan="5" style="text-align:center; padding:30px; color:#9ca3af;">No categories found.</td></tr>`;
+        if (mobileList) mobileList.innerHTML = `<div style="text-align:center; padding:30px; color:#9ca3af;">No categories found.</div>`;
         return;
     }
 
     categoriesToRender.forEach((c, index) => {
         const displayNum = index + 1;
         const docId   = c.id;
-        const shortId = `#${displayNum}`;       // shows #1, #2, #3, #4...
+        const shortId = `#${displayNum}`;
 
         let dateAdded = "N/A";
         if (c.createdAt && c.createdAt.toDate) {
@@ -291,9 +220,7 @@ function renderTable(categoriesToRender) {
                 <td>${c.name}</td>
                 <td>${c.itemCount || 0}</td>
                 <td>${dateAdded}</td>
-                <td class="actions">
-                    ${adminActions}
-                </td>
+                <td class="actions">${adminActions}</td>
             `;
             tableBody.appendChild(row);
         }
@@ -304,23 +231,19 @@ function renderTable(categoriesToRender) {
             card.innerHTML = `
                 <div class="mobile-id-header">ID: <span class="id-badge" title="Doc ID: ${docId}">${shortId}</span></div>
                 <div class="card-top">
-                    <div class="card-header-text">
-                        <h3 class="card-title">${c.name}</h3>
-                    </div>
+                    <div class="card-header-text"><h3 class="card-title">${c.name}</h3></div>
                 </div>
                 <div class="card-details-grid">
                     <div class="detail-item"><label>Items:</label> <span>${c.itemCount || 0}</span></div>
                     <div class="detail-item"><label>Created:</label> <span>${dateAdded}</span></div>
                 </div>
-                <div class="card-actions">
-                    ${mobileAdminActions}
-                </div>
+                <div class="card-actions">${mobileAdminActions}</div>
             `;
             mobileList.appendChild(card);
         }
     });
 
-    if(isAdmin) attachDeleteListeners();
+    if (isAdmin) attachDeleteListeners();
 }
 
 // --- EDIT FUNCTION ---
@@ -333,19 +256,18 @@ window.editCategory = function(id) {
 }
 
 // --- MODAL STATE ---
-let pendingDeleteId = null;
+let pendingDeleteId   = null;
 let pendingDeleteName = null;
 
-// --- MODAL HELPERS ---
 function openDeleteModal(id, name) {
-    pendingDeleteId = id;
+    pendingDeleteId   = id;
     pendingDeleteName = name;
     document.getElementById('deleteCategoryName').textContent = `"${name}"`;
     document.getElementById('deleteModalOverlay').style.display = 'flex';
 }
 
 function closeDeleteModal() {
-    pendingDeleteId = null;
+    pendingDeleteId   = null;
     pendingDeleteName = null;
     document.getElementById('deleteModalOverlay').style.display = 'none';
     const confirmBtn = document.getElementById('modalConfirmBtn');
@@ -353,11 +275,9 @@ function closeDeleteModal() {
     confirmBtn.innerHTML = '<i class="fas fa-archive"></i> Archive';
 }
 
-// Wire up modal buttons once on load
 document.addEventListener("DOMContentLoaded", () => {
     document.getElementById('modalCancelBtn')?.addEventListener('click', closeDeleteModal);
 
-    // Close on backdrop click
     document.getElementById('deleteModalOverlay')?.addEventListener('click', (e) => {
         if (e.target === document.getElementById('deleteModalOverlay')) closeDeleteModal();
     });
@@ -365,53 +285,32 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById('modalConfirmBtn')?.addEventListener('click', async () => {
         if (!pendingDeleteId) return;
     
-        // 1. Capture the name in a local constant so it doesn't get wiped
         const categoryName = pendingDeleteName; 
-        const confirmBtn = document.getElementById('modalConfirmBtn');
+        const confirmBtn   = document.getElementById('modalConfirmBtn');
         
         confirmBtn.disabled = true;
         confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Archiving...';
     
         try {
-            // 1. Archive category
             await updateDoc(doc(db, "categories", pendingDeleteId), {
-                archived: true,
-                archivedAt: serverTimestamp()
+                archived: true, archivedAt: serverTimestamp()
             });
             
-            const productsQuery = query(
-                collection(db, "products"),
-                where("category", "==", categoryName)
-            );
-            
+            const productsQuery    = query(collection(db, "products"), where("category", "==", categoryName));
             const productsSnapshot = await getDocs(productsQuery);
             
-            const updatePromises = [];
+            await Promise.all(
+                productsSnapshot.docs.map(productDoc =>
+                    updateDoc(doc(db, "products", productDoc.id), { category: "Uncategorized" })
+                )
+            );
             
-            productsSnapshot.forEach((productDoc) => {
-                updatePromises.push(
-                    updateDoc(doc(db, "products", productDoc.id), {
-                        category: "Uncategorized"
-                    })
-                );
-            });
-            
-            await Promise.all(updatePromises);
-            
-            // 3. Log AFTER everything succeeds
             await logActivity("Archived Category", categoryName);
-    
-            // 2. Update the UI
             allCategories = allCategories.filter(c => c.id !== pendingDeleteId);
             applyFilters();
             sessionStorage.removeItem('dashboard_cache');
-            
-            // 3. Close the modal (which sets pendingDeleteName to null)
             closeDeleteModal();
-    
-            // 4. Use the LOCAL constant categoryName here instead
             showToast(`Category "${categoryName}" archived successfully!`, 'success');
-    
         } catch (err) {
             console.error("Error archiving:", err);
             showToast("Failed to archive category.", "error");
@@ -421,53 +320,46 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 });
 
-// --- ATTACH DELETE LISTENERS (updated) ---
 function attachDeleteListeners() {
     if (!isAdmin) return;
-
     document.querySelectorAll('.delete-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
             const target = e.target.closest('.delete-btn');
             if (!target) return;
-
-            const idToDelete = target.getAttribute('data-id');
+            const idToDelete       = target.getAttribute('data-id');
             const categoryToDelete = allCategories.find(c => c.id === idToDelete);
-            const nameToLog = categoryToDelete ? categoryToDelete.name : "Unknown Category";
-
+            const nameToLog        = categoryToDelete ? categoryToDelete.name : "Unknown Category";
             openDeleteModal(idToDelete, nameToLog);
         });
     });
 }
 
-// --- EVENT LISTENERS ---
 document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("searchInput").addEventListener("input", applyFilters);
     document.getElementById("filterSort").addEventListener("change", applyFilters);
     
     const sortBtn = document.getElementById("sortDirBtn");
-    if(sortBtn) {
+    if (sortBtn) {
         sortBtn.addEventListener("click", () => {
             currentSortDir = currentSortDir === 'asc' ? 'desc' : 'asc';
             const icon = document.getElementById("sortDirIcon");
             const text = document.getElementById("sortDirText");
-            if(icon) icon.textContent = currentSortDir === 'asc' ? "↑" : "↓"; 
-            if(text) text.textContent = currentSortDir === 'asc' ? "Ascending" : "Descending";
+            if (icon) icon.textContent = currentSortDir === 'asc' ? "↑" : "↓"; 
+            if (text) text.textContent = currentSortDir === 'asc' ? "Ascending" : "Descending";
             applyFilters();
         });
     }
 
     const resetBtn = document.getElementById("resetFiltersBtn");
-    if(resetBtn) {
+    if (resetBtn) {
         resetBtn.addEventListener("click", () => {
             document.getElementById("searchInput").value = "";
-            document.getElementById("filterSort").value = "name";
-            
+            document.getElementById("filterSort").value  = "name";
             currentSortDir = 'asc';
             const icon = document.getElementById("sortDirIcon");
             const text = document.getElementById("sortDirText");
-            if(icon) icon.textContent = "↑";
-            if(text) text.textContent = "Ascending";
-
+            if (icon) icon.textContent = "↑";
+            if (text) text.textContent = "Ascending";
             applyFilters();
         });
     }
@@ -477,17 +369,9 @@ function showToast(message, type = 'success') {
     const container = document.getElementById('toast-container');
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
-    
     const icon = type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle';
-    
-    toast.innerHTML = `
-        <i class="fas ${icon}"></i>
-        <span>${message}</span>
-    `;
-    
+    toast.innerHTML = `<i class="fas ${icon}"></i><span>${message}</span>`;
     container.appendChild(toast);
-
-    // Auto-remove after 3 seconds
     setTimeout(() => {
         toast.style.animation = 'fadeOut 0.3s ease forwards';
         setTimeout(() => toast.remove(), 300);

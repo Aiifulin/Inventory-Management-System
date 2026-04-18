@@ -1,29 +1,11 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
-import { getAuth, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
-// Added setDoc and doc to imports
-import { getFirestore, doc, setDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
-import { initializeFirestore, persistentLocalCache } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
-
-const firebaseConfig = {
-    apiKey: "AIzaSyBeaF2VKovHASuzhvZHzOoE0yB7QnBDej0",
-    authDomain: "inventory-management-sys-baccc.firebaseapp.com",
-    projectId: "inventory-management-sys-baccc",
-    storageBucket: "inventory-management-sys-baccc.firebasestorage.app",
-    messagingSenderId: "304433839568",
-    appId: "1:304433839568:web:50dafae1296e6bb0d30dd5",
-    measurementId: "G-68CR9JCJV8"
-};
-
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = initializeFirestore(app, {
-    localCache: persistentLocalCache()
-});
+import { auth, db } from "./firebase.js";
+import { createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+import { doc, setDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
 window.togglePassword = function(id, el) {
     const input = document.getElementById(id);
-    const icon = el.querySelector('i');
-    if(input.type === "password") {
+    const icon  = el.querySelector('i');
+    if (input.type === "password") {
         input.type = "text";
         icon.classList.remove('fa-eye');
         icon.classList.add('fa-eye-slash');
@@ -71,9 +53,9 @@ window.register = async function () {
     }
 
     // Show loading state
-    registerBtn.disabled   = true;
-    btnText.textContent    = "Creating account...";
-    spinner.style.display  = "inline-block";
+    registerBtn.disabled  = true;
+    btnText.textContent   = "Creating account...";
+    spinner.style.display = "inline-block";
 
     try {
         const userCred = await createUserWithEmailAndPassword(auth, email, password);
@@ -133,7 +115,7 @@ function showRegisterSuccess() {
             clearInterval(interval);
             window.location.href = "index.html";
         }
-    }, 40); // 2 seconds total
+    }, 40);
 }
 
 window.goToLogin = function() {

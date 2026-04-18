@@ -1,32 +1,13 @@
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
-    import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
-    import { getFirestore, collection, query, orderBy, limit, doc, getDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+    import { collection, query, orderBy, limit, where, doc, getDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
     import { initLogoutModal } from "./logout-modal.js";
-    import { initializeFirestore, persistentLocalCache } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+    import { db, auth, storage } from "./firebase.js";
 
-    // --- CONFIG ---
-    const firebaseConfig = {
-        apiKey: "AIzaSyBeaF2VKovHASuzhvZHzOoE0yB7QnBDej0",
-        authDomain: "inventory-management-sys-baccc.firebaseapp.com",
-        projectId: "inventory-management-sys-baccc",
-        storageBucket: "inventory-management-sys-baccc.firebasestorage.app",
-        messagingSenderId: "304433839568",
-        appId: "1:304433839568:web:50dafae1296e6bb0d30dd5",
-        measurementId: "G-68CR9JCJV8"
-    };
-
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-
-
-    const db = initializeFirestore(app, {
-        localCache: persistentLocalCache()
-    });
 
     // --- GLOBALS ---
     let barChartInstance = null;
     let pieChartInstance = null;
-    let dashboardStage = {};           // FIX 1: was never declared
+    let dashboardStage = {};
     const CACHE_KEY = 'dashboard_cache';
 
     // ================================================
@@ -51,17 +32,12 @@
 
     async function getCachedUserData(uid) {
         const CACHE_KEY_USER = `user_data_${uid}`;
-        
-        // 1. Check Session Storage
         const cached = sessionStorage.getItem(CACHE_KEY_USER);
         if (cached) return JSON.parse(cached);
-
-        // 2. If not cached, fetch from Firestore
         try {
             const docSnap = await getDoc(doc(db, "users", uid));
             if (docSnap.exists()) {
                 const data = docSnap.data();
-                // Store it so we don't have to fetch it again
                 sessionStorage.setItem(CACHE_KEY_USER, JSON.stringify(data));
                 return data;
             }
@@ -71,40 +47,36 @@
         return null;
     }
 
-    async function displayUserName(uid) {
-        const nameEl = document.getElementById('userNameDisplay');
-        if (!nameEl) return;
-    
-        const userData = await getCachedUserData(uid);
-        const name = userData?.name || "User";
-        
-        nameEl.textContent = name;
-    }
-    
-
-    async function checkAdminRole(uid) {
-        const userData = await getCachedUserData(uid);
-        return userData?.role?.toLowerCase() === 'admin';
-    }
-
     // ================================================
-    // AUTH LISTENER
+    // AUTH LISTENER — parallel: user data + dashboard load fire at the same time
     // ================================================
     onAuthStateChanged(auth, async (user) => {
-        if (user) {
-            // Both share the same single cached Firestore read
-            displayUserName(user.uid);
-            const isAdmin = await checkAdminRole(user.uid);
+        if (!user) { window.location.href = "index.html"; return; }
 
-            // Only reveal after role is confirmed — no flash
-            const addBtn = document.getElementById('addProductBtn');
-            if (addBtn) addBtn.style.display = isAdmin ? 'flex' : 'none';
+        // 🔥 Fire user data fetch AND dashboard load simultaneously
+        const [userData] = await Promise.all([
+            getCachedUserData(user.uid),
+            loadDashboard()
+        ]);
 
-            await loadDashboard();
+        // Apply UI that depends on role — data is already rendering in background
+        const isAdmin = userData?.role?.toLowerCase() === 'admin';
+        const nameEl  = document.getElementById('userNameDisplay');
+        if (nameEl) nameEl.textContent = userData?.name || "User";
 
-        } else {
-            window.location.href = "index.html";
-        }
+        const addBtn = document.getElementById('addProductBtn');
+        if (addBtn) addBtn.style.display = isAdmin ? 'flex' : 'none';
+
+        // Logout modal
+        const doSignOut = () => {
+            localStorage.removeItem("user_session");
+            localStorage.removeItem("user_uid");
+            localStorage.removeItem("user_role");
+            sessionStorage.clear();
+            signOut(auth).then(() => window.location.replace("index.html")).catch(() => window.location.replace("index.html"));
+        };
+        const openLogoutModal = initLogoutModal(doSignOut);
+        window.logout = function () { if (openLogoutModal) openLogoutModal(); };
     });
 
     // ================================================
@@ -114,7 +86,6 @@
         const cached = loadCache();
 
         if (!forceRefresh && cached) {
-            // Serve instantly from cache — zero Firestore reads
             updateStat("statTotalProducts", cached.totalProducts);
             updateStat("statLowStock",      cached.lowStockCount);
             updateStat("statCategories",    cached.categoryCount);
@@ -138,7 +109,7 @@
                 loadRecentActivities(),
                 loadCategoryCount()
             ]);
-            saveCache(dashboardStage); // Only saves after all three succeed
+            saveCache(dashboardStage);
         } catch (err) {
             console.error("Dashboard load error:", err);
         } finally {
@@ -154,16 +125,15 @@
     }
 
     // ================================================
-    // TO PREVENT USER ROLE FLICKER ON LOAD, WE FIRST CHECK LOCAL STORAGE
-    // THEN VALIDATE WITH FIRESTORE IN THE BACKGROUND. THIS WAY, WE CAN HIDE ADMIN-ONLY UI ELEMENTS IMMEDIATELY WITHOUT WAITING FOR FIRESTORE.
-    // ================================================
-
-
-    // ================================================
     // DATA LOADERS
     // ================================================
     async function loadStats() {
-        const snapshot = await getDocs(collection(db, "products"));
+        // 🔥 Filter archived server-side — don't fetch docs you'll discard
+        const q = query(
+            collection(db, "products"),
+            where("archived", "==", false)
+        );
+        const snapshot = await getDocs(q);
 
         const products      = [];
         const lowStockItems = [];
@@ -171,7 +141,6 @@
 
         snapshot.forEach((docSnap) => {
             const p = docSnap.data();
-            if (p.archived === true) return;
 
             products.push(p);
 
@@ -202,7 +171,6 @@
         initCharts(categoryMap);
         renderLowStockTable(lowStockItems);
 
-        // Stage for cache
         dashboardStage.totalProducts = products.length;
         dashboardStage.lowStockCount = lowStockItems.length;
         dashboardStage.totalValue    = formattedValue;
@@ -225,7 +193,6 @@
                 user:      data.user   || 'Admin',
                 action:    data.action || '',
                 target:    data.target || '',
-                // Convert Timestamp to ISO string so it survives JSON serialization
                 timestamp: data.timestamp ? data.timestamp.toDate().toISOString() : null
             });
         });
@@ -235,13 +202,14 @@
     }
 
     async function loadCategoryCount() {
-        const snapshot = await getDocs(collection(db, "categories"));
-        let count = 0;
-        snapshot.forEach((docSnap) => {
-            if (docSnap.data().archived !== true) count++;
-        });
-        updateStat("statCategories", count);
-        dashboardStage.categoryCount = count;
+        // 🔥 Filter archived server-side
+        const q = query(
+            collection(db, "categories"),
+            where("archived", "==", false)
+        );
+        const snapshot = await getDocs(q);
+        updateStat("statCategories", snapshot.size);
+        dashboardStage.categoryCount = snapshot.size;
     }
 
     // ================================================
@@ -463,10 +431,6 @@
         });
     }
 
-
-
-
-
     // ================================================
     // UI EVENT LISTENERS
     // ================================================
@@ -477,7 +441,6 @@
         const overlay      = document.getElementById('overlay');
         const refreshBtn   = document.getElementById('refreshBtn');
 
-        // FIX 3: pass forceRefresh = true so it always hits Firestore on manual refresh
         if (refreshBtn) {
             refreshBtn.addEventListener('click', () => loadDashboard(true));
         }
@@ -494,17 +457,4 @@
         if (hamburgerBtn) hamburgerBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleSidebar(); });
         if (closeBtn)     closeBtn.addEventListener('click', closeSidebar);
         if (overlay)      overlay.addEventListener('click', closeSidebar);
-
-        // =======================================================
-        // Logout Confirmation Modal (shared pattern with Dashboard)
-        // =======================================================
-        const doSignOut = () => {
-            localStorage.removeItem("user_session"); localStorage.removeItem("user_uid"); localStorage.removeItem("user_role");
-            sessionStorage.clear();
-            signOut(auth).then(() => window.location.replace("index.html")).catch(() => window.location.replace("index.html"));
-        };
-        const openLogoutModal = initLogoutModal(doSignOut);
-
-        window.logout = function () { if (openLogoutModal) openLogoutModal(); };    
     });
-

@@ -24,7 +24,7 @@ export const firebaseConfig = {
 let app, db, auth;
 try {
     app = initializeApp(firebaseConfig);
-    db = getFirestore(app);
+    const db = initializeFirestore(app, {});
     auth = getAuth(app);
 } catch (e) {
     // Suppress errors during test execution if Firebase is mocked

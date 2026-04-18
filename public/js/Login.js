@@ -1,28 +1,9 @@
 /************************************************
- * IMPORTS (Using CDN)
+ * IMPORTS
  ***********************************************/
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
-import { getAuth, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
-import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
-
-
-/************************************************
- * FIREBASE CONFIGURATION
- ***********************************************/
-const firebaseConfig = {
-  apiKey: "AIzaSyBeaF2VKovHASuzhvZHzOoE0yB7QnBDej0",
-  authDomain: "inventory-management-sys-baccc.firebaseapp.com",
-  projectId: "inventory-management-sys-baccc",
-  storageBucket: "inventory-management-sys-baccc.firebasestorage.app",
-  messagingSenderId: "304433839568",
-  appId: "1:304433839568:web:50dafae1296e6bb0d30dd5",
-  measurementId: "G-68CR9JCJV8"
-};
-
-// INIT
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
+import { auth, db } from "./firebase.js";
+import { signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
 /************************************************
  * LOGIN FUNCTION
@@ -39,29 +20,28 @@ const login = function () {
     if (errorBox) { errorBox.style.display = "none"; errorBox.textContent = ""; }
 
     // Show loading state
-    loginBtn.disabled  = true;
+    loginBtn.disabled   = true;
     btnText.textContent = "Signing in...";
     spinner.style.display = "inline-block";
 
     signInWithEmailAndPassword(auth, email, pass)
         .then(async (userCredential) => {
             const uid = userCredential.user.uid;
-        
+
             localStorage.setItem("user_session", "true");
             localStorage.setItem("user_uid", uid);
-        
+
             let userName = "User";
             try {
                 const snap = await getDoc(doc(db, "users", uid));
                 if (snap.exists()) {
                     userName = snap.data().name || "User";
-                    
                 }
             } catch (err) {
                 console.error("Error fetching user name:", err);
             }
-        
-            showLoginSuccess(userName); 
+
+            showLoginSuccess(userName);
         })
         .catch((err) => {
             console.error(err.code, err.message);
@@ -90,12 +70,11 @@ const login = function () {
 };
 
 function showLoginSuccess(userName) {
-    const overlay  = document.getElementById('loginSuccessOverlay');
-    const bar      = document.getElementById('loginProgressBar');
-    const title    = document.querySelector('.login-success-title');
+    const overlay = document.getElementById('loginSuccessOverlay');
+    const bar     = document.getElementById('loginProgressBar');
+    const title   = document.querySelector('.login-success-title');
 
     title.textContent = `Welcome back, ${userName}!`;
-
     overlay.style.display = 'flex';
 
     let width = 0;
@@ -114,7 +93,7 @@ function showLoginSuccess(userName) {
  ***********************************************/
 const togglePassword = function (id, el) {
     const input = document.getElementById(id);
-    const icon = el.querySelector('i');
+    const icon  = el.querySelector('i');
 
     if (input.type === "password") {
         input.type = "text";
@@ -135,6 +114,6 @@ const goToRegister = function () {
 };
 
 // EXPOSE FUNCTIONS TO WINDOW
-window.login = login;
+window.login          = login;
 window.togglePassword = togglePassword;
-window.goToRegister = goToRegister;
+window.goToRegister   = goToRegister;

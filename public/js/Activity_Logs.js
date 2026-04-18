@@ -1,32 +1,17 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
 import {
     collection, query, orderBy, getDocs, doc, getDoc, limit
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
-import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 import { initLogoutModal } from "./logout-modal.js";
-import { initializeFirestore, persistentLocalCache } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { db, auth, storage } from "./firebase.js";
 
-// --- CONFIG ---
-const firebaseConfig = {
-    apiKey: "AIzaSyBeaF2VKovHASuzhvZHzOoE0yB7QnBDej0",
-    authDomain: "inventory-management-sys-baccc.firebaseapp.com",
-    projectId: "inventory-management-sys-baccc",
-    storageBucket: "inventory-management-sys-baccc.firebasestorage.app",
-    messagingSenderId: "304433839568",
-    appId: "1:304433839568:web:50dafae1296e6bb0d30dd5",
-    measurementId: "G-68CR9JCJV8"
-};
-
-const app  = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db   = initializeFirestore(app, { localCache: persistentLocalCache() });
 
 // ================================================
 // CONSTANTS & STATE
 // ================================================
 const LOGS_CACHE_KEY = 'activity_logs_cache';
-const CACHE_TTL_MS   = 5 * 60 * 1000;  // 5 minutes
-const FETCH_LIMIT    = 200;             // max docs per Firestore read
+const CACHE_TTL_MS   = 5 * 60 * 1000;
+const FETCH_LIMIT    = 200;
 const PAGE_SIZE      = 10;
 
 let allLogs       = [];
@@ -36,16 +21,12 @@ let sortDir       = 'desc';
 let isLogsLoading = true;
 
 // ================================================
-// CACHE HELPERS  (#1 — localStorage + TTL)
+// CACHE HELPERS
 // ================================================
 function saveLogsCache(logs) {
     try {
-        localStorage.setItem(LOGS_CACHE_KEY, JSON.stringify({
-            logs,
-            cachedAt: Date.now()
-        }));
+        localStorage.setItem(LOGS_CACHE_KEY, JSON.stringify({ logs, cachedAt: Date.now() }));
     } catch (e) {
-        // localStorage can throw if storage quota is exceeded; fail silently
         console.warn("Could not save logs cache:", e);
     }
 }
@@ -55,7 +36,7 @@ function loadLogsCache() {
         const raw = localStorage.getItem(LOGS_CACHE_KEY);
         if (!raw) return null;
         const { logs, cachedAt } = JSON.parse(raw);
-        if (Date.now() - cachedAt > CACHE_TTL_MS) return null; // expired
+        if (Date.now() - cachedAt > CACHE_TTL_MS) return null;
         return logs;
     } catch {
         return null;
@@ -81,32 +62,30 @@ async function getCachedUserData(uid) {
     return null;
 }
 
-async function displayUserName(uid) {
-    const nameEl = document.getElementById('userNameDisplay');
-    if (!nameEl) return;
-    const userData   = await getCachedUserData(uid);
-    nameEl.textContent = userData?.name || "User";
-}
-
 // ================================================
-// AUTH
+// AUTH — parallel: user data + logs fire at the same time
 // ================================================
 onAuthStateChanged(auth, async (user) => {
     if (!user) { window.location.href = "index.html"; return; }
 
-    await displayUserName(user.uid);
+    // 🔥 Fire user data AND logs fetch simultaneously
+    const [userData] = await Promise.all([
+        getCachedUserData(user.uid),
+        initLogs()
+    ]);
+
+    const nameEl = document.getElementById('userNameDisplay');
+    if (nameEl) nameEl.textContent = userData?.name || "User";
+
     document.documentElement.style.visibility = "visible";
 
-    await initLogs();
-
+    // Logout modal
     const doSignOut = () => {
         localStorage.removeItem("user_session");
         localStorage.removeItem("user_uid");
         localStorage.removeItem("user_role");
         sessionStorage.clear();
-        signOut(auth)
-            .then(() => window.location.replace("index.html"))
-            .catch(() => window.location.replace("index.html"));
+        signOut(auth).then(() => window.location.replace("index.html")).catch(() => window.location.replace("index.html"));
     };
     const openLogoutModal = initLogoutModal(doSignOut);
     window.logout = function () { if (openLogoutModal) openLogoutModal(); };
@@ -134,8 +113,7 @@ async function initLogs(forceRefresh = false) {
 async function fetchAndCacheLogs() {
     setRefreshLoading(true);
     try {
-        // #2 — limit(200) so we never read the entire collection
-        const q        = query(
+        const q = query(
             collection(db, "activities"),
             orderBy("timestamp", "desc"),
             limit(FETCH_LIMIT)
@@ -216,10 +194,7 @@ function renderPage() {
     const pageRows = filteredLogs.slice(start, start + PAGE_SIZE);
 
     if (filteredLogs.length === 0) {
-        table.innerHTML = `
-            <tr class="log-empty-row">
-                <td colspan="4">No activity logs found.</td>
-            </tr>`;
+        table.innerHTML = `<tr class="log-empty-row"><td colspan="4">No activity logs found.</td></tr>`;
     } else {
         table.innerHTML = pageRows.map(log => {
             const dateStr = log.timestamp
@@ -245,7 +220,6 @@ function renderPage() {
         }).join('');
     }
 
-    // Total label
     const totalLabel = document.getElementById('logsTotalLabel');
     if (totalLabel) {
         totalLabel.textContent = filteredLogs.length > 0
@@ -253,7 +227,6 @@ function renderPage() {
             : '';
     }
 
-    // Pagination
     const pageInfo = document.getElementById('pageInfo');
     const prevBtn  = document.getElementById('prevPageBtn');
     const nextBtn  = document.getElementById('nextPageBtn');
@@ -280,15 +253,12 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById('dateHeader')?.addEventListener('click', () => {
         sortDir = sortDir === 'desc' ? 'asc' : 'desc';
         const icon = document.getElementById('sortIcon');
-        if (icon) {
-            icon.className = sortDir === 'desc' ? 'fas fa-sort-down' : 'fas fa-sort-up';
-        }
+        if (icon) icon.className = sortDir === 'desc' ? 'fas fa-sort-down' : 'fas fa-sort-up';
         applyFilterAndRender();
     });
 
     document.getElementById('logSearch')?.addEventListener('input', applyFilterAndRender);
 
-    // Refresh button — clears localStorage cache first, then re-fetches
     document.getElementById('refreshLogsBtn')?.addEventListener('click', () => {
         localStorage.removeItem(LOGS_CACHE_KEY);
         initLogs(true);

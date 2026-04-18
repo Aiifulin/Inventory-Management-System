@@ -1,26 +1,12 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+import { auth } from "./firebase.js";
 import {
-    getAuth,
     sendPasswordResetEmail,
     fetchSignInMethodsForEmail
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 
-const firebaseConfig = {
-    apiKey: "AIzaSyBeaF2VKovHASuzhvZHzOoE0yB7QnBDej0",
-    authDomain: "inventory-management-sys-baccc.firebaseapp.com",
-    projectId: "inventory-management-sys-baccc",
-    storageBucket: "inventory-management-sys-baccc.firebasestorage.app",
-    messagingSenderId: "304433839568",
-    appId: "1:304433839568:web:50dafae1296e6bb0d30dd5",
-    measurementId: "G-68CR9JCJV8"
-};
-
-const app  = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-
 // --- HELPERS ---
 function showError(msg) {
-    const box = document.getElementById("error-box");
+    const box        = document.getElementById("error-box");
     const successBox = document.getElementById("success-box");
 
     successBox.style.display = "none";
@@ -34,7 +20,7 @@ function showError(msg) {
 }
 
 function showSuccess(msg) {
-    const box = document.getElementById("success-box");
+    const box      = document.getElementById("success-box");
     const errorBox = document.getElementById("error-box");
 
     errorBox.style.display = "none";
