@@ -21,6 +21,7 @@ let currentUser = null;
 let productsMap = {};
 let isLoading   = true;
 
+
 let activeYear = new Date().getFullYear();
 let txCache    = {};
 let allYears   = [];
@@ -82,10 +83,9 @@ async function loadProducts() {
     try {
         const snap = await getDocs(query(collection(db, "products"), where("archived", "==", false)));
 
-        const modalSelect  = document.getElementById("modalProduct");
-        const filterSelect = document.getElementById("filterProduct");
-        if (modalSelect)  modalSelect.innerHTML  = '<option value="" disabled selected>Select a product…</option>';
-        if (filterSelect) filterSelect.innerHTML = '<option value="">All Products</option>';
+        const modalSelect = document.getElementById("modalProduct");
+        if (modalSelect) modalSelect.innerHTML = '<option value="" disabled selected>Select a product…</option>';
+
 
         snap.forEach(docSnap => {
             const d = docSnap.data();
@@ -95,20 +95,18 @@ async function loadProducts() {
                 lowStockThreshold: Number(d.lowStockThreshold) || 10
             };
 
+
             if (modalSelect) {
-                const opt       = document.createElement("option");
-                opt.value       = docSnap.id;
+                const opt = document.createElement("option");
+                opt.value = docSnap.id;
                 opt.textContent = d.name || docSnap.id;
                 modalSelect.appendChild(opt);
             }
-
-            if (filterSelect) {
-                const opt       = document.createElement("option");
-                opt.value       = docSnap.id;
-                opt.textContent = d.name || docSnap.id;
-                filterSelect.appendChild(opt);
-            }
         });
+
+        // Sort alphabetically for easier scanning
+
+
     } catch (e) { console.error("loadProducts:", e); }
 }
 
@@ -246,13 +244,12 @@ function applyFilters() {
     const search    = (document.getElementById("searchInput")?.value   || "").toLowerCase().trim();
     const type      = document.getElementById("filterType")?.value      || "";
     const status    = document.getElementById("filterStatus")?.value    || "";
-    const productId = document.getElementById("filterProduct")?.value   || "";
     const dateFrom  = document.getElementById("filterDateFrom")?.value  || "";
     const dateTo    = document.getElementById("filterDateTo")?.value    || "";
     const source    = txCache[activeYear] || [];
 
     const dot = document.getElementById("filterActiveDot");
-    if (dot) dot.style.display = (status || productId || dateFrom || dateTo) ? "block" : "none";
+    if (dot) dot.style.display = (status || dateFrom || dateTo) ? "block" : "none";
 
     filteredTx = source.filter(tx => {
         const matchSearch  = !search || (
@@ -264,7 +261,6 @@ function applyFilters() {
         );
         const matchType    = !type    || tx.type    === type;
         const matchStatus  = !status  || tx.status  === status;
-        const matchProduct = !productId || tx.productId === productId;
 
         let matchDate = true;
         if (tx.createdAt?.seconds) {
@@ -273,7 +269,7 @@ function applyFilters() {
             if (matchDate && dateTo) { const to = new Date(dateTo); to.setHours(23,59,59,999); if (txDate > to) matchDate = false; }
         }
 
-        return matchSearch && matchType && matchStatus && matchProduct && matchDate;
+        return matchSearch && matchType && matchStatus && matchDate;
     });
 
     currentPage = 1;
@@ -680,9 +676,8 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("clearFiltersBtn")?.addEventListener("click", () => {
         document.getElementById("filterDateFrom").value = "";
         document.getElementById("filterDateTo").value   = "";
-        document.getElementById("filterProduct").value  = "";
-        document.getElementById("filterStatus").value   = "";
         document.getElementById("filterType").value     = "";
+        document.getElementById("filterStatus").value   = "";
         document.getElementById("searchInput").value    = "";
         applyFilters();
     });
@@ -690,9 +685,10 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("searchInput")?.addEventListener("input",  applyFilters);
     document.getElementById("filterType")?.addEventListener("change",  applyFilters);
     document.getElementById("filterStatus")?.addEventListener("change",  applyFilters);
-    document.getElementById("filterProduct")?.addEventListener("change", applyFilters);
     document.getElementById("filterDateFrom")?.addEventListener("change", applyFilters);
     document.getElementById("filterDateTo")?.addEventListener("change",   applyFilters);
+    document.getElementById("filterProductInput")?.addEventListener("input", applyFilters); 
+
 
     document.getElementById("prevBtn")?.addEventListener("click", () => {
         if (currentPage > 1) { currentPage--; renderPage(); window.scrollTo({ top: 0, behavior: "smooth" }); }

@@ -278,6 +278,7 @@ body {
     padding: 16px 20px 12px;
     margin-bottom: 14px;
     animation: filterSlideDown 0.2s ease;
+    overflow: visible;
 }
 @keyframes filterSlideDown {
     from { opacity: 0; transform: translateY(-6px); }
@@ -288,12 +289,14 @@ body {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
     gap: 12px;
+    overflow: visible;
 }
 
 .filter-group {
     display: flex;
     flex-direction: column;
     gap: 6px;
+    overflow: visible;
 }
 
 .filter-label {
