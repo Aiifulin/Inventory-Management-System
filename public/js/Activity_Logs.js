@@ -77,7 +77,7 @@ onAuthStateChanged(auth, async (user) => {
     const nameEl = document.getElementById('userNameDisplay');
     if (nameEl) nameEl.textContent = userData?.name || "User";
 
-    document.documentElement.style.visibility = "visible";
+    document.querySelector('.main-content').style.visibility = 'visible';
 
     // Logout modal
     const doSignOut = () => {

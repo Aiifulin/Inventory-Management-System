@@ -66,7 +66,7 @@ onAuthStateChanged(auth, async (user) => {
     const openBtn = document.getElementById("openModalBtn");
     if (openBtn && isAdmin) openBtn.style.display = "inline-flex";
 
-    document.documentElement.style.visibility = "visible";
+    document.querySelector('.main-content').style.visibility = 'visible';
 
     const doSignOut = () => {
         ["user_session", "user_uid", "user_role"].forEach(k => localStorage.removeItem(k));
@@ -114,6 +114,9 @@ async function loadProducts() {
 
 // ─── Migration ────────────────────────────────────────────────────────────────
 async function migrateFlatDocs() {
+    // ← Skip entirely if already done
+    if (localStorage.getItem('tx_migration_done')) return;
+
     try {
         const rootSnap  = await getDocs(collection(db, "stock_transactions"));
         const toMigrate = [];
@@ -122,13 +125,20 @@ async function migrateFlatDocs() {
             const d = docSnap.data();
             if (d.createdAt?.seconds) toMigrate.push({ id: docSnap.id, data: d });
         });
-        if (toMigrate.length === 0) return;
+
+        if (toMigrate.length === 0) {
+            localStorage.setItem('tx_migration_done', '1'); // ← never check again
+            return;
+        }
+
         for (const { id, data } of toMigrate) {
             const year = new Date(data.createdAt.seconds * 1000).getFullYear();
             await setDoc(txDoc(year, id), data);
             await setDoc(yearDoc(year), { exists: true }, { merge: true });
             await deleteDoc(doc(db, "stock_transactions", id));
         }
+
+        localStorage.setItem('tx_migration_done', '1'); // ← done, never run again
     } catch (e) { console.error("migrateFlatDocs:", e); }
 }
 
@@ -136,19 +146,29 @@ async function migrateFlatDocs() {
 async function initYearTabs() {
     setLoading(true);
     const currentYear = new Date().getFullYear();
-    await migrateFlatDocs();
-    try {
-        const rootSnap = await getDocs(collection(db, "stock_transactions"));
-        const yearSet  = new Set();
-        rootSnap.forEach(docSnap => {
-            if (/^\d{4}$/.test(docSnap.id)) yearSet.add(Number(docSnap.id));
-        });
-        yearSet.add(currentYear);
-        allYears = Array.from(yearSet).sort((a, b) => b - a);
-    } catch (e) {
-        console.error("initYearTabs:", e);
-        allYears = [currentYear];
+    await migrateFlatDocs(); // now near-instant after first run
+
+    // Cache the years list in sessionStorage
+    const cachedYears = sessionStorage.getItem('tx_years');
+    if (cachedYears) {
+        allYears = JSON.parse(cachedYears);
+        if (!allYears.includes(currentYear)) allYears.unshift(currentYear);
+    } else {
+        try {
+            const rootSnap = await getDocs(collection(db, "stock_transactions"));
+            const yearSet  = new Set();
+            rootSnap.forEach(docSnap => {
+                if (/^\d{4}$/.test(docSnap.id)) yearSet.add(Number(docSnap.id));
+            });
+            yearSet.add(currentYear);
+            allYears = Array.from(yearSet).sort((a, b) => b - a);
+            sessionStorage.setItem('tx_years', JSON.stringify(allYears));
+        } catch (e) {
+            console.error("initYearTabs:", e);
+            allYears = [currentYear];
+        }
     }
+
     renderYearTabs();
     await loadYearTransactions(activeYear);
 }
@@ -451,6 +471,7 @@ async function saveTransaction() {
         const statusNote = status !== "Completed" ? ` [${status}]` : "";
         await logActivity(`${type}${statusNote}`, `${product.name} (Qty: ${isIn ? "+" : "-"}${qty})`);
         sessionStorage.removeItem("dashboard_cache");
+        sessionStorage.removeItem("tx_years");
 
         closeTxModal();
         if (!allYears.includes(thisYear)) allYears.unshift(thisYear);

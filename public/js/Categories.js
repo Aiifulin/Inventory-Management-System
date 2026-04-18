@@ -13,6 +13,36 @@ let currentUser        = null;
 let isAdmin            = false;
 let isCategoriesLoading = true;
 
+// Add near the top with other state variables
+const CATEGORIES_CACHE_KEY = 'categories_cache';
+
+function saveCategoriesCache(categories) {
+    try {
+        const serialisable = categories.map(c => ({
+            ...c,
+            createdAt: c.createdAt?.seconds
+                ? { _type: 'ts', seconds: c.createdAt.seconds }
+                : null
+        }));
+        sessionStorage.setItem(CATEGORIES_CACHE_KEY, JSON.stringify({ categories: serialisable, cachedAt: Date.now() }));
+    } catch (e) { console.warn("Could not save categories cache:", e); }
+}
+
+function loadCategoriesCache() {
+    try {
+        const raw = sessionStorage.getItem(CATEGORIES_CACHE_KEY);
+        if (!raw) return null;
+        const { categories, cachedAt } = JSON.parse(raw);
+        if (Date.now() - cachedAt > 5 * 60 * 1000) return null;
+        return categories.map(c => ({
+            ...c,
+            createdAt: c.createdAt?._type === 'ts'
+                ? { seconds: c.createdAt.seconds, toDate: () => new Date(c.createdAt.seconds * 1000) }
+                : null
+        }));
+    } catch { return null; }
+}
+
 async function getCachedUserData(uid) {
     const CACHE_KEY = `user_data_${uid}`;
     const cached = sessionStorage.getItem(CACHE_KEY);
@@ -83,6 +113,14 @@ onAuthStateChanged(auth, async (user) => {
 async function fetchCategories() {
     setCategoriesLoading(true);
 
+    const cached = loadCategoriesCache();
+    if (cached) {
+        allCategories = cached;
+        setCategoriesLoading(false);
+        applyFilters();
+        return; // ← skip Firestore + count queries entirely
+    }
+
     try {
         const q = query(collection(db, "categories"), where("archived", "==", false));
         const querySnapshot = await getDocs(q);
@@ -94,10 +132,11 @@ async function fetchCategories() {
         }));
 
         setCategoriesLoading(false);
-        applyFilters(); // ← render immediately with itemCount: 0
+        applyFilters();
 
-        // 🔥 Fire counts without await — patches UI in background, no blocking
-        loadCategoryCounts(querySnapshot.docs);
+        // Load counts then save the complete data to cache
+        await loadCategoryCounts(querySnapshot.docs);
+        saveCategoriesCache(allCategories); // ← save AFTER counts are patched in
 
     } catch (error) {
         console.error("Error loading categories:", error);
