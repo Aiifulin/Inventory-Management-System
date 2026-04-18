@@ -215,21 +215,187 @@ function showChart(canvasId, loadingId) {
 // ===============================
 async function loadAllCharts() {
   try {
-    const [productsSnap, categoriesSnap, activitiesSnap] = await Promise.all([
+    const currentYear = new Date().getFullYear();
+    const targetYear  = activeDateRange.from
+      ? activeDateRange.from.getFullYear()
+      : currentYear;
+    const prevYear = targetYear - 1;
+
+    const [productsSnap, categoriesSnap, activitiesSnap, txThisSnap, txPrevSnap] = await Promise.all([
       getDocs(collection(db, "products")),
       getDocs(collection(db, "categories")),
-      getDocs(query(collection(db, "activities"), orderBy("timestamp", "desc"), limit(200)))
+      getDocs(query(collection(db, "activities"), orderBy("timestamp", "desc"), limit(200))),
+      getDocs(query(
+        collection(db, "stock_transactions", String(targetYear), "transactions"),
+        orderBy("createdAt", "asc")
+      )),
+      getDocs(query(
+        collection(db, "stock_transactions", String(prevYear), "transactions"),
+        orderBy("createdAt", "asc")
+      ))
     ]);
+
+    const allTxDocs = [...txThisSnap.docs, ...txPrevSnap.docs];
 
     renderInventoryChart(productsSnap);
     renderCategoryChart(productsSnap, categoriesSnap);
     renderLowStockChart(productsSnap);
     renderActivityChart(activitiesSnap);
     renderInventorySummaryBanner(productsSnap);
+    renderStockMovementChart(allTxDocs);
 
   } catch (err) {
     console.error("Chart load error:", err);
   }
+}
+
+// ===============================
+// CHART 5: STOCK MOVEMENT — Monthly bar (Stock In vs Sales)
+// ===============================
+function renderStockMovementChart(txDocs) {
+  const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+  // Build per-month totals for activeYear and previous year
+  const thisYearData = Array(12).fill(0).map(() => ({ stockIn: 0, sold: 0 }));
+  const lastYearData = Array(12).fill(0).map(() => ({ stockIn: 0, sold: 0 }));
+
+  const currentYear = new Date().getFullYear();
+  const targetYear  = activeDateRange.from
+    ? activeDateRange.from.getFullYear()
+    : currentYear;
+  const prevYear = targetYear - 1;
+
+  txDocs.forEach(docSnap => {
+    const d  = docSnap.data();
+    if (d.status === "Cancelled") return;
+    const ts = d.createdAt?.seconds ? new Date(d.createdAt.seconds * 1000) : null;
+    if (!ts) return;
+
+    const yr = ts.getFullYear();
+    const mo = ts.getMonth(); // 0-indexed
+    const qty = Number(d.qty) || 0;
+
+    if (yr === targetYear) {
+      if (d.type === "Stock In") thisYearData[mo].stockIn += qty;
+      else                       thisYearData[mo].sold    += qty;
+    } else if (yr === prevYear) {
+      if (d.type === "Stock In") lastYearData[mo].stockIn += qty;
+      else                       lastYearData[mo].sold    += qty;
+    }
+  });
+
+  destroyChart("chartStock");
+  destroyChart("chartStockCompare");
+  showChart("chartStock", "chartLoadingStock");
+
+  const isDark    = document.documentElement.getAttribute("data-theme") === "dark";
+  const textColor = isDark ? "#94a3b8" : "#64748b";
+  const gridColor = isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.06)";
+
+  // Main chart — this year
+  const ctx = document.getElementById("chartStock").getContext("2d");
+  chartInstances["chartStock"] = new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels: monthNames,
+      datasets: [
+        {
+          label: `Stock In (${targetYear})`,
+          data: thisYearData.map(m => m.stockIn),
+          backgroundColor: "#22c55e",
+          borderRadius: 4,
+          borderSkipped: false
+        },
+        {
+          label: `Stock Out (${targetYear})`,
+          data: thisYearData.map(m => m.sold),
+          backgroundColor: "#3b82f6",
+          borderRadius: 4,
+          borderSkipped: false
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: true,
+          position: "top",
+          labels: { color: textColor, font: { size: 11 }, boxWidth: 12, padding: 10 }
+        },
+        tooltip: {
+          callbacks: { label: ctx => ` ${ctx.dataset.label}: ${ctx.raw.toLocaleString()} units` }
+        }
+      },
+      scales: {
+        x: {
+          ticks: { color: textColor, font: { size: 11 }, autoSkip: false, maxRotation: 0 },
+          grid: { display: false }
+        },
+        y: {
+          beginAtZero: true,
+          ticks: { color: textColor, font: { size: 11 }, stepSize: 1 },
+          grid: { color: gridColor }
+        }
+      }
+    }
+  });
+
+  // Comparison chart — previous year
+  const ctxCmp = document.getElementById("chartStockCompare").getContext("2d");
+  showChart("chartStockCompare", null);
+  chartInstances["chartStockCompare"] = new Chart(ctxCmp, {
+    type: "bar",
+    data: {
+      labels: monthNames,
+      datasets: [
+        {
+          label: `Stock In (${prevYear})`,
+          data: lastYearData.map(m => m.stockIn),
+          backgroundColor: "rgba(34,197,94,0.4)",
+          borderColor: "#22c55e",
+          borderWidth: 1,
+          borderRadius: 4,
+          borderSkipped: false
+        },
+        {
+          label: `Stock Out (${prevYear})`,
+          data: lastYearData.map(m => m.sold),
+          backgroundColor: "rgba(59,130,246,0.4)",
+          borderColor: "#3b82f6",
+          borderWidth: 1,
+          borderRadius: 4,
+          borderSkipped: false
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: true,
+          position: "top",
+          labels: { color: textColor, font: { size: 11 }, boxWidth: 12, padding: 10 }
+        },
+        tooltip: {
+          callbacks: { label: ctx => ` ${ctx.dataset.label}: ${ctx.raw.toLocaleString()} units` }
+        }
+      },
+      scales: {
+        x: {
+          ticks: { color: textColor, font: { size: 11 }, autoSkip: false, maxRotation: 0 },
+          grid: { display: false }
+        },
+        y: {
+          beginAtZero: true,
+          ticks: { color: textColor, font: { size: 11 }, stepSize: 1 },
+          grid: { color: gridColor }
+        }
+      }
+    }
+  });
 }
 
 // ===============================
@@ -879,10 +1045,64 @@ function attachReportListeners() {
   const btnCategory      = document.getElementById("btnCategory");
   const btnLowStock      = document.getElementById("btnLowStock");
   const btnStockMovement = document.getElementById("btnStockMovement");
+  const btnStockMovementExport = document.getElementById("btnStockMovementExport");
 
   if (btnInventory)     btnInventory.addEventListener("click",     () => loadInventoryReport(btnInventory));
   if (btnCategory)      btnCategory.addEventListener("click",      () => loadCategoryReport(btnCategory));
   if (btnLowStock)      btnLowStock.addEventListener("click",      () => loadLowStockReport(btnLowStock));
   if (btnStockMovement) btnStockMovement.addEventListener("click", () => loadActivityReport(btnStockMovement));
   initDateFilter();
+  if (btnStockMovementExport)
+    btnStockMovementExport.addEventListener("click", () => loadStockMovementReport(btnStockMovementExport));
+}
+
+// ===============================
+// REPORT 5: STOCK MOVEMENT REPORT
+// ===============================
+async function loadStockMovementReport(btn) {
+  setButtonLoading(btn, true);
+  try {
+    const currentYear = new Date().getFullYear();
+    const fromYear = activeDateRange.from ? activeDateRange.from.getFullYear() : 2020;
+    const toYear   = activeDateRange.to   ? activeDateRange.to.getFullYear()   : currentYear;
+
+    const yearRange = [];
+    for (let y = fromYear; y <= toYear; y++) yearRange.push(y);
+
+    const snaps = await Promise.all(
+      yearRange.map(y =>
+        getDocs(query(
+          collection(db, "stock_transactions", String(y), "transactions"),
+          orderBy("createdAt", "desc")
+        ))
+      )
+    );
+
+    const reportData = [];
+    snaps.forEach(snap => {
+      snap.forEach(docSnap => {
+        const d = docSnap.data();
+        if (!isInRange(d.createdAt)) return;
+        if (d.status === "Cancelled") return;
+        reportData.push({
+          "Date":           d.createdAt ? new Date(d.createdAt.seconds * 1000).toLocaleString() : "N/A",
+          "Product Name":   d.productName || "",
+          "Type":           d.type        || "",
+          "Status":         d.status      || "Completed",
+          "Qty":            Number(d.qty) || 0,
+          "Stock Before":   Number(d.stockBefore) || 0,
+          "Stock After":    Number(d.stockAfter)  || 0,
+          "Note":           d.note        || "",
+          "Created By":     d.createdBy   || ""
+        });
+      });
+    });
+
+    exportData(`StockMovementReport_${getDateStamp()}`, reportData);
+  } catch (err) {
+    console.error("Stock movement report error:", err);
+    alert("Error generating report: " + err.message);
+  } finally {
+    setButtonLoading(btn, false);
+  }
 }

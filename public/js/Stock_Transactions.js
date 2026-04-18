@@ -1,0 +1,820 @@
+// Stock_Transactions.js
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+import {
+    collection, doc, getDoc, getDocs, addDoc, setDoc, deleteDoc,
+    updateDoc, query, orderBy, where, serverTimestamp, Timestamp, limit
+} from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { initializeFirestore, persistentLocalCache } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { initLogoutModal } from "./logout-modal.js";
+
+// ─── Firebase ────────────────────────────────────────────────────────────────
+const firebaseConfig = {
+    apiKey:            "AIzaSyBeaF2VKovHASuzhvZHzOoE0yB7QnBDej0",
+    authDomain:        "inventory-management-sys-baccc.firebaseapp.com",
+    projectId:         "inventory-management-sys-baccc",
+    storageBucket:     "inventory-management-sys-baccc.firebasestorage.app",
+    messagingSenderId: "304433839568",
+    appId:             "1:304433839568:web:50dafae1296e6bb0d30dd5",
+    measurementId:     "G-68CR9JCJV8"
+};
+
+const app  = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db   = initializeFirestore(app, { localCache: persistentLocalCache() });
+
+// ─── Firestore path helpers ───────────────────────────────────────────────────
+const txCol   = (year) => collection(db, "stock_transactions", String(year), "transactions");
+const txDoc   = (year, id) => doc(db, "stock_transactions", String(year), "transactions", id);
+const yearDoc = (year) => doc(db, "stock_transactions", String(year));
+
+// ─── State ────────────────────────────────────────────────────────────────────
+const PAGE_SIZE = 15;
+let filteredTx  = [];
+let currentPage = 1;
+let isAdmin     = false;
+let currentUser = null;
+let productsMap = {};
+let isLoading   = true;
+
+let activeYear = new Date().getFullYear();
+let txCache    = {};
+let allYears   = [];
+
+// Status modal state
+let statusModalTxId   = null;
+let statusModalTxYear = null;
+
+// ─── Auth ─────────────────────────────────────────────────────────────────────
+onAuthStateChanged(auth, async (user) => {
+    if (!user) { window.location.replace("index.html"); return; }
+
+    currentUser = user;
+    const data  = await getCachedUserData(user.uid);
+    isAdmin     = data?.role?.toLowerCase() === "admin";
+
+    const nameEl = document.getElementById("userNameDisplay");
+    if (nameEl) nameEl.textContent = data?.name || "User";
+
+    const openBtn = document.getElementById("openModalBtn");
+    if (openBtn && isAdmin) openBtn.style.display = "inline-flex";
+
+    document.documentElement.style.visibility = "visible";
+
+    const doSignOut = () => {
+        ["user_session", "user_uid", "user_role"].forEach(k => localStorage.removeItem(k));
+        sessionStorage.clear();
+        signOut(auth)
+            .then(() => window.location.replace("index.html"))
+            .catch(() => window.location.replace("index.html"));
+    };
+    const openLogout = initLogoutModal(doSignOut);
+    window.logout = () => { if (openLogout) openLogout(); };
+
+    await Promise.all([loadProducts(), initYearTabs()]);
+});
+
+// ─── User helpers ─────────────────────────────────────────────────────────────
+async function getCachedUserData(uid) {
+    const key    = `user_data_${uid}`;
+    const cached = sessionStorage.getItem(key);
+    if (cached) return JSON.parse(cached);
+    try {
+        const snap = await getDoc(doc(db, "users", uid));
+        if (snap.exists()) {
+            sessionStorage.setItem(key, JSON.stringify(snap.data()));
+            return snap.data();
+        }
+    } catch (e) { console.error(e); }
+    return null;
+}
+
+// ─── Load products ────────────────────────────────────────────────────────────
+async function loadProducts() {
+    try {
+        const snap = await getDocs(
+            query(collection(db, "products"), where("archived", "==", false))
+        );
+
+        // Populate modal product select
+        const modalSelect = document.getElementById("modalProduct");
+        modalSelect.innerHTML = '<option value="" disabled selected>Select a product…</option>';
+
+        // Populate filter product select
+        const filterSelect = document.getElementById("filterProduct");
+        filterSelect.innerHTML = '<option value="">All Products</option>';
+
+        snap.forEach(docSnap => {
+            const d = docSnap.data();
+            productsMap[docSnap.id] = {
+                name:              d.name || "",
+                stock:             Number(d.stock) || 0,
+                lowStockThreshold: Number(d.lowStockThreshold) || 10
+            };
+
+            const opt1       = document.createElement("option");
+            opt1.value       = docSnap.id;
+            opt1.textContent = d.name || docSnap.id;
+            modalSelect.appendChild(opt1);
+
+            const opt2       = document.createElement("option");
+            opt2.value       = docSnap.id;
+            opt2.textContent = d.name || docSnap.id;
+            filterSelect.appendChild(opt2);
+        });
+    } catch (e) { console.error("loadProducts:", e); }
+}
+
+// ─── Migration (flat → year subcollections) ───────────────────────────────────
+async function migrateFlatDocs() {
+    try {
+        const rootSnap  = await getDocs(collection(db, "stock_transactions"));
+        const toMigrate = [];
+        rootSnap.forEach(docSnap => {
+            if (/^\d{4}$/.test(docSnap.id)) return;
+            const d = docSnap.data();
+            if (d.createdAt?.seconds) toMigrate.push({ id: docSnap.id, data: d });
+        });
+        if (toMigrate.length === 0) return;
+        for (const { id, data } of toMigrate) {
+            const year = new Date(data.createdAt.seconds * 1000).getFullYear();
+            await setDoc(txDoc(year, id), data);
+            await setDoc(yearDoc(year), { exists: true }, { merge: true });
+            await deleteDoc(doc(db, "stock_transactions", id));
+        }
+    } catch (e) { console.error("migrateFlatDocs:", e); }
+}
+
+// ─── Year tabs init ───────────────────────────────────────────────────────────
+async function initYearTabs() {
+    setLoading(true);
+    const currentYear = new Date().getFullYear();
+    await migrateFlatDocs();
+    try {
+        const rootSnap = await getDocs(collection(db, "stock_transactions"));
+        const yearSet  = new Set();
+        rootSnap.forEach(docSnap => {
+            if (/^\d{4}$/.test(docSnap.id)) yearSet.add(Number(docSnap.id));
+        });
+        yearSet.add(currentYear);
+        allYears = Array.from(yearSet).sort((a, b) => b - a);
+    } catch (e) {
+        console.error("initYearTabs:", e);
+        allYears = [currentYear];
+    }
+    renderYearTabs();
+    await loadYearTransactions(activeYear);
+}
+
+// ─── Render year tab buttons ──────────────────────────────────────────────────
+function renderYearTabs() {
+    const container = document.getElementById("yearTabs");
+    if (!container) return;
+    container.style.display = "flex";
+    container.innerHTML = allYears.map(year => {
+        const cached     = txCache[year];
+        const countBadge = cached != null
+            ? `<span class="tab-count">(${cached.length})</span>`
+            : "";
+        return `<button class="year-tab${year === activeYear ? " active" : ""}"
+                        data-year="${year}">${year}${countBadge}</button>`;
+    }).join("");
+    container.querySelectorAll(".year-tab").forEach(btn => {
+        btn.addEventListener("click", () => switchYear(Number(btn.dataset.year)));
+    });
+}
+
+// ─── Switch active year ───────────────────────────────────────────────────────
+async function switchYear(year) {
+    if (year === activeYear && txCache[year] != null) return;
+    activeYear = year;
+    renderYearTabs();
+    if (txCache[year] != null) {
+        applyFilters();
+        updateSummaryStats();
+    } else {
+        await loadYearTransactions(year);
+    }
+}
+
+// ─── Format date for display ──────────────────────────────────────────────────
+function formatDate(ts) {
+    if (!ts?.seconds) return "";
+    return new Date(ts.seconds * 1000).toLocaleString("en-US", {
+        month: "short", day: "numeric", year: "numeric",
+        hour: "2-digit", minute: "2-digit"
+    });
+}
+
+// ─── Fetch one year's transactions ────────────────────────────────────────────
+async function loadYearTransactions(year) {
+    setLoading(true);
+    try {
+        const snap = await getDocs(query(txCol(year), orderBy("createdAt", "desc")));
+        const rows = [];
+        snap.forEach(docSnap => {
+            const d = docSnap.data();
+            rows.push({
+                id:          docSnap.id,
+                year,
+                productId:   d.productId    || "",
+                productName: d.productName  || "",
+                type:        d.type         || "",
+                status:      d.status       || "Completed",
+                qty:         Number(d.qty)  || 0,
+                stockBefore: Number(d.stockBefore) || 0,
+                stockAfter:  Number(d.stockAfter)  || 0,
+                note:        d.note         || "",
+                createdBy:   d.createdBy    || "",
+                createdByName: d.createdByName || "",
+                editedBy:    d.editedBy     || "",
+                createdAt:   d.createdAt    || null,
+                updatedAt:   d.updatedAt    || null,
+                dateStr:     formatDate(d.createdAt),
+                updatedStr:  formatDate(d.updatedAt)
+            });
+        });
+        txCache[year] = rows;
+    } catch (e) {
+        console.error(`loadYearTransactions(${year}):`, e);
+        txCache[year] = [];
+    } finally {
+        setLoading(false);
+        renderYearTabs();
+        applyFilters();
+        updateSummaryStats();
+    }
+}
+
+// ─── Filter + search ──────────────────────────────────────────────────────────
+function applyFilters() {
+    const search    = (document.getElementById("searchInput")?.value   || "").toLowerCase().trim();
+    const type      = document.getElementById("filterType")?.value      || "";
+    const status    = document.getElementById("filterStatus")?.value    || "";
+    const productId = document.getElementById("filterProduct")?.value   || "";
+    const dateFrom  = document.getElementById("filterDateFrom")?.value  || "";
+    const dateTo    = document.getElementById("filterDateTo")?.value    || "";
+    const source    = txCache[activeYear] || [];
+
+    // Active dot indicator
+    const hasAdvanced = status || productId || dateFrom || dateTo;
+    const dot = document.getElementById("filterActiveDot");
+    if (dot) dot.style.display = hasAdvanced ? "block" : "none";
+
+    filteredTx = source.filter(tx => {
+        // text search
+        const matchSearch = !search || (
+            tx.productName.toLowerCase().includes(search) ||
+            tx.type.toLowerCase().includes(search)        ||
+            tx.note.toLowerCase().includes(search)        ||
+            tx.dateStr.toLowerCase().includes(search)     ||
+            tx.status.toLowerCase().includes(search)
+        );
+
+        // type filter
+        const matchType = !type || tx.type === type;
+
+        // status filter
+        const matchStatus = !status || tx.status === status;
+
+        // product filter
+        const matchProduct = !productId || tx.productId === productId;
+
+        // date range filter — compare against createdAt seconds
+        let matchDate = true;
+        if (tx.createdAt?.seconds) {
+            const txDate = new Date(tx.createdAt.seconds * 1000);
+            if (dateFrom) {
+                const from = new Date(dateFrom);
+                from.setHours(0, 0, 0, 0);
+                if (txDate < from) matchDate = false;
+            }
+            if (matchDate && dateTo) {
+                const to = new Date(dateTo);
+                to.setHours(23, 59, 59, 999);
+                if (txDate > to) matchDate = false;
+            }
+        }
+
+        return matchSearch && matchType && matchStatus && matchProduct && matchDate;
+    });
+
+    currentPage = 1;
+    renderPage();
+}
+
+// ─── Render table page ────────────────────────────────────────────────────────
+function renderPage() {
+    const tbody = document.getElementById("txTableBody");
+    if (!tbody || isLoading) return;
+
+    const totalPages = Math.max(1, Math.ceil(filteredTx.length / PAGE_SIZE));
+    if (currentPage > totalPages) currentPage = totalPages;
+
+    const start = (currentPage - 1) * PAGE_SIZE;
+    const rows  = filteredTx.slice(start, start + PAGE_SIZE);
+
+    if (filteredTx.length === 0) {
+        const source = txCache[activeYear] || [];
+        const msg    = source.length === 0
+            ? `No transactions recorded for ${activeYear}.`
+            : "No transactions match your filters.";
+        tbody.innerHTML = `
+            <tr class="empty-state">
+                <td colspan="9">
+                    <div class="empty-state-icon"><i class="fas fa-arrows-rotate"></i></div>
+                    ${msg}
+                </td>
+            </tr>`;
+    } else {
+        tbody.innerHTML = rows.map(tx => {
+            const isPositive = tx.type === "Stock In";
+            const deltaSign  = isPositive ? "+" : "-";
+            const deltaClass = isPositive ? "positive" : "negative";
+
+            const badgeClass = {
+                "Stock In":   "stock-in",
+                "Sold":       "sold",
+                "Adjustment": "adjustment",
+                "Damaged":    "damaged"
+            }[tx.type] || "adjustment";
+
+            // Status badge
+            const statusKey   = (tx.status || "Completed").toLowerCase();
+            const statusIcons = { completed: "✅", pending: "⏳", cancelled: "❌" };
+            const statusIcon  = statusIcons[statusKey] || "✅";
+            const clickable   = isAdmin ? " clickable" : "";
+            const clickAttr   = isAdmin
+                ? `data-txid="${tx.id}" data-year="${tx.year}" data-txname="${escHtml(tx.productName)} — ${escHtml(tx.type)}"`
+                : "";
+            const title       = isAdmin ? `title="Click to change status"` : "";
+
+            const statusBadge = `<span class="status-badge ${statusKey}${clickable}" ${clickAttr} ${title}>${statusIcon} ${tx.status}</span>`;
+
+            // Stock-after colour
+            const threshold  = productsMap[tx.productId]?.lowStockThreshold || 10;
+            const afterClass = tx.stockAfter === 0 ? "danger"
+                             : tx.stockAfter <= threshold ? "warn"
+                             : "ok";
+
+            // Audit cell
+            const editedDot = tx.updatedAt ? `<span class="edited-dot" title="Edited"></span>` : "";
+
+            // "Updated On" — show edit date if edited, otherwise show created date
+            const updatedOnCell = tx.updatedAt
+                ? `<span class="audit-line"><i class="fas fa-pen" style="font-size:11px;margin-right:4px;"></i>${tx.updatedStr || "—"}</span>`
+                : tx.dateStr
+                ? `<span class="audit-line" style="color:var(--text-secondary);"><i class="fas fa-clock" style="font-size:11px;margin-right:4px;"></i>${tx.dateStr}</span>`
+                : `<span style="color:var(--text-secondary);font-size:12px;">—</span>`;
+            
+            // "Updated By" — show editor if edited, otherwise show creator name
+            const updatedByCell = tx.editedBy
+                ? escHtml(tx.editedBy)
+                : tx.createdByName
+                ? `<span style="color:var(--text-secondary);">${escHtml(tx.createdByName)}</span>`
+                : `<span style="color:var(--text-secondary);font-size:12px;">—</span>`;
+
+            return `
+                <tr>
+                    <td style="white-space:nowrap;font-size:13px;color:var(--text-secondary);">${tx.dateStr || "—"}</td>
+                    <td style="font-weight:600;">${escHtml(tx.productName)}${editedDot}</td>
+                    <td><span class="tx-badge ${badgeClass}">${tx.type}</span></td>
+                    <td>${statusBadge}</td>
+                    <td><span class="stock-after" style="color:var(--text-secondary);">${tx.stockBefore}</span></td>
+                    <td><span class="qty-delta ${deltaClass}">${deltaSign}${tx.qty}</span></td>
+                    <td><span class="stock-after ${afterClass}">${tx.stockAfter}</span></td>
+                    <td style="color:var(--text-secondary);font-size:13px;">${escHtml(tx.note) || "—"}</td>
+                    <td style="font-size:13px;white-space:nowrap;">${updatedOnCell}</td>
+                    <td style="font-size:13px;color:var(--text-secondary);">${updatedByCell}</td>
+                </tr>`;
+        }).join("");
+
+        // Wire admin status-click events
+        if (isAdmin) {
+            tbody.querySelectorAll(".status-badge.clickable").forEach(el => {
+                el.addEventListener("click", () => openStatusModal(
+                    el.dataset.txid,
+                    Number(el.dataset.year),
+                    el.dataset.txname
+                ));
+            });
+        }
+    }
+
+    document.getElementById("pageInfo").textContent = `Page ${currentPage} of ${totalPages}`;
+    document.getElementById("prevBtn").disabled      = currentPage <= 1;
+    document.getElementById("nextBtn").disabled      = currentPage >= totalPages;
+}
+
+// ─── HTML escape ──────────────────────────────────────────────────────────────
+function escHtml(str) {
+    return String(str || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+}
+
+// ─── Summary stats ────────────────────────────────────────────────────────────
+function updateSummaryStats() {
+    const source = txCache[activeYear] || [];
+    let stockInQty = 0, soldQty = 0, otherCount = 0;
+    source.forEach(tx => {
+        if (tx.type === "Stock In")  stockInQty += tx.qty;
+        else if (tx.type === "Sold") soldQty    += tx.qty;
+        else                         otherCount++;
+    });
+    document.getElementById("statTotal").textContent   = source.length.toLocaleString();
+    document.getElementById("statStockIn").textContent = stockInQty.toLocaleString();
+    document.getElementById("statSold").textContent    = soldQty.toLocaleString();
+    document.getElementById("statOther").textContent   = otherCount.toLocaleString();
+}
+
+// ─── Loading state ────────────────────────────────────────────────────────────
+function setLoading(loading) {
+    isLoading = loading;
+    document.getElementById("txSkeleton")?.classList.toggle("visible", loading);
+    document.getElementById("txTableWrapper")?.classList.toggle("hidden", loading);
+    document.getElementById("paginationBar")?.classList.toggle("hidden", loading);
+}
+
+// ─── Activity log ─────────────────────────────────────────────────────────────
+async function logActivity(action, target) {
+    try {
+        await addDoc(collection(db, "activities"), {
+            action, target,
+            user:      currentUser?.email || "Admin",
+            timestamp: serverTimestamp()
+        });
+    } catch (e) { console.error("logActivity:", e); }
+}
+
+// ─── Live stock preview ───────────────────────────────────────────────────────
+function updateStockPreview() {
+    const productId = document.getElementById("modalProduct").value;
+    const type      = document.getElementById("modalType").value;
+    const qty       = parseInt(document.getElementById("modalQty").value) || 0;
+    const preview   = document.getElementById("stockPreview");
+
+    if (!productId || !type || qty <= 0) { preview.style.display = "none"; return; }
+    const product = productsMap[productId];
+    if (!product)  { preview.style.display = "none"; return; }
+
+    const before     = product.stock;
+    const isIn       = type === "Stock In";
+    const after      = isIn ? before + qty : Math.max(0, before - qty);
+    const afterEl    = document.getElementById("previewAfter");
+    const afterClass = after === 0 ? "danger" : after <= product.lowStockThreshold ? "warn" : "ok";
+    const noteEl     = document.getElementById("previewNote");
+
+    document.getElementById("previewCurrent").textContent = before;
+    afterEl.textContent = after;
+    afterEl.className   = `after ${afterClass}`;
+
+    // Pending note
+    const statusVal = document.getElementById("modalStatus")?.value;
+    noteEl.textContent = statusVal === "Pending"
+        ? "⏳ Stock will update when Completed"
+        : statusVal === "Cancelled"
+        ? "❌ Cancelled — stock won't change"
+        : "";
+
+    preview.style.display = "flex";
+}
+
+// ─── Save transaction ─────────────────────────────────────────────────────────
+async function saveTransaction() {
+    const productId  = document.getElementById("modalProduct").value;
+    const type       = document.getElementById("modalType").value;
+    const status     = document.getElementById("modalStatus").value || "Completed";
+    const qty        = parseInt(document.getElementById("modalQty").value);
+    const note       = document.getElementById("modalNote").value.trim();
+    const confirmBtn = document.getElementById("confirmTxBtn");
+
+    if (!productId)      { showToast("Please select a product.",         "error"); return; }
+    if (!type)           { showToast("Please select a transaction type.", "error"); return; }
+    if (!qty || qty < 1) { showToast("Quantity must be at least 1.",      "error"); return; }
+
+    const product = productsMap[productId];
+    if (!product)        { showToast("Product not found.", "error"); return; }
+
+    const isIn        = type === "Stock In";
+    const stockBefore = product.stock;
+
+    // Only change stock if status is Completed
+    const stockAfter = status === "Completed"
+        ? (isIn ? stockBefore + qty : Math.max(0, stockBefore - qty))
+        : stockBefore;
+
+    if (status === "Completed" && !isIn && qty > stockBefore) {
+        const proceed = confirm(
+            `⚠️ Warning: You are trying to remove ${qty} unit(s) but only ${stockBefore} remain.\n\n` +
+            `Stock will be set to 0. Continue?`
+        );
+        if (!proceed) return;
+    }
+
+    confirmBtn.disabled = true;
+    confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving…';
+
+    try {
+        const thisYear = new Date().getFullYear();
+        const now      = serverTimestamp();
+        const userData = await getCachedUserData(currentUser.uid);
+        const adminName = userData?.name || currentUser?.email || "Admin";
+        
+        const txData = {
+            productId,
+            productName: product.name,
+            type, qty, status,
+            stockBefore, stockAfter, note,
+            createdBy:     currentUser?.uid || "",
+            createdByName: adminName,
+            createdAt:     now,
+            updatedAt:     null,
+            editedBy:      ""
+        };
+
+        await addDoc(txCol(thisYear), txData);
+        await setDoc(yearDoc(thisYear), { exists: true }, { merge: true });
+
+        // Update product stock only for Completed transactions
+        if (status === "Completed") {
+            await updateDoc(doc(db, "products", productId), { stock: stockAfter });
+            productsMap[productId].stock = stockAfter;
+        }
+
+        const statusNote = status !== "Completed" ? ` [${status}]` : "";
+        await logActivity(`${type}${statusNote}`, `${product.name} (Qty: ${isIn ? "+" : "-"}${qty})`);
+        sessionStorage.removeItem("dashboard_cache");
+
+        closeTxModal();
+        if (!allYears.includes(thisYear)) allYears.unshift(thisYear);
+        delete txCache[thisYear];
+        activeYear = thisYear;
+        await loadYearTransactions(thisYear);
+
+        showResultModal(
+            "Transaction Saved",
+            `${product.name} — ${type} [${status}]: ${isIn ? "+" : "-"}${qty} unit(s).` +
+            (status === "Completed" ? ` New stock: ${stockAfter}.` : " Stock unchanged until Completed.")
+        );
+    } catch (e) {
+        console.error("saveTransaction:", e);
+        showToast("Error saving transaction: " + e.message, "error");
+    } finally {
+        confirmBtn.disabled = false;
+        confirmBtn.innerHTML = '<i class="fas fa-check"></i> Save Transaction';
+    }
+}
+
+// ─── Status modal ─────────────────────────────────────────────────────────────
+function openStatusModal(txId, year, txName) {
+    if (!isAdmin) return;
+
+    statusModalTxId   = txId;
+    statusModalTxYear = year;
+
+    // Find the tx in cache
+    const tx = (txCache[year] || []).find(t => t.id === txId);
+    if (!tx) return;
+
+    document.getElementById("statusModalTxName").textContent  = txName;
+    document.getElementById("statusModalSelect").value        = tx.status || "Completed";
+
+    // Populate audit info
+    const auditBox       = document.getElementById("statusModalAudit");
+    const auditCreated   = document.getElementById("auditCreated");
+    const auditUpdated   = document.getElementById("auditUpdated");
+    const auditEditedBy  = document.getElementById("auditEditedBy");
+    const auditUpdatedRow = document.getElementById("auditUpdatedRow");
+
+    auditBox.style.display = "flex";
+    auditCreated.textContent = tx.dateStr || "—";
+
+    if (tx.updatedAt) {
+        auditUpdated.textContent  = tx.updatedStr || "—";
+        auditEditedBy.textContent = tx.editedBy   || "unknown";
+        auditUpdatedRow.style.display = "flex";
+    } else {
+        auditUpdatedRow.style.display = "none";
+    }
+
+    document.getElementById("statusModal").style.display = "flex";
+}
+
+function closeStatusModal() {
+    document.getElementById("statusModal").style.display = "none";
+    statusModalTxId   = null;
+    statusModalTxYear = null;
+}
+
+async function confirmStatusChange() {
+    if (!statusModalTxId || !statusModalTxYear) return;
+
+    const newStatus = document.getElementById("statusModalSelect").value;
+    const btn       = document.getElementById("confirmStatusBtn");
+
+    // Find the tx in cache to know old status
+    const tx = (txCache[statusModalTxYear] || []).find(t => t.id === statusModalTxId);
+    if (!tx) { closeStatusModal(); return; }
+
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Updating…';
+
+    try {
+        const userData   = await getCachedUserData(currentUser.uid);
+        const editorName = userData?.name || currentUser?.email || "Admin";
+        const updateData = {
+            status:    newStatus,
+            updatedAt: serverTimestamp(),
+            editedBy:  editorName
+        };
+
+        // If status flips from non-Completed → Completed, apply stock change
+        const wasCompleted = tx.status === "Completed";
+        const nowCompleted = newStatus  === "Completed";
+        const product      = productsMap[tx.productId];
+
+        if (!wasCompleted && nowCompleted && product) {
+            const isIn      = tx.type === "Stock In";
+            const newStock  = isIn
+                ? product.stock + tx.qty
+                : Math.max(0, product.stock - tx.qty);
+            updateData.stockAfter = newStock;
+            await updateDoc(doc(db, "products", tx.productId), { stock: newStock });
+            productsMap[tx.productId].stock = newStock;
+        }
+
+        // If status flips FROM Completed → something else, reverse the stock
+        if (wasCompleted && !nowCompleted && product) {
+            const isIn      = tx.type === "Stock In";
+            const reversed  = isIn
+                ? Math.max(0, product.stock - tx.qty)
+                : product.stock + tx.qty;
+            updateData.stockAfter = reversed;
+            await updateDoc(doc(db, "products", tx.productId), { stock: reversed });
+            productsMap[tx.productId].stock = reversed;
+        }
+
+        await updateDoc(txDoc(statusModalTxYear, statusModalTxId), updateData);
+
+        // Update local cache
+        const cached = txCache[statusModalTxYear];
+        if (cached) {
+            const idx = cached.findIndex(t => t.id === statusModalTxId);
+            if (idx !== -1) {
+                cached[idx] = {
+                    ...cached[idx],
+                    status:     newStatus,
+                    editedBy:   editorName,
+                    updatedAt:  { seconds: Math.floor(Date.now() / 1000) },
+                    updatedStr: new Date().toLocaleString("en-US", {
+                        month: "short", day: "numeric", year: "numeric",
+                        hour: "2-digit", minute: "2-digit"
+                    })
+                };
+            }
+        }
+
+        await logActivity(`Status → ${newStatus}`, `${tx.productName} — ${tx.type}`);
+        sessionStorage.removeItem("dashboard_cache");
+
+        closeStatusModal();
+        applyFilters();
+        showToast(`Status updated to ${newStatus}`, "success");
+    } catch (e) {
+        console.error("confirmStatusChange:", e);
+        showToast("Error updating status: " + e.message, "error");
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-check"></i> Update Status';
+    }
+}
+
+// ─── Modal helpers ────────────────────────────────────────────────────────────
+function openTxModal() {
+    document.getElementById("modalProduct").value = "";
+    document.getElementById("modalType").value    = "";
+    document.getElementById("modalStatus").value  = "Completed";
+    document.getElementById("modalQty").value     = "";
+    document.getElementById("modalNote").value    = "";
+    document.getElementById("stockPreview").style.display = "none";
+    document.getElementById("txModal").style.display     = "flex";
+}
+
+function closeTxModal() {
+    document.getElementById("txModal").style.display = "none";
+}
+
+function showResultModal(title, message, isError = false) {
+    const wrap = document.getElementById("resultIconWrap");
+    const icon = document.getElementById("resultIcon");
+    wrap.className  = `result-icon-wrap ${isError ? "error" : "success"}`;
+    icon.className  = `fas fa-${isError ? "times" : "check"}`;
+    document.getElementById("resultTitle").textContent   = title;
+    document.getElementById("resultMessage").textContent = message;
+    document.getElementById("resultModal").style.display = "flex";
+}
+
+// ─── Toast ────────────────────────────────────────────────────────────────────
+function showToast(message, type = "success") {
+    const container = document.getElementById("toastContainer");
+    const toast     = document.createElement("div");
+    toast.className = `toast ${type}`;
+    toast.innerHTML = `<i class="fas fa-${type === "success" ? "check-circle" : "exclamation-circle"}"></i><span>${message}</span>`;
+    container.appendChild(toast);
+    setTimeout(() => {
+        toast.style.animation = "fadeOutToast 0.3s ease forwards";
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
+}
+
+// ─── DOM event wiring ─────────────────────────────────────────────────────────
+document.addEventListener("DOMContentLoaded", () => {
+    // Sidebar
+    const hamburger = document.getElementById("hamburgerBtn");
+    const closeBtn  = document.getElementById("closeBtn");
+    const sidebar   = document.getElementById("sidebar");
+    const overlay   = document.getElementById("overlay");
+
+    const toggleSidebar = () => { sidebar.classList.toggle("open");  overlay.classList.toggle("show"); };
+    const closeSidebar  = () => { sidebar.classList.remove("open");  overlay.classList.remove("show"); };
+
+    hamburger?.addEventListener("click", e => { e.stopPropagation(); toggleSidebar(); });
+    closeBtn?.addEventListener("click", closeSidebar);
+    overlay?.addEventListener("click", closeSidebar);
+
+    // New transaction modal
+    document.getElementById("openModalBtn")?.addEventListener("click", openTxModal);
+    document.getElementById("closeModalBtn")?.addEventListener("click", closeTxModal);
+    document.getElementById("cancelModalBtn")?.addEventListener("click", closeTxModal);
+    document.getElementById("txModal")?.addEventListener("click", e => {
+        if (e.target === document.getElementById("txModal")) closeTxModal();
+    });
+    document.getElementById("confirmTxBtn")?.addEventListener("click", saveTransaction);
+
+    // Live preview triggers (include status)
+    ["modalProduct", "modalType", "modalQty", "modalStatus"].forEach(id => {
+        document.getElementById(id)?.addEventListener("input",  updateStockPreview);
+        document.getElementById(id)?.addEventListener("change", updateStockPreview);
+    });
+
+    // Result modal
+    document.getElementById("resultOkBtn")?.addEventListener("click", () => {
+        document.getElementById("resultModal").style.display = "none";
+    });
+
+    // Status modal
+    document.getElementById("closeStatusModalBtn")?.addEventListener("click", closeStatusModal);
+    document.getElementById("cancelStatusModalBtn")?.addEventListener("click", closeStatusModal);
+    document.getElementById("statusModal")?.addEventListener("click", e => {
+        if (e.target === document.getElementById("statusModal")) closeStatusModal();
+    });
+    document.getElementById("confirmStatusBtn")?.addEventListener("click", confirmStatusChange);
+
+    // Filters toggle
+    const filterToggleBtn = document.getElementById("filterToggleBtn");
+    const filterPanel     = document.getElementById("filterPanel");
+    filterToggleBtn?.addEventListener("click", () => {
+        const isOpen = filterPanel.style.display !== "none";
+        filterPanel.style.display = isOpen ? "none" : "block";
+        filterToggleBtn.classList.toggle("active", !isOpen);
+    });
+
+    // Clear filters
+    document.getElementById("clearFiltersBtn")?.addEventListener("click", () => {
+        document.getElementById("filterDateFrom").value = "";
+        document.getElementById("filterDateTo").value   = "";
+        document.getElementById("filterProduct").value  = "";
+        document.getElementById("filterStatus").value   = "";
+        document.getElementById("filterType").value     = "";
+        document.getElementById("searchInput").value    = "";
+        applyFilters();
+    });
+
+    // Search + filter inputs
+    document.getElementById("searchInput")?.addEventListener("input",  applyFilters);
+    document.getElementById("filterType")?.addEventListener("change",  applyFilters);
+    document.getElementById("filterStatus")?.addEventListener("change",  applyFilters);
+    document.getElementById("filterProduct")?.addEventListener("change", applyFilters);
+    document.getElementById("filterDateFrom")?.addEventListener("change", applyFilters);
+    document.getElementById("filterDateTo")?.addEventListener("change",   applyFilters);
+
+    // Pagination
+    document.getElementById("prevBtn")?.addEventListener("click", () => {
+        if (currentPage > 1) {
+            currentPage--;
+            renderPage();
+            window.scrollTo({ top: 0, behavior: "smooth" });
+        }
+    });
+    document.getElementById("nextBtn")?.addEventListener("click", () => {
+        const total = Math.ceil(filteredTx.length / PAGE_SIZE);
+        if (currentPage < total) {
+            currentPage++;
+            renderPage();
+            window.scrollTo({ top: 0, behavior: "smooth" });
+        }
+    });
+});

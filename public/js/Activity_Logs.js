@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
 import {
-    getFirestore, collection, query, orderBy, getDocs, doc, getDoc
+    collection, query, orderBy, getDocs, doc, getDoc, limit
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 import { initLogoutModal } from "./logout-modal.js";
@@ -19,32 +19,56 @@ const firebaseConfig = {
 
 const app  = initializeApp(firebaseConfig);
 const auth = getAuth(app);
-
-
-const db = initializeFirestore(app, {
-    localCache: persistentLocalCache()
-});
+const db   = initializeFirestore(app, { localCache: persistentLocalCache() });
 
 // ================================================
 // CONSTANTS & STATE
 // ================================================
 const LOGS_CACHE_KEY = 'activity_logs_cache';
+const CACHE_TTL_MS   = 5 * 60 * 1000;  // 5 minutes
+const FETCH_LIMIT    = 200;             // max docs per Firestore read
 const PAGE_SIZE      = 10;
 
-let allLogs      = [];   // full cached dataset
-let filteredLogs = [];   // after search filter applied
-let currentPage  = 1;
-let sortDir      = 'desc';
+let allLogs       = [];
+let filteredLogs  = [];
+let currentPage   = 1;
+let sortDir       = 'desc';
 let isLogsLoading = true;
 
 // ================================================
-// USER DATA CACHE (shared pattern)
+// CACHE HELPERS  (#1 — localStorage + TTL)
+// ================================================
+function saveLogsCache(logs) {
+    try {
+        localStorage.setItem(LOGS_CACHE_KEY, JSON.stringify({
+            logs,
+            cachedAt: Date.now()
+        }));
+    } catch (e) {
+        // localStorage can throw if storage quota is exceeded; fail silently
+        console.warn("Could not save logs cache:", e);
+    }
+}
+
+function loadLogsCache() {
+    try {
+        const raw = localStorage.getItem(LOGS_CACHE_KEY);
+        if (!raw) return null;
+        const { logs, cachedAt } = JSON.parse(raw);
+        if (Date.now() - cachedAt > CACHE_TTL_MS) return null; // expired
+        return logs;
+    } catch {
+        return null;
+    }
+}
+
+// ================================================
+// USER DATA CACHE
 // ================================================
 async function getCachedUserData(uid) {
     const key    = `user_data_${uid}`;
     const cached = sessionStorage.getItem(key);
     if (cached) return JSON.parse(cached);
-
     try {
         const snap = await getDoc(doc(db, "users", uid));
         if (snap.exists()) {
@@ -60,55 +84,29 @@ async function getCachedUserData(uid) {
 async function displayUserName(uid) {
     const nameEl = document.getElementById('userNameDisplay');
     if (!nameEl) return;
-
-    const userData = await getCachedUserData(uid);
-    const name = userData?.name || "User";
-    
-    nameEl.textContent = name;
-}
-
-
-async function checkAdminRole(uid) {
-    const data = await getCachedUserData(uid);
-    return data?.role?.toLowerCase() === 'admin';
-}
-
-// ================================================
-// LOG CACHE HELPERS
-// ================================================
-function saveLogsCache(logs) {
-    sessionStorage.setItem(LOGS_CACHE_KEY, JSON.stringify(logs));
-}
-
-function loadLogsCache() {
-    try {
-        const raw = sessionStorage.getItem(LOGS_CACHE_KEY);
-        return raw ? JSON.parse(raw) : null;
-    } catch {
-        return null;
-    }
+    const userData   = await getCachedUserData(uid);
+    nameEl.textContent = userData?.name || "User";
 }
 
 // ================================================
 // AUTH
 // ================================================
 onAuthStateChanged(auth, async (user) => {
-    if (!user) {
-        window.location.href = "index.html";
-        return;
-    }
+    if (!user) { window.location.href = "index.html"; return; }
 
     await displayUserName(user.uid);
     document.documentElement.style.visibility = "visible";
 
     await initLogs();
-    // =======================================================
-    // Logout Confirmation Modal (shared pattern with Dashboard)
-    // =======================================================
+
     const doSignOut = () => {
-        localStorage.removeItem("user_session"); localStorage.removeItem("user_uid"); localStorage.removeItem("user_role");
+        localStorage.removeItem("user_session");
+        localStorage.removeItem("user_uid");
+        localStorage.removeItem("user_role");
         sessionStorage.clear();
-        signOut(auth).then(() => window.location.replace("index.html")).catch(() => window.location.replace("index.html"));
+        signOut(auth)
+            .then(() => window.location.replace("index.html"))
+            .catch(() => window.location.replace("index.html"));
     };
     const openLogoutModal = initLogoutModal(doSignOut);
     window.logout = function () { if (openLogoutModal) openLogoutModal(); };
@@ -119,13 +117,15 @@ onAuthStateChanged(auth, async (user) => {
 // ================================================
 async function initLogs(forceRefresh = false) {
     setLogsLoading(true);
-    const cached = loadLogsCache();
 
-    if (!forceRefresh && cached) {
-        allLogs = cached;
-        setLogsLoading(false);
-        applyFilterAndRender();
-        return;
+    if (!forceRefresh) {
+        const cached = loadLogsCache();
+        if (cached) {
+            allLogs = cached;
+            setLogsLoading(false);
+            applyFilterAndRender();
+            return;
+        }
     }
 
     await fetchAndCacheLogs();
@@ -133,10 +133,13 @@ async function initLogs(forceRefresh = false) {
 
 async function fetchAndCacheLogs() {
     setRefreshLoading(true);
-
     try {
-        // Fetch ALL logs ordered by timestamp — we handle pagination client-side
-        const q        = query(collection(db, "activities"), orderBy("timestamp", "desc"));
+        // #2 — limit(200) so we never read the entire collection
+        const q        = query(
+            collection(db, "activities"),
+            orderBy("timestamp", "desc"),
+            limit(FETCH_LIMIT)
+        );
         const snapshot = await getDocs(q);
 
         allLogs = [];
@@ -152,7 +155,6 @@ async function fetchAndCacheLogs() {
         });
 
         saveLogsCache(allLogs);
-
     } catch (err) {
         console.error("Error fetching logs:", err);
         allLogs = [];
@@ -165,14 +167,9 @@ async function fetchAndCacheLogs() {
 
 function setLogsLoading(loading) {
     isLogsLoading = loading;
-
-    const skeleton = document.getElementById('logsSkeleton');
-    const tableWrapper = document.getElementById('logsTableWrapper');
-    const paginationBar = document.getElementById('paginationBar');
-
-    skeleton?.classList.toggle('visible', loading);
-    tableWrapper?.classList.toggle('hidden', loading);
-    paginationBar?.classList.toggle('hidden', loading);
+    document.getElementById('logsSkeleton')?.classList.toggle('visible', loading);
+    document.getElementById('logsTableWrapper')?.classList.toggle('hidden', loading);
+    document.getElementById('paginationBar')?.classList.toggle('hidden', loading);
 }
 
 // ================================================
@@ -181,9 +178,7 @@ function setLogsLoading(loading) {
 function applyFilterAndRender() {
     const search = (document.getElementById('logSearch')?.value || '').toLowerCase();
 
-    // 1. Filter
     filteredLogs = allLogs.filter(log => {
-        // Build searchable date string from stored ISO timestamp
         let logDate = "";
         if (log.timestamp) {
             const d = new Date(log.timestamp);
@@ -191,44 +186,35 @@ function applyFilterAndRender() {
                 month: 'long', day: 'numeric', year: 'numeric',
                 hour: '2-digit', minute: '2-digit'
             }).toLowerCase();
-            // Also add short month so "mar" matches "March"
             logDate += " " + d.toLocaleDateString('en-US', { month: 'short' }).toLowerCase();
-            // Also add numeric format so "3/17" or "2026" matches
             logDate += " " + d.toLocaleDateString('en-US');
         }
-    
         return log.action.toLowerCase().includes(search) ||
                log.target.toLowerCase().includes(search) ||
                log.user.toLowerCase().includes(search)   ||
                logDate.includes(search);
     });
 
-    // 2. Sort (allLogs comes from Firestore already desc, but re-sort after filter)
     filteredLogs.sort((a, b) => {
         const tA = a.timestamp ? new Date(a.timestamp) : 0;
         const tB = b.timestamp ? new Date(b.timestamp) : 0;
         return sortDir === 'desc' ? tB - tA : tA - tB;
     });
 
-    // 3. Reset to page 1 on any filter/sort change
     currentPage = 1;
-
     renderPage();
 }
 
 function renderPage() {
     const table = document.getElementById('logTable');
-    if (!table) return;
-    if (isLogsLoading) return;
+    if (!table || isLogsLoading) return;
 
     const totalPages = Math.max(1, Math.ceil(filteredLogs.length / PAGE_SIZE));
     if (currentPage > totalPages) currentPage = totalPages;
 
     const start    = (currentPage - 1) * PAGE_SIZE;
-    const end      = start + PAGE_SIZE;
-    const pageRows = filteredLogs.slice(start, end);
+    const pageRows = filteredLogs.slice(start, start + PAGE_SIZE);
 
-    // --- Table rows ---
     if (filteredLogs.length === 0) {
         table.innerHTML = `
             <tr class="log-empty-row">
@@ -259,7 +245,7 @@ function renderPage() {
         }).join('');
     }
 
-    // --- Total label ---
+    // Total label
     const totalLabel = document.getElementById('logsTotalLabel');
     if (totalLabel) {
         totalLabel.textContent = filteredLogs.length > 0
@@ -267,11 +253,10 @@ function renderPage() {
             : '';
     }
 
-    // --- Pagination controls ---
-    const pageInfo   = document.getElementById('pageInfo');
-    const prevBtn    = document.getElementById('prevPageBtn');
-    const nextBtn    = document.getElementById('nextPageBtn');
-
+    // Pagination
+    const pageInfo = document.getElementById('pageInfo');
+    const prevBtn  = document.getElementById('prevPageBtn');
+    const nextBtn  = document.getElementById('nextPageBtn');
     if (pageInfo) pageInfo.textContent = `Page ${currentPage} of ${totalPages}`;
     if (prevBtn)  prevBtn.disabled = currentPage <= 1;
     if (nextBtn)  nextBtn.disabled = currentPage >= totalPages;
@@ -288,46 +273,27 @@ function setRefreshLoading(isLoading) {
 }
 
 // ================================================
-// TIME FORMATTER
-// ================================================
-function formatTimeAgo(date) {
-    const diffInSeconds = Math.floor((new Date() - date) / 1000);
-    if (diffInSeconds < 60) return "Just now";
-    const mins = Math.floor(diffInSeconds / 60);
-    if (mins < 60) return `${mins} minute${mins !== 1 ? 's' : ''} ago`;
-    const hrs = Math.floor(mins / 60);
-    if (hrs < 24) return `${hrs} hour${hrs !== 1 ? 's' : ''} ago`;
-    return date.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-}
-
-// ================================================
 // EVENT LISTENERS
 // ================================================
 document.addEventListener("DOMContentLoaded", () => {
 
-    // --- Sort by date ---
     document.getElementById('dateHeader')?.addEventListener('click', () => {
         sortDir = sortDir === 'desc' ? 'asc' : 'desc';
         const icon = document.getElementById('sortIcon');
         if (icon) {
-            icon.className = sortDir === 'desc'
-                ? 'fas fa-sort-down'
-                : 'fas fa-sort-up';
+            icon.className = sortDir === 'desc' ? 'fas fa-sort-down' : 'fas fa-sort-up';
         }
         applyFilterAndRender();
     });
 
-    // --- Search (filters cached data, no Firestore call) ---
-    document.getElementById('logSearch')?.addEventListener('input', () => {
-        applyFilterAndRender();
-    });
+    document.getElementById('logSearch')?.addEventListener('input', applyFilterAndRender);
 
-    // --- Refresh button (force fetch from Firestore) ---
+    // Refresh button — clears localStorage cache first, then re-fetches
     document.getElementById('refreshLogsBtn')?.addEventListener('click', () => {
+        localStorage.removeItem(LOGS_CACHE_KEY);
         initLogs(true);
     });
 
-    // --- Pagination ---
     document.getElementById('prevPageBtn')?.addEventListener('click', () => {
         if (currentPage > 1) {
             currentPage--;
@@ -345,17 +311,16 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
-    // --- Sidebar ---
+    // Sidebar
     const hamburgerBtn = document.getElementById('hamburgerBtn');
     const closeBtn     = document.getElementById('closeBtn');
     const sidebar      = document.getElementById('sidebar');
     const overlay      = document.getElementById('overlay');
 
-    function toggleSidebar() { sidebar.classList.toggle('open'); overlay.classList.toggle('show'); }
-    function closeSidebar()  { sidebar.classList.remove('open'); overlay.classList.remove('show'); }
+    const toggleSidebar = () => { sidebar.classList.toggle('open'); overlay.classList.toggle('show'); };
+    const closeSidebar  = () => { sidebar.classList.remove('open'); overlay.classList.remove('show'); };
 
-    hamburgerBtn?.addEventListener('click', (e) => { e.stopPropagation(); toggleSidebar(); });
+    hamburgerBtn?.addEventListener('click', e => { e.stopPropagation(); toggleSidebar(); });
     closeBtn?.addEventListener('click', closeSidebar);
     overlay?.addEventListener('click', closeSidebar);
 });
-

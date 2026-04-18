@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+
+<style>html { visibility: hidden; }</style>
+
+<meta charset="UTF-8">
+<title>Stock Transactions – Inventory MS</title>
+
+<script>
+    if (!localStorage.getItem("user_session")) {
+        window.location.replace("index.html");
+    }
+</script>
+
+<script>
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme === 'dark') {
+        document.documentElement.setAttribute('data-theme', 'dark');
+    }
+</script>
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link rel="stylesheet" href="css/theme.css" />
+<link rel="stylesheet" href="css/Stock_Transactions.css" />
+
+</head>
+<body>
+
+<!-- Hamburger -->
+<button class="hamburger" id="hamburgerBtn">
+    <i class="fas fa-bars"></i>
+</button>
+
+<div class="overlay" id="overlay"></div>
+
+<!-- Sidebar -->
+<aside class="sidebar" id="sidebar">
+    <div class="sidebar-content">
+        <div class="sidebar-header">
+            <h2>Inventory MS</h2>
+            <span class="user-name" id="userNameDisplay">Loading...</span>
+            <button class="close-btn" id="closeBtn"><i class="fas fa-times"></i></button>
+        </div>
+
+        <nav class="sidebar-nav">
+            <a href="Dashboard.html"          class="nav-link"><i class="fas fa-chart-line"></i>Dashboard</a>
+            <a href="Products.html"           class="nav-link"><i class="fas fa-box"></i>Products</a>
+            <a href="Categories.html"         class="nav-link"><i class="fas fa-list"></i>Categories</a>
+            <a href="Stock_Transactions.html" class="nav-link active"><i class="fas fa-arrows-rotate"></i>Stock Transactions</a>
+            <a href="Activity_Logs.html"      class="nav-link"><i class="fas fa-history"></i>Activity Log</a>
+            <a href="Reports.html"            class="nav-link"><i class="fas fa-file-alt"></i>Reports</a>
+            <a href="Archives.html"           class="nav-link"><i class="fas fa-archive"></i>Archived</a>
+            <a href="Settings.html"           class="nav-link"><i class="fas fa-gear"></i>Settings</a>
+        </nav>
+
+        <div class="sidebar-footer">
+            <a href="#" onclick="logout()" class="logout">
+                <i class="fas fa-arrow-right-from-bracket"></i>Logout
+            </a>
+        </div>
+    </div>
+</aside>
+
+<!-- Toast container -->
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- ===================== MAIN ===================== -->
+<main class="main-content">
+
+    <!-- Page header -->
+    <div class="page-header">
+        <div class="page-header-text">
+            <h1>Stock Transactions</h1>
+            <p>Record stock-ins, sales, adjustments and damaged goods</p>
+        </div>
+        <button class="btn-new-transaction" id="openModalBtn" style="display:none;">
+            <i class="fas fa-plus"></i> New Transaction
+        </button>
+    </div>
+
+    <!-- Summary pills -->
+    <div class="summary-strip">
+        <div class="summary-pill">
+            <div class="summary-pill-icon pill-blue"><i class="fas fa-arrows-rotate"></i></div>
+            <div class="summary-pill-body">
+                <span class="summary-pill-label">Total Transactions</span>
+                <span class="summary-pill-value" id="statTotal">—</span>
+            </div>
+        </div>
+        <div class="summary-pill">
+            <div class="summary-pill-icon pill-green"><i class="fas fa-arrow-down"></i></div>
+            <div class="summary-pill-body">
+                <span class="summary-pill-label">Stock Ins</span>
+                <span class="summary-pill-value" id="statStockIn">—</span>
+            </div>
+        </div>
+        <div class="summary-pill">
+            <div class="summary-pill-icon pill-red"><i class="fas fa-tag"></i></div>
+            <div class="summary-pill-body">
+                <span class="summary-pill-label">Units Sold</span>
+                <span class="summary-pill-value" id="statSold">—</span>
+            </div>
+        </div>
+        <div class="summary-pill">
+            <div class="summary-pill-icon pill-amber"><i class="fas fa-triangle-exclamation"></i></div>
+            <div class="summary-pill-body">
+                <span class="summary-pill-label">Other Movements</span>
+                <span class="summary-pill-value" id="statOther">—</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toolbar -->
+    <div class="toolbar">
+        <div class="search-bar">
+            <i class="fas fa-search"></i>
+            <input type="text" id="searchInput" placeholder="Search product, type, note…">
+        </div>
+        <select class="filter-select" id="filterType">
+            <option value="">All Types</option>
+            <option value="Stock In">Stock In</option>
+            <option value="Sold">Sold</option>
+            <option value="Adjustment">Adjustment</option>
+            <option value="Damaged">Damaged</option>
+        </select>
+        <button class="btn-filter-toggle" id="filterToggleBtn" title="More filters">
+            <i class="fas fa-sliders"></i>
+            <span>Filters</span>
+            <span class="filter-active-dot" id="filterActiveDot" style="display:none;"></span>
+        </button>
+    </div>
+
+    <!-- Expanded filter panel -->
+    <div class="filter-panel" id="filterPanel" style="display:none;">
+        <div class="filter-panel-grid">
+            <div class="filter-group">
+                <label class="filter-label"><i class="fas fa-calendar"></i> Date From</label>
+                <input type="date" class="filter-input" id="filterDateFrom">
+            </div>
+            <div class="filter-group">
+                <label class="filter-label"><i class="fas fa-calendar"></i> Date To</label>
+                <input type="date" class="filter-input" id="filterDateTo">
+            </div>
+            <div class="filter-group">
+                <label class="filter-label"><i class="fas fa-box"></i> Product</label>
+                <select class="filter-input" id="filterProduct">
+                    <option value="">All Products</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label class="filter-label"><i class="fas fa-circle-check"></i> Status</label>
+                <select class="filter-input" id="filterStatus">
+                    <option value="">All Statuses</option>
+                    <option value="Completed">Completed</option>
+                    <option value="Pending">Pending</option>
+                    <option value="Cancelled">Cancelled</option>
+                </select>
+            </div>
+        </div>
+        <div class="filter-panel-actions">
+            <button class="btn-clear-filters" id="clearFiltersBtn">
+                <i class="fas fa-times"></i> Clear All Filters
+            </button>
+        </div>
+    </div>
+
+    <div class="year-tabs" id="yearTabs" style="display:none;"></div>
+
+    <!-- Skeleton loader -->
+    <div class="tx-skeleton visible" id="txSkeleton" aria-hidden="true">
+        <div class="tx-skeleton-row">
+            <span class="skel-line skel-date"></span>
+            <span class="skel-line skel-name"></span>
+            <span class="skel-pill"></span>
+            <span class="skel-pill"></span>
+            <span class="skel-line skel-num"></span>
+            <span class="skel-line skel-num"></span>
+        </div>
+        <div class="tx-skeleton-row">
+            <span class="skel-line skel-date"></span>
+            <span class="skel-line skel-name"></span>
+            <span class="skel-pill"></span>
+            <span class="skel-pill"></span>
+            <span class="skel-line skel-num"></span>
+            <span class="skel-line skel-num"></span>
+        </div>
+        <div class="tx-skeleton-row">
+            <span class="skel-line skel-date"></span>
+            <span class="skel-line skel-name"></span>
+            <span class="skel-pill"></span>
+            <span class="skel-pill"></span>
+            <span class="skel-line skel-num"></span>
+            <span class="skel-line skel-num"></span>
+        </div>
+        <div class="tx-skeleton-row">
+            <span class="skel-line skel-date"></span>
+            <span class="skel-line skel-name"></span>
+            <span class="skel-pill"></span>
+            <span class="skel-pill"></span>
+            <span class="skel-line skel-num"></span>
+            <span class="skel-line skel-num"></span>
+        </div>
+    </div>
+
+    <!-- Table -->
+    <div class="table-wrapper hidden" id="txTableWrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Product</th>
+                    <th>Type</th>
+                    <th>Status</th>
+                    <th>Stock Before</th>
+                    <th>Qty</th>
+                    <th>Stock After</th>
+                    <th>Note</th>
+                    <th>Updated On</th>
+                    <th>Updated By</th>
+                </tr>
+            </thead>
+            <tbody id="txTableBody"></tbody>
+        </table>
+    </div>
+
+    <!-- Pagination -->
+    <div class="pagination-bar hidden" id="paginationBar">
+        <button class="btn-page" id="prevBtn" disabled>
+            <i class="fas fa-chevron-left"></i> Prev
+        </button>
+        <span class="page-info" id="pageInfo">Page 1 of 1</span>
+        <button class="btn-page" id="nextBtn" disabled>
+            Next <i class="fas fa-chevron-right"></i>
+        </button>
+    </div>
+
+</main>
+
+<!-- ===================== NEW TRANSACTION MODAL ===================== -->
+<div class="modal-overlay" id="txModal" style="display:none;">
+    <div class="modal-box">
+        <div class="modal-header">
+            <h2><i class="fas fa-arrows-rotate" style="margin-right:8px; color:var(--text-secondary);"></i>New Transaction</h2>
+            <button class="btn-modal-close" id="closeModalBtn"><i class="fas fa-times"></i></button>
+        </div>
+
+        <div class="modal-body">
+
+            <!-- Product selector -->
+            <div class="form-group">
+                <label for="modalProduct">Product *</label>
+                <select id="modalProduct" required>
+                    <option value="" disabled selected>Select a product…</option>
+                </select>
+            </div>
+
+            <!-- Transaction type -->
+            <div class="form-group">
+                <label for="modalType">Transaction Type *</label>
+                <select id="modalType" required>
+                    <option value="" disabled selected>Select type…</option>
+                    <option value="Stock In">📦 Stock In</option>
+                    <option value="Sold">🏷️ Sold</option>
+                    <option value="Adjustment">🔧 Adjustment</option>
+                    <option value="Damaged">⚠️ Damaged</option>
+                </select>
+            </div>
+
+            <!-- Transaction status -->
+            <div class="form-group">
+                <label for="modalStatus">Status *</label>
+                <select id="modalStatus" required>
+                    <option value="Completed" selected>✅ Completed</option>
+                    <option value="Pending">⏳ Pending</option>
+                    <option value="Cancelled">❌ Cancelled</option>
+                </select>
+            </div>
+
+            <!-- Quantity -->
+            <div class="form-group">
+                <label for="modalQty">Quantity *</label>
+                <input type="number" id="modalQty" min="1" placeholder="e.g. 10" required>
+            </div>
+
+            <!-- Live stock preview -->
+            <div class="stock-preview" id="stockPreview" style="display:none;">
+                <i class="fas fa-warehouse" style="opacity:.5;"></i>
+                Current: <strong id="previewCurrent">0</strong>
+                <span class="stock-preview-arrow">→</span>
+                <span class="after" id="previewAfter">0</span>
+                <span class="stock-preview-note" id="previewNote"></span>
+            </div>
+
+            <!-- Optional note -->
+            <div class="form-group">
+                <label for="modalNote">Note <span style="font-weight:400; font-size:12px;">(optional)</span></label>
+                <textarea id="modalNote" placeholder="e.g. Supplier delivery, online order #1234…"></textarea>
+            </div>
+
+        </div>
+
+        <div class="modal-footer">
+            <button class="btn-cancel-modal" id="cancelModalBtn">Cancel</button>
+            <button class="btn-confirm-tx" id="confirmTxBtn">
+                <i class="fas fa-check"></i> Save Transaction
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- ===================== STATUS CHANGE MODAL (Admin) ===================== -->
+<div class="modal-overlay" id="statusModal" style="display:none;">
+    <div class="modal-box" style="max-width:380px;">
+        <div class="modal-header">
+            <h2><i class="fas fa-circle-check" style="margin-right:8px;color:var(--text-secondary);"></i>Change Status</h2>
+            <button class="btn-modal-close" id="closeStatusModalBtn"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="modal-body">
+            <p style="font-size:14px;color:var(--text-secondary);margin:0 0 4px;">
+                Transaction: <strong id="statusModalTxName" style="color:var(--text-main);"></strong>
+            </p>
+            <div class="form-group" style="margin-top:12px;">
+                <label for="statusModalSelect">New Status</label>
+                <select id="statusModalSelect">
+                    <option value="Completed">✅ Completed</option>
+                    <option value="Pending">⏳ Pending</option>
+                    <option value="Cancelled">❌ Cancelled</option>
+                </select>
+            </div>
+            <!-- Audit info -->
+            <div class="audit-info-box" id="statusModalAudit" style="display:none;">
+                <div class="audit-info-row">
+                    <i class="fas fa-clock"></i>
+                    <span>Created: <strong id="auditCreated">—</strong></span>
+                </div>
+                <div class="audit-info-row" id="auditUpdatedRow" style="display:none;">
+                    <i class="fas fa-pen"></i>
+                    <span>Last edited: <strong id="auditUpdated">—</strong> by <strong id="auditEditedBy">—</strong></span>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-cancel-modal" id="cancelStatusModalBtn">Cancel</button>
+            <button class="btn-confirm-tx" id="confirmStatusBtn">
+                <i class="fas fa-check"></i> Update Status
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- ===================== RESULT MODAL ===================== -->
+<div class="modal-overlay" id="resultModal" style="display:none;">
+    <div class="result-modal-box">
+        <div class="result-icon-wrap success" id="resultIconWrap">
+            <i class="fas fa-check" id="resultIcon"></i>
+        </div>
+        <h3 class="result-title"   id="resultTitle">Done!</h3>
+        <p  class="result-message" id="resultMessage"></p>
+        <button class="btn-confirm-tx" id="resultOkBtn" style="width:100%; justify-content:center;">
+            OK
+        </button>
+    </div>
+</div>
+
+<!-- ===================== LOGOUT MODAL ===================== -->
+<div id="logoutModalOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:99999;align-items:center;justify-content:center;padding:20px;">
+    <div style="background:var(--bg-card);border:1px solid var(--border-color);border-radius:16px;padding:32px 28px;max-width:380px;width:100%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.2);animation:logoutModalPop 0.25s ease;">
+        <div style="width:62px;height:62px;background:#fee2e2;border:1.5px solid #fca5a5;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 18px;font-size:22px;color:#dc2626;">
+            <i class="fas fa-arrow-right-from-bracket"></i>
+        </div>
+        <h3 style="margin:0 0 10px;font-size:18px;font-weight:700;color:var(--text-main);">Sign out?</h3>
+        <p style="margin:0 0 24px;font-size:14px;color:var(--text-secondary);line-height:1.6;">You'll be returned to the login screen.</p>
+        <div style="display:flex;gap:10px;">
+            <button id="logoutCancelBtn" style="flex:1;padding:10px 16px;border-radius:8px;border:1px solid var(--border-color);background:var(--bg-body);color:var(--text-secondary);font-size:14px;font-weight:600;cursor:pointer;">Cancel</button>
+            <button id="logoutConfirmBtn" style="flex:1;padding:10px 16px;border-radius:8px;border:none;background:#dc2626;color:#fff;font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;">
+                <i class="fas fa-arrow-right-from-bracket"></i> Sign out
+            </button>
+        </div>
+    </div>
+</div>
+<style>
+@keyframes logoutModalPop { from{transform:scale(.9);opacity:0;} to{transform:scale(1);opacity:1;} }
+#logoutModalOverlay.show  { display:flex!important; }
+#logoutCancelBtn:hover    { background:var(--hover-bg);color:var(--text-main); }
+#logoutConfirmBtn:hover   { background:#b91c1c; }
+</style>
+
+<script type="module" src="js/Stock_Transactions.js"></script>
+
+</body>
+</html>
