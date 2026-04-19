@@ -324,3 +324,13 @@ input:focus {
     .login-success-title { font-size: 18px; }
     .login-success-sub   { font-size: 13px; }
 }
+
+.spinner-ring {
+    width: 16px; height: 16px;
+    border: 2px solid #d1d5db;
+    border-top-color: #378add;
+    border-radius: 50%;
+    animation: spin 0.9s linear infinite;
+    flex-shrink: 0;
+}
+@keyframes spin { to { transform: rotate(360deg); } }

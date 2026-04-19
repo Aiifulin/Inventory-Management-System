@@ -52,20 +52,49 @@
     </div>
 </div>
 
-<!-- SUCCESS MODAL -->
-<div class="login-success-overlay" id="successOverlay" style="display:none;">
-    <div class="login-success-modal">
-        <div class="login-success-icon">
-            <i class="fas fa-check"></i>
-        </div>
-        <h2 class="login-success-title">Account Created!</h2>
-        <p class="login-success-sub">Your account has been successfully created. Redirecting you to login...</p>
-        <div class="login-progress-wrap">
-            <div class="login-progress-bar" id="registerProgressBar"></div>
-        </div>
+
+<!-- EMAIL VERIFICATION MODAL -->
+<div class="login-success-overlay" id="verifyOverlay" style="display:none;">
+  <div class="login-success-modal">
+    <div class="login-success-icon" style="background:#e6f1fb; border-color:#85b7eb; color:#185fa5; font-size:26px;">
+      📧
     </div>
+    <h2 class="login-success-title">Check your email</h2>
+    <p class="login-success-sub">
+      We sent a verification link to<br>
+      <strong id="verifyEmailDisplay"></strong><br>
+      <span style="font-size:12px; color:#9ca3af; margin-top:6px; display:inline-block;">
+        Don't see it? Check your spam or junk folder.
+      </span>
+    </p>
+    <div id="verifyStatus" style="background:#f3f4f6; border-radius:8px; padding:10px 14px; margin-bottom:16px; display:flex; align-items:center; gap:10px; font-size:13px; color:#6b7280;">
+      <div class="spinner-ring"></div>
+      <span>Waiting for verification…</span>
+    </div>
+    <div id="verifyActions">
+      <button class="login-btn" style="margin-top:0; margin-bottom:10px;" onclick="resendVerification()">
+        <span id="resendBtnText">Resend email</span>
+      </button>
+      <button onclick="cancelVerification()" style="background:none; border:none; font-size:12px; color:#9ca3af; cursor:pointer; text-decoration:underline;">
+        Cancel and go back
+      </button>
+    </div>
+  </div>
 </div>
 
+<!-- SUCCESS MODAL -->
+<div class="login-success-overlay" id="successOverlay" style="display:none;">
+  <div class="login-success-modal">
+    <div class="login-success-icon">
+      <i class="fas fa-check"></i>
+    </div>
+    <h2 class="login-success-title">Account Created!</h2>
+    <p class="login-success-sub">Your account has been successfully created. Redirecting you to login...</p>
+    <div class="login-progress-wrap">
+      <div class="login-progress-bar" id="registerProgressBar"></div>
+    </div>
+  </div>
+</div>
 <script type="module" src="js/Register.js"></script>
 
 </body>

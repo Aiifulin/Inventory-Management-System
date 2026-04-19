@@ -2,8 +2,8 @@
  * IMPORTS
  ***********************************************/
 import { auth, db } from "./firebase.js";
-import { signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 
 /************************************************
  * LOGIN FUNCTION
@@ -26,6 +26,24 @@ const login = function () {
 
     signInWithEmailAndPassword(auth, email, pass)
         .then(async (userCredential) => {
+
+            if (!userCredential.user.emailVerified) {
+                await signOut(auth)
+        
+                loginBtn.disabled     = false;
+                btnText.textContent   = "Sign In";
+                spinner.style.display = "none";
+        
+                if (errorBox) {
+                    errorBox.textContent = "Please verify your email before signing in. Check your inbox for the verification link.";
+                    errorBox.style.display = "block";
+                    errorBox.style.animation = "none";
+                    errorBox.offsetHeight;
+                    errorBox.style.animation = "";
+                }
+                return; 
+            }
+
             const uid = userCredential.user.uid;
 
             localStorage.setItem("user_session", "true");
