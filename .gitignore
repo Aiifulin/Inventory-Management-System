@@ -32,5 +32,3 @@ public/css/nfc_verification_dfd.svg
 public/css/nfc_verification_level1_dfd.svg
 
 
-# Ignore the config file that contains sensitive information
-public/js/config.js
