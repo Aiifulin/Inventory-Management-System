@@ -356,15 +356,30 @@ document.addEventListener("DOMContentLoaded", () => {
                 if (priceVal < 0 || stockVal < 0 || thresholdVal < 0) {
                     throw new Error("Price and Stock values cannot be negative.");
                 }
-
-                // VALIDATION 2: Check for 0 Price with Confirmation
-                if (priceVal === 0) {
-                    const confirmZero = confirm("⚠️ Warning: You are setting the Price to 0.00.\n\nAre you sure this product is free?");
-                    if (!confirmZero) {
-                        submitBtn.innerText = "Add Product"; 
-                        submitBtn.disabled = false;
-                        return; 
-                    }
+                
+                // ✅ ADD THESE SANITY CHECKS BELOW
+                
+                // VALIDATION 2: Whole numbers only for stock and threshold
+                if (!Number.isInteger(stockVal)) {
+                    throw new Error("Stock must be a whole number.");
+                }
+                if (!Number.isInteger(thresholdVal)) {
+                    throw new Error("Low Stock Threshold must be a whole number.");
+                }
+                
+                // VALIDATION 3: Threshold must be at least 1
+                if (thresholdVal < 1) {
+                    throw new Error("Low Stock Threshold must be at least 1.");
+                }
+                
+                // VALIDATION 4: Price sanity cap (prevents accidental 999999999 entries)
+                if (priceVal > 9_999_999) {
+                    throw new Error("Price seems too high. Please double-check the value.");
+                }
+                
+                // VALIDATION 5: Stock sanity cap
+                if (stockVal > 999_999) {
+                    throw new Error("Stock quantity seems too high. Please double-check the value.");
                 }
 
                 const rawName = document.querySelector('input[placeholder="Enter product name"]').value.trim();
@@ -573,6 +588,18 @@ document.addEventListener("DOMContentLoaded", () => {
     
         if (priceVal < 0 || stockVal < 0 || thresholdVal < 0)
             throw new Error("Price and Stock values cannot be negative.");
+
+        // ✅ ADD THESE SANITY CHECKS BELOW
+        if (!Number.isInteger(stockVal))
+            throw new Error("Stock must be a whole number.");
+        if (!Number.isInteger(thresholdVal))
+            throw new Error("Low Stock Threshold must be a whole number.");
+        if (thresholdVal < 1)
+            throw new Error("Low Stock Threshold must be at least 1.");
+        if (priceVal > 9_999_999)
+            throw new Error("Price seems too high. Please double-check the value.");
+        if (stockVal > 999_999)
+            throw new Error("Stock quantity seems too high. Please double-check the value.");
     
         // ✅ Category validation — outside the loop, before the return
         const categoryVal = document.getElementById('categorySelect').value;
