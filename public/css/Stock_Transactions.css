@@ -853,3 +853,97 @@ tbody td {
     .tx-skeleton-row { grid-template-columns: 90px 1.4fr 0.8fr 70px; }
     .filter-panel-grid { grid-template-columns: 1fr 1fr; }
 }
+
+/* Tom Select dark theme fix */
+.ts-wrapper .ts-control {
+    background: var(--input-bg) !important;
+    border: 1px solid var(--border-color) !important;
+    border-radius: 8px !important;
+    color: var(--text-main) !important;
+    padding: 10px 12px !important;
+    font-size: 14px !important;
+}
+
+.ts-wrapper .ts-control input {
+    color: var(--text-main) !important;
+}
+
+.ts-wrapper .ts-dropdown {
+    background: var(--bg-card) !important;
+    border: 1px solid var(--border-color) !important;
+    color: var(--text-main) !important;
+}
+
+.ts-wrapper .ts-dropdown .option {
+    color: var(--text-main) !important;
+    padding: 10px 12px !important;
+}
+
+.ts-wrapper .ts-dropdown .option:hover,
+.ts-wrapper .ts-dropdown .option.active {
+    background: var(--hover-bg) !important;
+    color: var(--text-main) !important;
+}
+
+.btn-save-another {
+    padding: 10px 22px;
+    border-radius: 8px;
+    border: 1px solid var(--primary-color);
+    background: transparent;
+    color: var(--primary-color);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s;
+}
+.btn-save-another:hover:not(:disabled) {
+    background: var(--primary-color);
+    color: #fff;
+}
+.btn-save-another:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.stock-warning-banner {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    background: rgba(239, 68, 68, 0.07);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    border-radius: 8px;
+    padding: 11px 14px;
+    margin-top: -4px;
+}
+
+.stock-warning-icon {
+    font-size: 15px;
+    color: #dc2626;
+    margin-top: 1px;
+    flex-shrink: 0;
+}
+
+.stock-warning-body {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.stock-warning-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #dc2626;
+}
+
+.stock-warning-desc {
+    font-size: 12px;
+    color: #b91c1c;
+    line-height: 1.5;
+}
+
+[data-theme="dark"] .stock-warning-banner {
+    background: rgba(239, 68, 68, 0.1);
+    border-color: rgba(239, 68, 68, 0.25);
+}
+[data-theme="dark"] .stock-warning-title { color: #f87171; }
+[data-theme="dark"] .stock-warning-desc  { color: #fca5a5; }

@@ -21,10 +21,13 @@
         document.documentElement.setAttribute('data-theme', 'dark');
     }
 </script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tom-select/2.3.1/js/tom-select.complete.min.js"></script>
+
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tom-select/2.3.1/css/tom-select.min.css">
 <link rel="stylesheet" href="css/theme.css" />
 <link rel="stylesheet" href="css/Stock_Transactions.css" />
 
@@ -281,6 +284,17 @@
                 <input type="number" id="modalQty" min="1" placeholder="e.g. 10" required>
             </div>
 
+            <!-- Stock warning (hidden by default) -->
+            <div id="stockWarning" style="display:none;" class="stock-warning-banner">
+                <div class="stock-warning-icon">
+                    <i class="fas fa-triangle-exclamation"></i>
+                </div>
+                <div class="stock-warning-body">
+                    <span class="stock-warning-title" id="stockWarningTitle">Insufficient stock</span>
+                    <span class="stock-warning-desc" id="stockWarningDesc"></span>
+                </div>
+            </div>
+
             <!-- Live stock preview -->
             <div class="stock-preview" id="stockPreview" style="display:none;">
                 <i class="fas fa-warehouse" style="opacity:.5;"></i>
@@ -300,6 +314,9 @@
 
         <div class="modal-footer">
             <button class="btn-cancel-modal" id="cancelModalBtn">Cancel</button>
+            <button class="btn-save-another" id="saveAnotherBtn">
+                <i class="fas fa-plus"></i> Save & Add Another
+            </button>
             <button class="btn-confirm-tx" id="confirmTxBtn">
                 <i class="fas fa-check"></i> Save Transaction
             </button>

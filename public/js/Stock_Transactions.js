@@ -52,13 +52,8 @@ onAuthStateChanged(auth, async (user) => {
 
     currentUser = user;
 
-    // 🔥 Fire user data, products load, AND year tabs init simultaneously
-    const [userData] = await Promise.all([
-        getCachedUserData(user.uid),
-        loadProducts(),
-        initYearTabs()
-    ]);
-
+    // ✅ Resolve user role FIRST before anything renders
+    const userData = await getCachedUserData(user.uid);
     isAdmin = userData?.role?.toLowerCase() === "admin";
 
     const nameEl = document.getElementById("userNameDisplay");
@@ -66,6 +61,12 @@ onAuthStateChanged(auth, async (user) => {
 
     const openBtn = document.getElementById("openModalBtn");
     if (openBtn && isAdmin) openBtn.style.display = "inline-flex";
+
+    // ✅ Now safe to fire in parallel — isAdmin is already set
+    await Promise.all([
+        loadProducts(),
+        initYearTabs()
+    ]);
 
     document.querySelector('.main-content').style.visibility = 'visible';
 
@@ -86,7 +87,6 @@ async function loadProducts() {
         const modalSelect = document.getElementById("modalProduct");
         if (modalSelect) modalSelect.innerHTML = '<option value="" disabled selected>Select a product…</option>';
 
-
         snap.forEach(docSnap => {
             const d = docSnap.data();
             productsMap[docSnap.id] = {
@@ -94,7 +94,6 @@ async function loadProducts() {
                 stock:             Number(d.stock) || 0,
                 lowStockThreshold: Number(d.lowStockThreshold) || 10
             };
-
 
             if (modalSelect) {
                 const opt = document.createElement("option");
@@ -104,8 +103,14 @@ async function loadProducts() {
             }
         });
 
-        // Sort alphabetically for easier scanning
-
+        // ✅ Initialize Tom Select after options are populated
+        if (modalSelect && !modalSelect.tomselect) {
+            new TomSelect('#modalProduct', {
+                placeholder: 'Search or select a product…',
+                allowEmptyOption: true,
+                maxOptions: null, // show all results
+            });
+        }
 
     } catch (e) { console.error("loadProducts:", e); }
 }
@@ -385,18 +390,54 @@ async function logActivity(action, target) {
     } catch (e) { console.error("logActivity:", e); }
 }
 
+// ─── Stock warning helper ─────────────────────────────────────────────────────
+function setStockWarning(show, title = "", desc = "") {
+    const banner = document.getElementById("stockWarning");
+    const confirmBtn = document.getElementById("confirmTxBtn");
+    const anotherBtn = document.getElementById("saveAnotherBtn");
+
+    if (!banner) return;
+    banner.style.display = show ? "flex" : "none";
+    if (show) {
+        document.getElementById("stockWarningTitle").textContent = title;
+        document.getElementById("stockWarningDesc").textContent  = desc;
+    }
+
+    // Block both save buttons while warning is active
+    if (confirmBtn) confirmBtn.disabled = show;
+    if (anotherBtn) anotherBtn.disabled = show;
+}
+
 function updateStockPreview() {
     const productId = document.getElementById("modalProduct").value;
     const type      = document.getElementById("modalType").value;
     const qty       = parseInt(document.getElementById("modalQty").value) || 0;
+    const statusVal = document.getElementById("modalStatus")?.value;
     const preview   = document.getElementById("stockPreview");
+
+    // Clear warning by default
+    setStockWarning(false);
 
     if (!productId || !type || qty <= 0) { preview.style.display = "none"; return; }
     const product = productsMap[productId];
     if (!product)  { preview.style.display = "none"; return; }
 
-    const before     = product.stock;
-    const isIn       = type === "Stock In";
+    const before  = product.stock;
+    const isIn    = type === "Stock In";
+    const isDeduct = type === "Sold" || type === "Damaged" || type === "Adjustment";
+
+    // ─── Inline stock warning (replaces confirm()) ─────────────────────────────
+    if (isDeduct && statusVal === "Completed" && qty > before) {
+        const typeLabel = type === "Sold" ? "sell" : type === "Damaged" ? "mark as damaged" : "adjust";
+        setStockWarning(
+            true,
+            `Not enough stock to ${typeLabel}`,
+            `You're trying to remove ${qty} unit${qty !== 1 ? "s" : ""} but only ${before} remain${before === 1 ? "s" : ""}. Reduce the quantity or change the status to Pending.`
+        );
+        preview.style.display = "none";
+        return;
+    }
+
     const after      = isIn ? before + qty : Math.max(0, before - qty);
     const afterEl    = document.getElementById("previewAfter");
     const afterClass = after === 0 ? "danger" : after <= product.lowStockThreshold ? "warn" : "ok";
@@ -406,49 +447,52 @@ function updateStockPreview() {
     afterEl.textContent = after;
     afterEl.className   = `after ${afterClass}`;
 
-    const statusVal = document.getElementById("modalStatus")?.value;
-    noteEl.textContent = statusVal === "Pending" ? "⏳ Stock will update when Completed"
-                       : statusVal === "Cancelled" ? "❌ Cancelled — stock won't change"
+    noteEl.textContent = statusVal === "Pending"    ? "⏳ Stock will update when Completed"
+                       : statusVal === "Cancelled"  ? "❌ Cancelled — stock won't change"
                        : "";
 
     preview.style.display = "flex";
 }
 
-async function saveTransaction() {
+async function saveTransaction(keepOpen = false) {
     const productId  = document.getElementById("modalProduct").value;
     const type       = document.getElementById("modalType").value;
     const status     = document.getElementById("modalStatus").value || "Completed";
     const qty        = parseInt(document.getElementById("modalQty").value);
     const note       = document.getElementById("modalNote").value.trim();
     const confirmBtn = document.getElementById("confirmTxBtn");
+    const anotherBtn = document.getElementById("saveAnotherBtn");
 
     if (!productId)      { showToast("Please select a product.",         "error"); return; }
     if (!type)           { showToast("Please select a transaction type.", "error"); return; }
     if (!qty || qty < 1) { showToast("Quantity must be at least 1.",      "error"); return; }
 
     const product = productsMap[productId];
-    if (!product)        { showToast("Product not found.", "error"); return; }
+    if (!product) { showToast("Product not found.", "error"); return; }
 
     const isIn        = type === "Stock In";
     const stockBefore = product.stock;
-    const stockAfter  = status === "Completed"
+
+    // ─── Hard block — should never reach here due to UI, but safety net ────────
+    if (status === "Completed" && !isIn && qty > stockBefore) {
+        showToast(`Cannot ${type.toLowerCase()} ${qty} units — only ${stockBefore} in stock.`, "error");
+        return;
+    }
+
+    const stockAfter = status === "Completed"
         ? (isIn ? stockBefore + qty : Math.max(0, stockBefore - qty))
         : stockBefore;
 
-    if (status === "Completed" && !isIn && qty > stockBefore) {
-        const proceed = confirm(`⚠️ Warning: You are trying to remove ${qty} unit(s) but only ${stockBefore} remain.\n\nStock will be set to 0. Continue?`);
-        if (!proceed) return;
-    }
-
-    confirmBtn.disabled = true;
+    confirmBtn.disabled  = true;
     confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving…';
+    if (anotherBtn) anotherBtn.disabled = true;
 
     try {
         const thisYear  = new Date().getFullYear();
         const now       = serverTimestamp();
         const userData  = await getCachedUserData(currentUser.uid);
         const adminName = userData?.name || currentUser?.email || "Admin";
-        
+
         const txData = {
             productId, productName: product.name, type, qty, status,
             stockBefore, stockAfter, note,
@@ -470,23 +514,32 @@ async function saveTransaction() {
         sessionStorage.removeItem("tx_years");
         sessionStorage.removeItem("products_cache");
 
-        closeTxModal();
         if (!allYears.includes(thisYear)) allYears.unshift(thisYear);
         delete txCache[thisYear];
         activeYear = thisYear;
         await loadYearTransactions(thisYear);
 
-        showResultModal(
-            "Transaction Saved",
-            `${product.name} — ${type} [${status}]: ${isIn ? "+" : "-"}${qty} unit(s).` +
-            (status === "Completed" ? ` New stock: ${stockAfter}.` : " Stock unchanged until Completed.")
-        );
+        if (keepOpen) {
+            openTxModal();
+            showToast(`${product.name} — ${type} saved!`, "success");
+        } else {
+            closeTxModal();
+            showResultModal(
+                "Transaction Saved",
+                `${product.name} — ${type} [${status}]: ${isIn ? "+" : "-"}${qty} unit(s).` +
+                (status === "Completed" ? ` New stock: ${stockAfter}.` : " Stock unchanged until Completed.")
+            );
+        }
+
     } catch (e) {
         console.error("saveTransaction:", e);
         showToast("Error saving transaction: " + e.message, "error");
     } finally {
-        confirmBtn.disabled = false;
+        confirmBtn.disabled  = false;
         confirmBtn.innerHTML = '<i class="fas fa-check"></i> Save Transaction';
+        if (anotherBtn) anotherBtn.disabled = false;
+        // Re-run preview to restore correct button state
+        updateStockPreview();
     }
 }
 
@@ -558,7 +611,9 @@ async function confirmStatusChange() {
 
         if (wasCompleted && !nowCompleted && product) {
             const isIn     = tx.type === "Stock In";
-            const reversed = isIn ? Math.max(0, product.stock - tx.qty) : product.stock + tx.qty;
+            const reversed = isIn 
+            ? Math.max(0, product.stock - tx.qty) 
+            : product.stock + tx.qty;
             updateData.stockAfter = reversed;
             await updateDoc(doc(db, "products", tx.productId), { stock: reversed });
             productsMap[tx.productId].stock = reversed;
@@ -596,7 +651,10 @@ async function confirmStatusChange() {
 
 // ─── Modal helpers ────────────────────────────────────────────────────────────
 function openTxModal() {
-    document.getElementById("modalProduct").value = "";
+    const ts = document.getElementById("modalProduct")?.tomselect;
+    if (ts) ts.clear(); // ✅ reset Tom Select properly
+    else document.getElementById("modalProduct").value = "";
+
     document.getElementById("modalType").value    = "";
     document.getElementById("modalStatus").value  = "Completed";
     document.getElementById("modalQty").value     = "";
@@ -649,7 +707,8 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("txModal")?.addEventListener("click", e => {
         if (e.target === document.getElementById("txModal")) closeTxModal();
     });
-    document.getElementById("confirmTxBtn")?.addEventListener("click", saveTransaction);
+    document.getElementById("confirmTxBtn")?.addEventListener("click", () => saveTransaction(false));
+    document.getElementById("saveAnotherBtn")?.addEventListener("click", () => saveTransaction(true));
 
     ["modalProduct", "modalType", "modalQty", "modalStatus"].forEach(id => {
         document.getElementById(id)?.addEventListener("input",  updateStockPreview);

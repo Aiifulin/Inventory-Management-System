@@ -706,11 +706,11 @@ document.addEventListener("DOMContentLoaded", () => {
                 bulkBanner.querySelector('.bulk-banner-text').textContent = 
                     `Bulk Mode — ${draftProducts.length} product(s) in queue`;
     
-                // Re-open the preview so they can continue
+                /* Re-open the preview so they can continue
                 renderPreviewCards();
                 setTimeout(() => {
                     overlay.style.display = 'flex'; // ✅ delay prevents click bleed-through
-                }, 100);
+                }, 100);*/
     
             } catch (err) {
                 alert("⚠️ " + err.message);
