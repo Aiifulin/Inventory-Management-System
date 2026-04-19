@@ -893,7 +893,7 @@ document.addEventListener("DOMContentLoaded", () => {
     
     // --- CONFIRM SAVE ALL ---
     if (confirmSaveBtn) {
-        confirmSaveBtn.addEventListener('click', async () => {
+        confirmSaveBtn.addEventListener('click', async (e) => {
             e.stopPropagation();
             if (draftProducts.length === 0) return;
     
