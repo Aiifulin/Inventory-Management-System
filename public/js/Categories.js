@@ -233,9 +233,9 @@ function renderTable(categoriesToRender) {
     }
 
     categoriesToRender.forEach((c, index) => {
-        const displayNum = index + 1;
         const docId   = c.id;
-        const shortId = `#${displayNum}`;
+        const shortId = docId;
+
 
         let dateAdded = "N/A";
         if (c.createdAt && c.createdAt.toDate) {
@@ -255,7 +255,7 @@ function renderTable(categoriesToRender) {
         if (tableBody) {
             const row = document.createElement("tr");
             row.innerHTML = `
-                <td><span class="id-badge" title="Doc ID: ${docId}">${shortId}</span></td>
+            <td><span class="id-badge">${docId}</span></td>
                 <td>${c.name}</td>
                 <td>${c.itemCount || 0}</td>
                 <td>${dateAdded}</td>
@@ -268,7 +268,7 @@ function renderTable(categoriesToRender) {
             const card = document.createElement("div");
             card.className = "mobile-card";
             card.innerHTML = `
-                <div class="mobile-id-header">ID: <span class="id-badge" title="Doc ID: ${docId}">${shortId}</span></div>
+                <div class="mobile-id-header">ID: <span class="id-badge">${docId}</span></div>
                 <div class="card-top">
                     <div class="card-header-text"><h3 class="card-title">${c.name}</h3></div>
                 </div>

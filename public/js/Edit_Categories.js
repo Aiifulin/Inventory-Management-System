@@ -137,6 +137,9 @@ function initPage() {
                 nameInput.value = data.name || "";
                 document.getElementById('inpDesc').value = data.description || "";
 
+                document.getElementById('inpCategoryId').value = categoryId;
+
+
                 // Store original name so we can detect renames later
                 nameInput.dataset.originalName = data.name || "";
 
@@ -242,5 +245,5 @@ function showSuccessModal(categoryName) {
 
     setTimeout(() => {
         window.location.href = "Categories.html";
-    }, 2000);
+    }, 1000);
 }

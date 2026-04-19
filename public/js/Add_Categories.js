@@ -98,32 +98,19 @@ function sanitizeInput(str) {
 }
 
 // --- ADD CATEGORY WITH NUMERIC ID ---
-async function addCategory(categoryData) {
-    // Query ALL categories (including archived) to find the true highest ID
-    const snapshot = await getDocs(collection(db, "categories"));
+async function addCategory(categoryData, manualId) {
+    // Check if ID already exists
+    const idCheckSnap = await getDoc(doc(db, "categories", manualId));
+    if (idCheckSnap.exists()) throw new Error(`Category ID "${manualId}" is already in use.`);
 
-    let maxId = 0;
-    snapshot.forEach(docSnap => {
-        const numericId = parseInt(docSnap.id);
-        if (!isNaN(numericId) && numericId > maxId) {
-            maxId = numericId;
-        }
-    });
-
-    const newIdNum = maxId + 1;
-    const newId    = String(newIdNum);
-
-    // Also update the counter doc to stay in sync (optional but keeps it consistent)
-    await setDoc(doc(db, "counters", "categories"), { lastId: newIdNum });
-
-    await setDoc(doc(db, "categories", newId), {
+    await setDoc(doc(db, "categories", manualId), {
         ...categoryData,
         createdAt: serverTimestamp(),
         archived:  false,
         itemCount: 0
     });
 
-    return newId;
+    return manualId;
 }
 
 // --- FORM SUBMISSION ---
@@ -141,6 +128,9 @@ document.addEventListener("DOMContentLoaded", () => {
             try {
                 const rawName = document.getElementById('categoryNameInput').value.trim();
                 const rawDesc = document.getElementById('categoryDescInput').value.trim();
+
+                const manualId = document.getElementById('categoryIdInput').value.trim();
+                if (!manualId) throw new Error("Category ID is required.");
 
                 if (!rawName) throw new Error("Category name is required.");
 
@@ -162,7 +152,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     createdBy: auth.currentUser ? auth.currentUser.uid : "unknown"
                 };
 
-                const newId = await addCategory(categoryData);
+                const newId = await addCategory(categoryData, manualId);
                 await logActivity("Added Category", categoryData.name);
 
                 // 3. BUST CACHES
