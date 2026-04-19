@@ -27,9 +27,6 @@ const {
     mockServerTimestamp: vi.fn(() => ({ _seconds: Date.now() / 1000 }))
 }));
 
-vi.mock("https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js", () => ({
-    initializeApp: vi.fn(() => ({}))
-}));
 
 vi.mock("https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js", () => ({
     getAuth: vi.fn(() => ({ 
