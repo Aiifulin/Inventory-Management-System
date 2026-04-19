@@ -3,7 +3,7 @@
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 import {
   collection, getDocs, query,
-  orderBy, limit, doc, getDoc
+  orderBy, limit, doc, getDoc, where
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { initLogoutModal } from "./logout-modal.js";
 import { db, auth, storage } from "./firebase.js";
@@ -104,17 +104,15 @@ async function getCachedUserData(uid) {
 }
 
 // ================================================
-// AUTH — parallel: user data + charts fire at the same time
+// AUTH
 // ================================================
 onAuthStateChanged(auth, async (user) => {
   if (!user) { window.location.href = "index.html"; return; }
 
   const main = document.getElementById('mainContent');
 
-  // 🔥 Fire user data AND charts simultaneously
   const [userData] = await Promise.all([
     getCachedUserData(user.uid),
-    // Charts start loading immediately — access check happens after
     loadAllCharts()
   ]);
 
@@ -175,23 +173,40 @@ async function loadAllCharts() {
     const targetYear  = activeDateRange.from ? activeDateRange.from.getFullYear() : currentYear;
     const prevYear    = targetYear - 1;
 
-    // 🔥 All 5 Firestore reads in parallel
-    const [productsSnap, categoriesSnap, activitiesSnap, txThisSnap, txPrevSnap] = await Promise.all([
+    // Fetch years range for tx — cover all years if "all time"
+    const yearsToFetch = [];
+    if (!activeDateRange.from) {
+      // All time: fetch current and previous year minimum
+      yearsToFetch.push(currentYear, prevYear);
+    } else {
+      for (let y = activeDateRange.from.getFullYear(); y <= (activeDateRange.to?.getFullYear() || currentYear); y++) {
+        yearsToFetch.push(y);
+      }
+      if (!yearsToFetch.includes(prevYear)) yearsToFetch.push(prevYear);
+    }
+
+    const txSnaps = await Promise.all(
+      yearsToFetch.map(y =>
+        getDocs(query(collection(db, "stock_transactions", String(y), "transactions"), orderBy("createdAt", "asc")))
+      )
+    );
+    const allTxDocs = txSnaps.flatMap(snap => snap.docs);
+
+    const [productsSnap, categoriesSnap, activitiesSnap] = await Promise.all([
       getDocs(collection(db, "products")),
       getDocs(collection(db, "categories")),
-      getDocs(query(collection(db, "activities"), orderBy("timestamp", "desc"), limit(200))),
-      getDocs(query(collection(db, "stock_transactions", String(targetYear), "transactions"), orderBy("createdAt", "asc"))),
-      getDocs(query(collection(db, "stock_transactions", String(prevYear),   "transactions"), orderBy("createdAt", "asc")))
+      getDocs(query(collection(db, "activities"), orderBy("timestamp", "desc"), limit(500)))
     ]);
-
-    const allTxDocs = [...txThisSnap.docs, ...txPrevSnap.docs];
 
     renderInventoryChart(productsSnap);
     renderCategoryChart(productsSnap, categoriesSnap);
     renderLowStockChart(productsSnap);
-    renderActivityChart(activitiesSnap);
-    renderInventorySummaryBanner(productsSnap);
-    renderStockMovementChart(allTxDocs);
+    renderActivityTimelineChart(activitiesSnap);       // ✅ NEW: replaces old activity donut
+    renderInventorySummaryBanner(productsSnap, allTxDocs); // ✅ IMPROVED: with trend indicators
+    renderStockMovementChart(allTxDocs, targetYear, prevYear);
+    renderTopMovedProductsChart(allTxDocs);            // ✅ NEW
+    renderSalesTrendChart(allTxDocs);                  // ✅ NEW
+    renderDeadStockChart(productsSnap, allTxDocs);     // ✅ NEW
 
   } catch (err) {
     console.error("Chart load error:", err);
@@ -199,20 +214,508 @@ async function loadAllCharts() {
 }
 
 // ===============================
-// CHART 5: STOCK MOVEMENT
+// CHART HELPERS — TREND
 // ===============================
-function renderStockMovementChart(txDocs) {
-  const monthNames  = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+function getTrendIndicator(current, previous) {
+  if (previous === 0 && current === 0) return { text: "—", cls: "trend-neutral", icon: "" };
+  if (previous === 0) return { text: "New", cls: "trend-up", icon: "↑" };
+  const pct = ((current - previous) / previous) * 100;
+  const abs = Math.abs(pct).toFixed(1);
+  if (pct > 0)  return { text: `↑ ${abs}%`, cls: "trend-up",      icon: "↑" };
+  if (pct < 0)  return { text: `↓ ${abs}%`, cls: "trend-down",    icon: "↓" };
+  return { text: "→ 0%", cls: "trend-neutral", icon: "→" };
+}
+
+// ===============================
+// IMPROVED: INVENTORY SUMMARY BANNER with trend indicators
+// ===============================
+function renderInventorySummaryBanner(productsSnap, allTxDocs) {
+  const now   = new Date();
+  const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const lastMonthEnd   = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+
+  let totalProducts = 0, totalStock = 0, totalValue = 0;
+  productsSnap.forEach(docSnap => {
+    const p = docSnap.data();
+    if (p.archived === true) return;
+    totalProducts++;
+    totalStock += Number(p.stock) || 0;
+    totalValue += (Number(p.stock) || 0) * (Number(p.price) || 0);
+  });
+
+  // Count units sold this month vs last month from tx docs
+  let soldThisMonth = 0, soldLastMonth = 0;
+  allTxDocs.forEach(docSnap => {
+    const d = docSnap.data();
+    if (d.type !== "Sold" || d.status === "Cancelled") return;
+    const ts = d.createdAt?.seconds ? new Date(d.createdAt.seconds * 1000) : null;
+    if (!ts) return;
+    const qty = Number(d.qty) || 0;
+    if (ts >= thisMonthStart) soldThisMonth += qty;
+    else if (ts >= lastMonthStart && ts <= lastMonthEnd) soldLastMonth += qty;
+  });
+
+  // Stock ins this month vs last
+  let stockInThis = 0, stockInLast = 0;
+  allTxDocs.forEach(docSnap => {
+    const d = docSnap.data();
+    if (d.type !== "Stock In" || d.status === "Cancelled") return;
+    const ts = d.createdAt?.seconds ? new Date(d.createdAt.seconds * 1000) : null;
+    if (!ts) return;
+    const qty = Number(d.qty) || 0;
+    if (ts >= thisMonthStart) stockInThis += qty;
+    else if (ts >= lastMonthStart && ts <= lastMonthEnd) stockInLast += qty;
+  });
+
+  const soldTrend    = getTrendIndicator(soldThisMonth, soldLastMonth);
+  const stockInTrend = getTrendIndicator(stockInThis, stockInLast);
+
+  const banner = document.getElementById('inventorySummaryBanner');
+  if (banner) {
+    banner.style.display = 'flex';
+    banner.innerHTML = `
+      <div class="summary-stat">
+        <i class="fas fa-boxes-stacked"></i>
+        <div>
+          <span class="summary-label">Total Products</span>
+          <span class="summary-value">${totalProducts.toLocaleString()}</span>
+        </div>
+      </div>
+      <div class="summary-divider"></div>
+      <div class="summary-stat">
+        <i class="fas fa-cubes"></i>
+        <div>
+          <span class="summary-label">Total Stock Units</span>
+          <span class="summary-value">${totalStock.toLocaleString()}</span>
+        </div>
+      </div>
+      <div class="summary-divider"></div>
+      <div class="summary-stat highlight">
+        <i class="fas fa-peso-sign"></i>
+        <div>
+          <span class="summary-label">Total Inventory Value</span>
+          <span class="summary-value">₱${totalValue.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+        </div>
+      </div>
+      <div class="summary-divider"></div>
+      <div class="summary-stat">
+        <i class="fas fa-tag"></i>
+        <div>
+          <span class="summary-label">Units Sold This Month</span>
+          <span class="summary-value">${soldThisMonth.toLocaleString()} <span class="trend-badge ${soldTrend.cls}">${soldTrend.text}</span></span>
+          <span class="summary-sublabel">vs last month (${soldLastMonth})</span>
+        </div>
+      </div>
+      <div class="summary-divider"></div>
+      <div class="summary-stat">
+        <i class="fas fa-arrow-down"></i>
+        <div>
+          <span class="summary-label">Stock In This Month</span>
+          <span class="summary-value">${stockInThis.toLocaleString()} <span class="trend-badge ${stockInTrend.cls}">${stockInTrend.text}</span></span>
+          <span class="summary-sublabel">vs last month (${stockInLast})</span>
+        </div>
+      </div>
+    `;
+  }
+}
+
+// ===============================
+// NEW CHART: ACTIVITY TIMELINE (replaces donut)
+// ===============================
+function renderActivityTimelineChart(activitiesSnap) {
+  // Build daily counts for last 30 days
+  const now = new Date();
+  const days = 30;
+  const buckets = {};
+
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - i);
+    const key = d.toISOString().split('T')[0];
+    buckets[key] = { added: 0, updated: 0, other: 0 };
+  }
+
+  activitiesSnap.forEach(docSnap => {
+    const log = docSnap.data();
+    if (!log.timestamp?.seconds) return;
+    const date = new Date(log.timestamp.seconds * 1000);
+    const key  = date.toISOString().split('T')[0];
+    if (!buckets[key]) return;
+    const action = (log.action || "").toLowerCase();
+    if (action.includes("add"))                               buckets[key].added++;
+    else if (action.includes("edit") || action.includes("update") || action.includes("status")) buckets[key].updated++;
+    else                                                      buckets[key].other++;
+  });
+
+  const labels  = Object.keys(buckets).map(k => {
+    const d = new Date(k);
+    return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  });
+  const addedData   = Object.values(buckets).map(b => b.added);
+  const updatedData = Object.values(buckets).map(b => b.updated);
+  const otherData   = Object.values(buckets).map(b => b.other);
+
+  destroyChart('chartActivity');
+  showChart('chartActivity', 'chartLoadingActivity');
+
+  const ctx = document.getElementById('chartActivity').getContext('2d');
+  chartInstances['chartActivity'] = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Added',
+          data: addedData,
+          borderColor: '#22c55e',
+          backgroundColor: 'rgba(34,197,94,0.08)',
+          tension: 0.4, fill: true, pointRadius: 2, borderWidth: 2
+        },
+        {
+          label: 'Updated/Status',
+          data: updatedData,
+          borderColor: '#3b82f6',
+          backgroundColor: 'rgba(59,130,246,0.06)',
+          tension: 0.4, fill: true, pointRadius: 2, borderWidth: 2
+        },
+        {
+          label: 'Other',
+          data: otherData,
+          borderColor: '#94a3b8',
+          backgroundColor: 'rgba(148,163,184,0.04)',
+          tension: 0.4, fill: true, pointRadius: 2, borderWidth: 1.5
+        }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          display: true, position: 'top',
+          labels: { color: chartTextColor(), font: { size: 11 }, boxWidth: 10, padding: 10 }
+        },
+        tooltip: {
+          callbacks: {
+            title: (items) => `${items[0].label}`,
+            label: ctx => ` ${ctx.dataset.label}: ${ctx.raw} action(s)`
+          }
+        }
+      },
+      scales: {
+        x: {
+          ticks: {
+            color: chartTextColor(), font: { size: 10 },
+            maxRotation: 0, autoSkip: true, maxTicksLimit: 10
+          },
+          grid: { display: false }
+        },
+        y: {
+          beginAtZero: true,
+          ticks: { color: chartTextColor(), font: { size: 11 }, stepSize: 1 },
+          grid: { color: chartGridColor() }
+        }
+      }
+    }
+  });
+
+  // Clear old legend
+  const legend = document.getElementById('legendActivity');
+  if (legend) legend.innerHTML = '';
+}
+
+// ===============================
+// NEW CHART: TOP 5 MOST MOVED PRODUCTS
+// ===============================
+function renderTopMovedProductsChart(allTxDocs) {
+  const productTotals = {};
+
+  allTxDocs.forEach(docSnap => {
+    const d = docSnap.data();
+    if (d.status === "Cancelled") return;
+    if (!isInRange(d.createdAt)) return;
+    const name = d.productName || d.productId || "Unknown";
+    const qty  = Number(d.qty) || 0;
+    if (!productTotals[name]) productTotals[name] = { stockIn: 0, sold: 0, total: 0 };
+    if (d.type === "Stock In") productTotals[name].stockIn += qty;
+    else                       productTotals[name].sold    += qty;
+    productTotals[name].total += qty;
+  });
+
+  const sorted = Object.entries(productTotals)
+    .sort((a, b) => b[1].total - a[1].total)
+    .slice(0, 5);
+
+  const labels   = sorted.map(([name]) => name);
+  const stockIn  = sorted.map(([, v]) => v.stockIn);
+  const sold     = sorted.map(([, v]) => v.sold);
+
+  destroyChart('chartTopMoved');
+  showChart('chartTopMoved', 'chartLoadingTopMoved');
+
+  const canvas = document.getElementById('chartTopMoved');
+  if (!canvas) return;
+
+  if (sorted.length === 0) {
+    canvas.style.display = 'none';
+    const empty = document.getElementById('chartTopMovedEmpty');
+    if (empty) empty.style.display = 'flex';
+    return;
+  }
+
+  const ctx = canvas.getContext('2d');
+  chartInstances['chartTopMoved'] = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Stock In',  data: stockIn, backgroundColor: '#22c55e', borderRadius: 4, borderSkipped: false },
+        { label: 'Stock Out', data: sold,    backgroundColor: '#3b82f6', borderRadius: 4, borderSkipped: false }
+      ]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: true, position: 'top',
+          labels: { color: chartTextColor(), font: { size: 11 }, boxWidth: 10, padding: 10 }
+        },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: ${ctx.raw.toLocaleString()} units` } }
+      },
+      scales: {
+        x: {
+          beginAtZero: true, stacked: false,
+          ticks: { color: chartTextColor(), font: { size: 11 } },
+          grid: { color: chartGridColor() }
+        },
+        y: {
+          ticks: {
+            color: chartTextColor(), font: { size: 11 },
+            callback: (val, idx) => {
+              const label = labels[idx];
+              return label.length > 18 ? label.substring(0, 18) + '…' : label;
+            }
+          },
+          grid: { display: false }
+        }
+      }
+    }
+  });
+}
+
+// ===============================
+// NEW CHART: SALES TREND (units sold over time)
+// ===============================
+function renderSalesTrendChart(allTxDocs) {
+  // Group sold qty by month
+  const monthlyData = {};
+
+  allTxDocs.forEach(docSnap => {
+    const d = docSnap.data();
+    if (d.type !== "Sold" || d.status === "Cancelled") return;
+    if (!isInRange(d.createdAt)) return;
+    const ts = d.createdAt?.seconds ? new Date(d.createdAt.seconds * 1000) : null;
+    if (!ts) return;
+    const key = `${ts.getFullYear()}-${String(ts.getMonth() + 1).padStart(2, '0')}`;
+    monthlyData[key] = (monthlyData[key] || 0) + (Number(d.qty) || 0);
+  });
+
+  const sorted = Object.entries(monthlyData).sort((a, b) => a[0].localeCompare(b[0]));
+  const labels = sorted.map(([k]) => {
+    const [yr, mo] = k.split('-');
+    return new Date(Number(yr), Number(mo) - 1).toLocaleDateString("en-US", { month: "short", year: "2-digit" });
+  });
+  const values = sorted.map(([, v]) => v);
+
+  destroyChart('chartSalesTrend');
+  showChart('chartSalesTrend', 'chartLoadingSalesTrend');
+
+  const canvas = document.getElementById('chartSalesTrend');
+  if (!canvas) return;
+
+  if (sorted.length === 0) {
+    canvas.style.display = 'none';
+    const empty = document.getElementById('chartSalesTrendEmpty');
+    if (empty) empty.style.display = 'flex';
+    return;
+  }
+
+  const ctx = canvas.getContext('2d');
+
+  // Gradient fill
+  const gradient = ctx.createLinearGradient(0, 0, 0, 260);
+  gradient.addColorStop(0, isDark() ? 'rgba(59,130,246,0.25)' : 'rgba(59,130,246,0.15)');
+  gradient.addColorStop(1, 'rgba(59,130,246,0)');
+
+  chartInstances['chartSalesTrend'] = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Units Sold',
+        data: values,
+        borderColor: '#3b82f6',
+        backgroundColor: gradient,
+        tension: 0.4, fill: true,
+        pointRadius: 4, pointBackgroundColor: '#3b82f6',
+        pointHoverRadius: 6, borderWidth: 2.5
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => ` Units sold: ${ctx.raw.toLocaleString()}`
+          }
+        }
+      },
+      scales: {
+        x: {
+          ticks: { color: chartTextColor(), font: { size: 11 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 12 },
+          grid: { display: false }
+        },
+        y: {
+          beginAtZero: true,
+          ticks: { color: chartTextColor(), font: { size: 11 }, stepSize: 1 },
+          grid: { color: chartGridColor() }
+        }
+      }
+    }
+  });
+}
+
+// ===============================
+// NEW CHART: DEAD STOCK
+// ===============================
+function renderDeadStockChart(productsSnap, allTxDocs) {
+  const DEAD_DAYS = 90;
+  const cutoff    = new Date();
+  cutoff.setDate(cutoff.getDate() - DEAD_DAYS);
+
+  // Build set of productIds/names that had a transaction recently
+  const recentlyMoved = new Set();
+  allTxDocs.forEach(docSnap => {
+    const d  = docSnap.data();
+    const ts = d.createdAt?.seconds ? new Date(d.createdAt.seconds * 1000) : null;
+    if (ts && ts >= cutoff) {
+      if (d.productId)   recentlyMoved.add(d.productId);
+      if (d.productName) recentlyMoved.add(d.productName);
+    }
+  });
+
+  const deadItems = [];
+  productsSnap.forEach(docSnap => {
+    const p     = docSnap.data();
+    const id    = docSnap.id;
+    const stock = Number(p.stock) || 0;
+    if (p.archived === true || stock === 0) return;
+    if (!recentlyMoved.has(id) && !recentlyMoved.has(p.name)) {
+      deadItems.push({ name: p.name || id, stock, value: stock * (Number(p.price) || 0) });
+    }
+  });
+
+  deadItems.sort((a, b) => b.value - a.value);
+  const top = deadItems.slice(0, 8);
+
+  const canvas   = document.getElementById('chartDeadStock');
+  const loadingEl = document.getElementById('chartLoadingDeadStock');
+  const emptyEl  = document.getElementById('chartDeadStockEmpty');
+  const countEl  = document.getElementById('deadStockCount');
+
+  if (loadingEl) loadingEl.style.display = 'none';
+  if (countEl)   countEl.textContent = `${deadItems.length} product${deadItems.length !== 1 ? 's' : ''} with no movement in ${DEAD_DAYS}+ days`;
+
+  if (top.length === 0) {
+    if (emptyEl) emptyEl.style.display = 'flex';
+    if (canvas)  canvas.style.display  = 'none';
+    return;
+  }
+
+  if (emptyEl) emptyEl.style.display = 'none';
+  if (canvas)  canvas.style.display  = 'block';
+
+  destroyChart('chartDeadStock');
+  const ctx = canvas.getContext('2d');
+  chartInstances['chartDeadStock'] = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: top.map(i => i.name.length > 18 ? i.name.substring(0, 18) + '…' : i.name),
+      datasets: [
+        {
+          label: 'Stock Units',
+          data: top.map(i => i.stock),
+          backgroundColor: 'rgba(245,158,11,0.7)',
+          borderColor: '#f59e0b', borderWidth: 1,
+          borderRadius: 4, borderSkipped: false,
+          yAxisID: 'y'
+        },
+        {
+          label: 'Tied-up Value (₱)',
+          data: top.map(i => i.value),
+          backgroundColor: 'rgba(239,68,68,0.15)',
+          borderColor: '#ef4444', borderWidth: 1.5,
+          borderRadius: 4, borderSkipped: false,
+          type: 'bar', yAxisID: 'y2'
+        }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: true, position: 'top',
+          labels: { color: chartTextColor(), font: { size: 11 }, boxWidth: 10, padding: 10 }
+        },
+        tooltip: {
+          callbacks: {
+            label: ctx => ctx.datasetIndex === 0
+              ? ` Stock: ${ctx.raw.toLocaleString()} units`
+              : ` Value: ₱${Number(ctx.raw).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`
+          }
+        }
+      },
+      scales: {
+        x: {
+          ticks: { color: chartTextColor(), font: { size: 10 }, maxRotation: 30 },
+          grid: { display: false }
+        },
+        y: {
+          beginAtZero: true, position: 'left',
+          ticks: { color: '#f59e0b', font: { size: 11 } },
+          grid: { color: chartGridColor() },
+          title: { display: true, text: 'Units', color: chartTextColor(), font: { size: 11 } }
+        },
+        y2: {
+          beginAtZero: true, position: 'right',
+          ticks: {
+            color: '#ef4444', font: { size: 11 },
+            callback: v => `₱${Number(v).toLocaleString()}`
+          },
+          grid: { drawOnChartArea: false },
+          title: { display: true, text: 'Value (₱)', color: chartTextColor(), font: { size: 11 } }
+        }
+      }
+    }
+  });
+}
+
+// ===============================
+// CHART: STOCK MOVEMENT (existing, improved)
+// ===============================
+function renderStockMovementChart(txDocs, targetYear, prevYear) {
+  const monthNames   = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
   const thisYearData = Array(12).fill(0).map(() => ({ stockIn: 0, sold: 0 }));
   const lastYearData = Array(12).fill(0).map(() => ({ stockIn: 0, sold: 0 }));
-  const currentYear  = new Date().getFullYear();
-  const targetYear   = activeDateRange.from ? activeDateRange.from.getFullYear() : currentYear;
-  const prevYear     = targetYear - 1;
 
   txDocs.forEach(docSnap => {
-    const d   = docSnap.data();
+    const d  = docSnap.data();
     if (d.status === "Cancelled") return;
-    const ts  = d.createdAt?.seconds ? new Date(d.createdAt.seconds * 1000) : null;
+    const ts = d.createdAt?.seconds ? new Date(d.createdAt.seconds * 1000) : null;
     if (!ts) return;
     const yr  = ts.getFullYear();
     const mo  = ts.getMonth();
@@ -230,9 +733,8 @@ function renderStockMovementChart(txDocs) {
   destroyChart("chartStockCompare");
   showChart("chartStock", "chartLoadingStock");
 
-  const isDarkMode = document.documentElement.getAttribute("data-theme") === "dark";
-  const textColor  = isDarkMode ? "#94a3b8" : "#64748b";
-  const gridColor  = isDarkMode ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.06)";
+  const textColor = chartTextColor();
+  const gridColor = chartGridColor();
 
   const baseOpts = {
     responsive: true, maintainAspectRatio: false,
@@ -337,9 +839,9 @@ function renderCategoryChart(productsSnap, categoriesSnap) {
     categoryCount[cat] = (categoryCount[cat] || 0) + 1;
   });
 
-  const sorted = Object.entries(categoryCount).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]).slice(0, 8);
-  const labels = sorted.map(([k]) => k);
-  const values = sorted.map(([, v]) => v);
+  const sorted  = Object.entries(categoryCount).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]).slice(0, 8);
+  const labels  = sorted.map(([k]) => k);
+  const values  = sorted.map(([, v]) => v);
   const palette = ['#3b82f6','#06b6d4','#8b5cf6','#f59e0b','#22c55e','#ef4444','#ec4899','#f97316'];
 
   destroyChart('chartCategory');
@@ -412,76 +914,6 @@ function renderLowStockChart(productsSnap) {
       }
     }
   });
-}
-
-// ===============================
-// CHART 4: ACTIVITY DONUT
-// ===============================
-function renderActivityChart(activitiesSnap) {
-  const counts = { Added: 0, Updated: 0, Deleted: 0, Archived: 0, Restored: 0, Other: 0 };
-  activitiesSnap.forEach(docSnap => {
-    const log    = docSnap.data();
-    if (!isInRange(log.timestamp)) return;
-    const action = (log.action || "").toLowerCase();
-    if      (action.includes("add"))                               counts.Added++;
-    else if (action.includes("edit") || action.includes("update")) counts.Updated++;
-    else if (action.includes("delete"))                            counts.Deleted++;
-    else if (action.includes("archive"))                           counts.Archived++;
-    else if (action.includes("restore"))                           counts.Restored++;
-    else                                                           counts.Other++;
-  });
-
-  const entries = Object.entries(counts).filter(([, v]) => v > 0);
-  const labels  = entries.map(([k]) => k);
-  const values  = entries.map(([, v]) => v);
-  const colors  = { Added: '#22c55e', Updated: '#3b82f6', Deleted: '#ef4444', Archived: '#f59e0b', Restored: '#06b6d4', Other: '#94a3b8' };
-
-  destroyChart('chartActivity');
-  showChart('chartActivity', 'chartLoadingActivity');
-
-  const ctx = document.getElementById('chartActivity').getContext('2d');
-  chartInstances['chartActivity'] = new Chart(ctx, {
-    type: 'doughnut',
-    data: { labels, datasets: [{ data: values, backgroundColor: labels.map(l => colors[l] || '#94a3b8'), borderWidth: 0, hoverOffset: 6 }] },
-    options: {
-      cutout: '68%', responsive: true, maintainAspectRatio: true,
-      plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.raw} action(s)` } } }
-    }
-  });
-
-  const legend = document.getElementById('legendActivity');
-  if (legend) {
-    legend.innerHTML = labels.map((l, i) => `
-      <div class="legend-item">
-        <span class="legend-dot" style="background:${colors[l]}"></span>
-        <span class="legend-label">${l}</span>
-        <span class="legend-count">${values[i]}</span>
-      </div>`).join('');
-  }
-}
-
-// ===============================
-// INVENTORY SUMMARY BANNER
-// ===============================
-function renderInventorySummaryBanner(productsSnap) {
-  let totalProducts = 0, totalStock = 0, totalValue = 0;
-  productsSnap.forEach(docSnap => {
-    const p = docSnap.data();
-    if (p.archived === true) return;
-    totalProducts++;
-    totalStock += Number(p.stock) || 0;
-    totalValue += (Number(p.stock) || 0) * (Number(p.price) || 0);
-  });
-
-  const banner = document.getElementById('inventorySummaryBanner');
-  if (banner) banner.style.display = 'flex';
-
-  const elProducts = document.getElementById('summaryTotalProducts');
-  const elStock    = document.getElementById('summaryTotalStock');
-  const elValue    = document.getElementById('summaryTotalValue');
-  if (elProducts) elProducts.textContent = totalProducts.toLocaleString();
-  if (elStock)    elStock.textContent    = totalStock.toLocaleString();
-  if (elValue)    elValue.textContent    = `₱${totalValue.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 // ===============================
@@ -601,7 +1033,7 @@ async function loadCategoryReport(btn) {
       const stock = Number(p.stock) || 0, price = Number(p.price) || 0, threshold = Number(p.lowStockThreshold) || 10;
       if (!categoryMap[cat]) categoryMap[cat] = { "Category Name": cat, "Total Products": 0, "Total Stock": 0, "Total Value (₱)": 0, "Out of Stock": 0, "Low Stock": 0, "In Stock": 0, "Date Created": "N/A" };
       categoryMap[cat]["Total Products"]++;
-      categoryMap[cat]["Total Stock"]    += stock;
+      categoryMap[cat]["Total Stock"]      += stock;
       categoryMap[cat]["Total Value (₱)"] += stock * price;
       if (stock === 0) categoryMap[cat]["Out of Stock"]++;
       else if (stock <= threshold) categoryMap[cat]["Low Stock"]++;
@@ -651,7 +1083,7 @@ async function loadLowStockReport(btn) {
 async function loadActivityReport(btn) {
   setButtonLoading(btn, true);
   try {
-    const q        = query(collection(db, "activities"), orderBy("timestamp", "desc"), limit(200));
+    const q        = query(collection(db, "activities"), orderBy("timestamp", "desc"), limit(500));
     const snapshot = await getDocs(q);
     const reportData = [];
     snapshot.forEach(docSnap => {
@@ -686,7 +1118,6 @@ async function loadStockMovementReport(btn) {
     const yearRange   = [];
     for (let y = fromYear; y <= toYear; y++) yearRange.push(y);
 
-    // 🔥 All year queries in parallel
     const snaps = await Promise.all(
       yearRange.map(y => getDocs(query(collection(db, "stock_transactions", String(y), "transactions"), orderBy("createdAt", "desc"))))
     );
@@ -721,10 +1152,10 @@ function attachReportListeners() {
   const btnStockMovement       = document.getElementById("btnStockMovement");
   const btnStockMovementExport = document.getElementById("btnStockMovementExport");
 
-  if (btnInventory)           btnInventory.addEventListener("click",     () => loadInventoryReport(btnInventory));
-  if (btnCategory)            btnCategory.addEventListener("click",      () => loadCategoryReport(btnCategory));
-  if (btnLowStock)            btnLowStock.addEventListener("click",      () => loadLowStockReport(btnLowStock));
-  if (btnStockMovement)       btnStockMovement.addEventListener("click", () => loadActivityReport(btnStockMovement));
-  if (btnStockMovementExport) btnStockMovementExport.addEventListener("click", () => loadStockMovementReport(btnStockMovementExport));
+  if (btnInventory)           btnInventory.addEventListener("click",           () => loadInventoryReport(btnInventory));
+  if (btnCategory)            btnCategory.addEventListener("click",             () => loadCategoryReport(btnCategory));
+  if (btnLowStock)            btnLowStock.addEventListener("click",             () => loadLowStockReport(btnLowStock));
+  if (btnStockMovement)       btnStockMovement.addEventListener("click",        () => loadActivityReport(btnStockMovement));
+  if (btnStockMovementExport) btnStockMovementExport.addEventListener("click",  () => loadStockMovementReport(btnStockMovementExport));
   initDateFilter();
 }

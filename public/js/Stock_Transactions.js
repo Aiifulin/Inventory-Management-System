@@ -333,7 +333,12 @@ function renderPage() {
             return `
                 <tr>
                     <td style="white-space:nowrap;font-size:13px;color:var(--text-secondary);">${tx.dateStr || "—"}</td>
-                    <td style="font-weight:600;">${escHtml(tx.productName)}${editedDot}</td>
+                    <td>
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <span style="font-size:11px; font-weight:600; color:var(--text-secondary); background:var(--hover-bg); padding:2px 6px; border-radius:4px; font-family:monospace; white-space:nowrap; flex-shrink:0;">${escHtml(tx.productId)}</span>
+                            <span style="font-weight:600;">${escHtml(tx.productName)}${editedDot}</span>
+                        </div>
+                    </td>
                     <td><span class="tx-badge ${badgeClass}">${tx.type}</span></td>
                     <td>${statusBadge}</td>
                     <td><span class="stock-after" style="color:var(--text-secondary);">${tx.stockBefore}</span></td>

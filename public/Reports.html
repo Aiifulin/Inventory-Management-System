@@ -68,30 +68,9 @@
 
     <!-- INVENTORY VALUE SUMMARY BANNER -->
     <div class="inventory-summary-banner" id="inventorySummaryBanner" style="display:none;">
-      <div class="summary-stat">
-        <i class="fas fa-boxes-stacked"></i>
-        <div>
-          <span class="summary-label">Total Products</span>
-          <span class="summary-value" id="summaryTotalProducts">—</span>
-        </div>
-      </div>
-      <div class="summary-divider"></div>
-      <div class="summary-stat">
-        <i class="fas fa-cubes"></i>
-        <div>
-          <span class="summary-label">Total Stock Units</span>
-          <span class="summary-value" id="summaryTotalStock">—</span>
-        </div>
-      </div>
-      <div class="summary-divider"></div>
-      <div class="summary-stat highlight">
-        <i class="fas fa-peso-sign"></i>
-        <div>
-          <span class="summary-label">Total Inventory Value</span>
-          <span class="summary-value" id="summaryTotalValue">—</span>
-        </div>
-      </div>
+      <!-- Populated dynamically by JS with trend indicators -->
     </div>
+
     <!-- DATE RANGE FILTER -->
     <div class="date-filter-bar" id="dateFilterBar">
       <span class="date-filter-label">
@@ -112,7 +91,6 @@
       </div>
       <span class="active-range-badge" id="activeRangeBadge">All time</span>
     </div>
-    
 
     <!-- Export Options -->
     <div class="export-options">
@@ -139,7 +117,6 @@
             <p>Full overview of all active products — name, category, stock, price, and total inventory value.</p>
           </div>
         </div>
-        <!-- Chart: Stock status donut -->
         <div class="report-chart-wrap">
           <div class="chart-loading" id="chartLoadingInventory"><i class="fas fa-spinner fa-spin"></i></div>
           <canvas id="chartInventory" style="display:none;"></canvas>
@@ -163,7 +140,6 @@
             <p>Breakdown of product counts and total stock levels grouped by category.</p>
           </div>
         </div>
-        <!-- Chart: Products per category bar -->
         <div class="report-chart-wrap">
           <div class="chart-loading" id="chartLoadingCategory"><i class="fas fa-spinner fa-spin"></i></div>
           <canvas id="chartCategory" style="display:none;"></canvas>
@@ -186,7 +162,6 @@
             <p>All products at or below their low stock threshold that require restocking attention.</p>
           </div>
         </div>
-        <!-- Chart: Low stock items horizontal bar -->
         <div class="report-chart-wrap">
           <div class="chart-loading" id="chartLoadingLowStock"><i class="fas fa-spinner fa-spin"></i></div>
           <canvas id="chartLowStock" style="display:none;"></canvas>
@@ -201,20 +176,18 @@
         </div>
       </div>
 
-      <!-- Activity Report -->
+      <!-- ✅ NEW: Activity Timeline Report (replaces donut) -->
       <div class="report-card">
         <div class="report-card-top">
           <div class="report-icon icon-gold">
             <i class="fa-solid fa-arrow-right-arrow-left"></i>
           </div>
           <div class="report-info">
-            <h3>Activity Report</h3>
-            <p>Recent inventory activity log — added, updated, archived, and deleted product events.</p>
+            <h3>Activity Timeline</h3>
+            <p>Daily activity volume over the last 30 days — added, updated, and other inventory events.</p>
           </div>
         </div>
-
-        <!-- Chart: Activity type breakdown -->
-        <div class="report-chart-wrap">
+        <div class="report-chart-wrap" style="min-height:200px;">
           <div class="chart-loading" id="chartLoadingActivity"><i class="fas fa-spinner fa-spin"></i></div>
           <canvas id="chartActivity" style="display:none;"></canvas>
           <div class="chart-legend" id="legendActivity"></div>
@@ -226,7 +199,79 @@
         </div>
       </div>
 
-      <!-- Stock Movement — full width, 2 rows tall -->
+      <!-- ✅ NEW: Top 5 Most Moved Products -->
+      <div class="report-card">
+        <div class="report-card-top">
+          <div class="report-icon icon-blue">
+            <i class="fa-solid fa-ranking-star"></i>
+          </div>
+          <div class="report-info">
+            <h3>Top Moved Products</h3>
+            <p>The 5 most active products by total units moved — stock in and stock out combined.</p>
+          </div>
+        </div>
+        <div class="report-chart-wrap" style="min-height:200px;">
+          <div class="chart-loading" id="chartLoadingTopMoved"><i class="fas fa-spinner fa-spin"></i></div>
+          <canvas id="chartTopMoved" style="display:none;"></canvas>
+          <div class="chart-empty" id="chartTopMovedEmpty" style="display:none;">
+            <i class="fas fa-inbox"></i> No transaction data found
+          </div>
+        </div>
+        <div class="report-card-footer">
+          <span style="font-size:12px;color:var(--text-secondary);">Visual only — see Stock Movement export</span>
+        </div>
+      </div>
+
+      <!-- ✅ NEW: Sales Trend -->
+      <div class="report-card">
+        <div class="report-card-top">
+          <div class="report-icon icon-teal">
+            <i class="fa-solid fa-chart-line"></i>
+          </div>
+          <div class="report-info">
+            <h3>Sales Trend</h3>
+            <p>Monthly units sold over time. Spot seasonal patterns and growth or decline in sales volume.</p>
+          </div>
+        </div>
+        <div class="report-chart-wrap" style="min-height:200px;">
+          <div class="chart-loading" id="chartLoadingSalesTrend"><i class="fas fa-spinner fa-spin"></i></div>
+          <canvas id="chartSalesTrend" style="display:none;"></canvas>
+          <div class="chart-empty" id="chartSalesTrendEmpty" style="display:none;">
+            <i class="fas fa-tag"></i> No sales data found
+          </div>
+        </div>
+        <div class="report-card-footer">
+          <span style="font-size:12px;color:var(--text-secondary);">Visual only — see Stock Movement export</span>
+        </div>
+      </div>
+
+      <!-- ✅ NEW: Dead Stock -->
+      <div class="report-card" style="grid-column: 1 / -1;">
+        <div class="report-card-top">
+          <div class="report-icon icon-red">
+            <i class="fa-solid fa-box-archive"></i>
+          </div>
+          <div class="report-info">
+            <h3>Dead Stock</h3>
+            <p>Products with stock on hand but zero movement in the last 90 days. These tie up capital and warehouse space.</p>
+          </div>
+        </div>
+        <div class="dead-stock-count-bar" id="deadStockCount" style="font-size:13px;color:var(--text-secondary);padding:0 4px 8px;font-weight:500;">
+          Analyzing movement data...
+        </div>
+        <div class="report-chart-wrap" style="min-height:220px;">
+          <div class="chart-loading" id="chartLoadingDeadStock"><i class="fas fa-spinner fa-spin"></i></div>
+          <canvas id="chartDeadStock" style="display:none;"></canvas>
+          <div class="chart-empty" id="chartDeadStockEmpty" style="display:none;">
+            <i class="fas fa-check-circle" style="color:#16a34a;"></i> No dead stock — all products moved recently
+          </div>
+        </div>
+        <div class="report-card-footer">
+          <span style="font-size:12px;color:var(--text-secondary);">Showing top 8 by tied-up value • Dual axis: units (left) and ₱ value (right)</span>
+        </div>
+      </div>
+
+      <!-- Stock Movement — full width -->
       <div class="report-card" style="grid-column: 1 / -1;">
         <div class="report-card-top">
           <div class="report-icon icon-blue">
@@ -237,14 +282,12 @@
             <p>Monthly Stock In vs Stock Out for the selected year, with previous year comparison below.</p>
           </div>
         </div>
-      
-        <!-- This year chart -->
+
         <div class="report-chart-wrap" style="min-height:260px;">
           <div class="chart-loading" id="chartLoadingStock"><i class="fas fa-spinner fa-spin"></i></div>
           <canvas id="chartStock" style="display:none;"></canvas>
         </div>
-      
-        <!-- Divider + label -->
+
         <div style="display:flex;align-items:center;gap:12px;padding:4px 0;">
           <div style="flex:1;height:1px;background:var(--border-color);"></div>
           <span style="font-size:12px;color:var(--text-secondary);font-weight:600;white-space:nowrap;">
@@ -252,15 +295,14 @@
           </span>
           <div style="flex:1;height:1px;background:var(--border-color);"></div>
         </div>
-      
-        <!-- Previous year chart -->
+
         <div class="report-chart-wrap" style="min-height:220px;">
           <canvas id="chartStockCompare" style="display:block;"
                   role="img" aria-label="Previous year stock movement comparison chart">
             Previous year stock movement data.
           </canvas>
         </div>
-      
+
         <div class="report-card-footer">
           <button class="btn-report" id="btnStockMovementExport">
             <i class="fa-solid fa-download"></i> Generate Report
