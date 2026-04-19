@@ -330,23 +330,23 @@ function renderPage() {
                 ? `<span style="color:var(--text-secondary);">${escHtml(tx.createdByName)}</span>`
                 : `<span style="color:var(--text-secondary);font-size:12px;">—</span>`;
 
-            return `
+                return `
                 <tr>
-                    <td style="white-space:nowrap;font-size:13px;color:var(--text-secondary);">${tx.dateStr || "—"}</td>
-                    <td>
+                    <td data-label="Date" style="white-space:nowrap;font-size:13px;color:var(--text-secondary);">${tx.dateStr || "—"}</td>
+                    <td data-label="Product">
                         <div style="display:flex; align-items:center; gap:8px;">
                             <span style="font-size:11px; font-weight:600; color:var(--text-secondary); background:var(--hover-bg); padding:2px 6px; border-radius:4px; font-family:monospace; white-space:nowrap; flex-shrink:0;">${escHtml(tx.productId)}</span>
                             <span style="font-weight:600;">${escHtml(tx.productName)}${editedDot}</span>
                         </div>
                     </td>
-                    <td><span class="tx-badge ${badgeClass}">${tx.type}</span></td>
-                    <td>${statusBadge}</td>
-                    <td><span class="stock-after" style="color:var(--text-secondary);">${tx.stockBefore}</span></td>
-                    <td><span class="qty-delta ${deltaClass}">${deltaSign}${tx.qty}</span></td>
-                    <td><span class="stock-after ${afterClass}">${tx.stockAfter}</span></td>
-                    <td style="color:var(--text-secondary);font-size:13px;">${escHtml(tx.note) || "—"}</td>
-                    <td style="font-size:13px;white-space:nowrap;">${updatedOnCell}</td>
-                    <td style="font-size:13px;color:var(--text-secondary);">${updatedByCell}</td>
+                    <td data-label="Type"><span class="tx-badge ${badgeClass}">${tx.type}</span></td>
+                    <td data-label="Status">${statusBadge}</td>
+                    <td data-label="Stock Before"><span class="stock-after" style="color:var(--text-secondary);">${tx.stockBefore}</span></td>
+                    <td data-label="Qty"><span class="qty-delta ${deltaClass}">${deltaSign}${tx.qty}</span></td>
+                    <td data-label="Stock After"><span class="stock-after ${afterClass}">${tx.stockAfter}</span></td>
+                    <td data-label="Note" style="color:var(--text-secondary);font-size:13px;">${escHtml(tx.note) || "—"}</td>
+                    <td data-label="Updated On" style="font-size:13px;white-space:nowrap;">${updatedOnCell}</td>
+                    <td data-label="Updated By" style="font-size:13px;color:var(--text-secondary);">${updatedByCell}</td>
                 </tr>`;
         }).join("");
 

@@ -709,3 +709,77 @@ body {
   background: #f59e0b;
   flex-shrink: 0;
 }
+
+/* ── Mobile polish ── */
+@media (max-width: 600px) {
+
+  .report-card {
+    padding: 16px;
+    gap: 12px;
+  }
+
+  .report-card-top {
+    gap: 12px;
+  }
+
+  .report-icon {
+    width: 40px;
+    height: 40px;
+    font-size: 17px;
+    border-radius: 10px;
+  }
+
+  .report-info h3 { font-size: 14px; }
+  .report-info p  { font-size: 12px; }
+
+  /* Let charts breathe instead of clipping */
+  .report-chart-wrap canvas {
+    max-height: none !important;
+  }
+
+  /* Doughnut — a bit larger on mobile so it's not tiny */
+  #chartInventory {
+    max-width: 160px !important;
+    max-height: 160px !important;
+  }
+
+  /* Timeline / bar charts — cap at a comfortable height */
+  #chartActivity,
+  #chartTopMoved,
+  #chartSalesTrend { max-height: 180px !important; }
+
+  #chartDeadStock,
+  #chartStock,
+  #chartStockCompare { max-height: 220px !important; }
+
+  /* Summary banner — flip dividers to horizontal */
+  .summary-divider {
+    width: 100%;
+    height: 1px;
+  }
+
+  .summary-stat {
+    min-width: 100%;
+  }
+
+  .summary-value { font-size: 17px; }
+
+  /* Date filter pills wrap more gracefully */
+  .pill-group { gap: 6px; }
+  .date-pill  { font-size: 12px; padding: 5px 11px; }
+
+  /* Export bar */
+  .export-options {
+    padding: 12px 14px;
+    gap: 8px;
+  }
+
+  /* Report footer button full width */
+  .report-card-footer {
+    justify-content: stretch;
+  }
+  .btn-report {
+    width: 100%;
+    justify-content: center;
+  }
+}
