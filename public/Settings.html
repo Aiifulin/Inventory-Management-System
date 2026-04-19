@@ -5,8 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Settings - Inventory MS</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="css/Settings.css">
     <link rel="stylesheet" href="css/theme.css">
+    <link rel="stylesheet" href="css/Settings.css">
+    <!-- ADD THIS LINE to your project -->
+    <link rel="stylesheet" href="css/user_drawer.css">
     
     <script>
         const savedTheme = localStorage.getItem('theme');
@@ -71,9 +73,9 @@
             </div>
         </div>
 
+        <!-- ===================== SKELETON ===================== -->
         <div class="settings-skeleton" id="settingsSkeleton" style="display:flex;">
 
-            <!-- Appearance skeleton -->
             <div class="skeleton-card">
                 <div class="skeleton-card-header">
                     <span class="skeleton-block skel-icon"></span>
@@ -90,7 +92,6 @@
                 </div>
             </div>
         
-            <!-- Inventory Settings skeleton -->
             <div class="skeleton-card">
                 <div class="skeleton-card-header">
                     <span class="skeleton-block skel-icon"></span>
@@ -114,7 +115,6 @@
                 </div>
             </div>
         
-            <!-- Admin Profile skeleton -->
             <div class="skeleton-card">
                 <div class="skeleton-card-header">
                     <span class="skeleton-block skel-icon"></span>
@@ -149,7 +149,6 @@
                 </div>
             </div>
         
-            <!-- User Management skeleton -->
             <div class="skeleton-card">
                 <div class="skeleton-card-header">
                     <span class="skeleton-block skel-icon"></span>
@@ -183,17 +182,19 @@
         
         </div>
 
+        <!-- ===================== SETTINGS CONTENT ===================== -->
         <div class="settings-container" id="settingsContent" style="display:none;">
             
+            <!-- Appearance -->
             <div class="settings-card">
                 <div class="card-header">
                     <h3><i class="fas fa-paint-brush"></i> Appearance</h3>
                 </div>
                 <div class="card-body">
-                    <div class="form-group" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0;">
+                    <div class="form-group" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0;">
                         <div>
-                            <label for="darkModeToggle" style="font-weight: 600; font-size: 15px; margin-bottom: 4px; display:block;">Dark Mode</label>
-                            <p class="help-text" style="margin: 0;">Switch between light and dark themes.</p>
+                            <label for="darkModeToggle" style="font-weight:600;font-size:15px;margin-bottom:4px;display:block;">Dark Mode</label>
+                            <p class="help-text" style="margin:0;">Switch between light and dark themes.</p>
                         </div>
                         <label class="switch">
                             <input type="checkbox" id="darkModeToggle">
@@ -203,6 +204,7 @@
                 </div>
             </div>
 
+            <!-- Inventory Settings -->
             <div class="settings-card">
                 <div class="card-header">
                     <h3><i class="fas fa-sliders-h"></i> Inventory Settings</h3>
@@ -217,14 +219,14 @@
                             </div>
                             <p class="help-text">New products will default to this alert level.</p>
                         </div>
-                        <div class="form-group" style="border-top: 1px solid var(--border-color); padding-top: 24px; margin-top: 24px;">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                        <div class="form-group" style="border-top:1px solid var(--border-color);padding-top:24px;margin-top:24px;">
+                            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
                                 <div>
-                                    <label for="autoBackupToggle" style="font-weight: 600; font-size: 15px; margin-bottom: 4px; display:block;">
-                                        <i class="fas fa-cloud-upload-alt" style="color: var(--text-secondary); margin-right: 6px;"></i>
+                                    <label for="autoBackupToggle" style="font-weight:600;font-size:15px;margin-bottom:4px;display:block;">
+                                        <i class="fas fa-cloud-upload-alt" style="color:var(--text-secondary);margin-right:6px;"></i>
                                         Auto Backup
                                     </label>
-                                    <p class="help-text" style="margin: 0;">Automatically backup products to Excel at specified intervals.</p>
+                                    <p class="help-text" style="margin:0;">Automatically backup products to Excel at specified intervals.</p>
                                 </div>
                                 <label class="switch">
                                     <input type="checkbox" id="autoBackupToggle">
@@ -232,43 +234,34 @@
                                 </label>
                             </div>
             
-                            <!-- Backup Interval Options (shown when enabled) -->
-                            <div id="backupIntervalContainer" style="display: none; margin-top: 16px;">
-                                <label for="backupInterval" style="font-size: 14px; font-weight: 600; margin-bottom: 8px; display: block;">Backup Frequency</label>
-                                <select id="backupInterval" class="form-input" style="width: 100%;">
+                            <div id="backupIntervalContainer" style="display:none;margin-top:16px;">
+                                <label for="backupInterval" style="font-size:14px;font-weight:600;margin-bottom:8px;display:block;">Backup Frequency</label>
+                                <select id="backupInterval" class="form-input" style="width:100%;">
                                     <option value="1">Daily (Every 24 hours)</option>
                                     <option value="3">Every 3 Days</option>
                                     <option value="7" selected>Weekly (Every 7 days)</option>
                                     <option value="14">Every 2 Weeks</option>
                                     <option value="30">Monthly (Every 30 days)</option>
                                 </select>
-                                <p class="help-text" style="margin-top: 8px;">
-                                    Last backup: <span id="lastBackupDate" style="font-weight: 600; color: var(--text-main);">Never</span>
+                                <p class="help-text" style="margin-top:8px;">
+                                    Last backup: <span id="lastBackupDate" style="font-weight:600;color:var(--text-main);">Never</span>
                                 </p>
                             </div>
+
                             <button type="button" id="manualBackupBtn" style="
-                            width: 100%; 
-                            padding: 10px; 
-                            margin-top: 12px;
-                            background: var(--primary-color); 
-                            color: white; 
-                            border: none; 
-                            border-radius: 6px; 
-                            font-size: 14px; 
-                            font-weight: 600; 
-                            cursor: pointer;
-                            display: flex;
-                            align-items: center;
-                            justify-content: center;
-                            gap: 8px;
-                        ">
-                            <i class="fas fa-download"></i> Backup Now
-                        </button>
+                                width:100%;padding:10px;margin-top:12px;
+                                background:var(--primary-color);color:white;
+                                border:none;border-radius:6px;font-size:14px;
+                                font-weight:600;cursor:pointer;
+                                display:flex;align-items:center;justify-content:center;gap:8px;">
+                                <i class="fas fa-download"></i> Backup Now
+                            </button>
                         </div>
                     </form>
                 </div>
             </div>
 
+            <!-- Admin Profile -->
             <div class="settings-card">
                 <div class="card-header">
                     <h3><i class="fas fa-user-shield"></i> Admin Profile</h3>
@@ -278,7 +271,6 @@
                         <div class="profile-avatar">
                             <i class="fas fa-user"></i>
                         </div>
-                        
                         <div class="profile-details">
                             <div class="detail-item">
                                 <span class="detail-label">Full Name</span>
@@ -301,6 +293,7 @@
                 </div>
             </div>
 
+            <!-- ===================== USER MANAGEMENT ===================== -->
             <div class="settings-card">
                 <div class="card-header">
                     <h3><i class="fas fa-users-cog"></i> User Management</h3>
@@ -312,19 +305,97 @@
                                 <th width="30%">User</th>
                                 <th width="35%">Email</th>
                                 <th width="20%">Role</th>
-                                <th width="15%" style="text-align: right;">Action</th>
+                                <th width="15%" style="text-align:right;">Action</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <tr><td colspan="4" style="text-align:center; padding:30px; color:#6b7280;">Loading users...</td></tr>
+                            <tr>
+                                <td colspan="4" style="text-align:center;padding:30px;color:#6b7280;">
+                                    Loading users...
+                                </td>
+                            </tr>
                         </tbody>
                     </table>
+                </div>
+                <!-- Pending changes hint -->
+                <div id="pendingHint" style="
+                    display:none;
+                    padding:10px 24px 14px;
+                    font-size:12px;
+                    color:#d97706;
+                    display:flex;
+                    align-items:center;
+                    gap:6px;
+                    border-top: 1px solid var(--border-color);
+                ">
+                    <i class="fas fa-circle" style="font-size:7px;"></i>
+                    Role changes are staged. Click <strong style="margin:0 3px;">Save Changes</strong> above to commit them.
                 </div>
             </div>
 
         </div>
     </main>
-    <!-- LOGOUT CONFIRMATION MODAL -->
+
+    <!-- ===================== USER EDIT MODAL ===================== -->
+    <div class="drawer-overlay" id="drawerOverlay">
+
+    <!-- Modal panel (inside overlay so it gets centered by flex) -->
+    <div class="user-drawer" id="userDrawer" data-user-id="" onclick="event.stopPropagation()">
+        <div class="drawer-header">
+            <h3><i class="fas fa-user-pen" style="margin-right:8px;color:var(--text-secondary);font-size:14px;"></i>Edit User</h3>
+            <button class="drawer-close" id="drawerCloseBtn" aria-label="Close">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+
+        <div class="drawer-body">
+            <!-- User hero -->
+            <div class="drawer-user-hero">
+                <div class="drawer-avatar">
+                    <i class="fas fa-user"></i>
+                </div>
+                <div>
+                    <div class="drawer-user-name" id="drawerUserName">—</div>
+                    <div class="drawer-user-email" id="drawerUserEmail">—</div>
+                </div>
+            </div>
+
+            <hr class="drawer-divider">
+
+            <!-- UID -->
+            <div class="drawer-field">
+                <span class="drawer-field-label">User ID (UID)</span>
+                <span class="drawer-uid" id="drawerUserId">—</span>
+            </div>
+
+            <hr class="drawer-divider">
+
+            <!-- Role -->
+            <div class="drawer-field">
+                <span class="drawer-field-label">Role</span>
+                <select class="drawer-role-select" id="drawerRoleSelect">
+                    <option value="user">User</option>
+                    <option value="admin">Admin</option>
+                </select>
+            </div>
+
+            <!-- Pending note -->
+            <div class="drawer-pending-note" id="drawerPendingNote">
+                <i class="fas fa-clock"></i>
+                This change will be applied when you click <strong style="margin:0 3px;">Save Changes</strong>.
+            </div>
+        </div>
+
+        <div class="drawer-footer">
+            <button class="drawer-btn-cancel" id="drawerCancelBtn">Cancel</button>
+            <button class="drawer-btn-apply" id="drawerApplyBtn">
+                <i class="fas fa-check"></i> Apply
+            </button>
+        </div>
+    </div>
+    </div><!-- /.drawer-overlay -->
+
+    <!-- ===================== LOGOUT MODAL ===================== -->
     <div id="logoutModalOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:99999;align-items:center;justify-content:center;padding:20px;">
         <div style="background:var(--bg-card);border:1px solid var(--border-color);border-radius:16px;padding:32px 28px;max-width:380px;width:100%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.2);animation:logoutModalPop 0.25s ease;">
             <div style="width:62px;height:62px;background:#fee2e2;border:1.5px solid #fca5a5;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 18px;font-size:22px;color:#dc2626;">
@@ -340,73 +411,26 @@
             </div>
         </div>
     </div>
-    <div id="successModalOverlay" style="
-        display:none;
-        position:fixed;
-        inset:0;
-        background:rgba(0,0,0,0.5);
-        z-index:99999;
-        align-items:center;
-        justify-content:center;
-        padding:20px;
-    ">
-        <div style="
-            background:var(--bg-card);
-            border:1px solid var(--border-color);
-            border-radius:16px;
-            padding:32px 28px;
-            max-width:380px;
-            width:100%;
-            text-align:center;
-            box-shadow:0 20px 60px rgba(0,0,0,0.2);
-            animation:logoutModalPop 0.25s ease;
-        ">
-            <div style="
-                width:62px;
-                height:62px;
-                background:#dcfce7;
-                border:1.5px solid #86efac;
-                border-radius:50%;
-                display:flex;
-                align-items:center;
-                justify-content:center;
-                margin:0 auto 18px;
-                font-size:22px;
-                color:#16a34a;
-            ">
+
+    <!-- ===================== SUCCESS MODAL ===================== -->
+    <div id="successModalOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:99999;align-items:center;justify-content:center;padding:20px;">
+        <div style="background:var(--bg-card);border:1px solid var(--border-color);border-radius:16px;padding:32px 28px;max-width:380px;width:100%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.2);animation:logoutModalPop 0.25s ease;">
+            <div style="width:62px;height:62px;background:#dcfce7;border:1.5px solid #86efac;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 18px;font-size:22px;color:#16a34a;">
                 <i class="fas fa-check"></i>
             </div>
-
-            <h3 id="successTitle" style="margin:0 0 10px;font-size:18px;font-weight:700;">
-                Success
-            </h3>
-
-            <p id="successMessage" style="margin:0 0 20px;font-size:14px;color:var(--text-secondary);">
-                Action completed.
-            </p>
-
-            <button id="successOkBtn" style="
-                width:100%;
-                padding:10px;
-                border:none;
-                border-radius:8px;
-                background:var(--primary-color);
-                color:white;
-                font-weight:600;
-                cursor:pointer;
-            ">
-                OK
-            </button>
+            <h3 id="successTitle" style="margin:0 0 10px;font-size:18px;font-weight:700;color:var(--text-main);">Success</h3>
+            <p id="successMessage" style="margin:0 0 20px;font-size:14px;color:var(--text-secondary);">Action completed.</p>
+            <button id="successOkBtn" style="width:100%;padding:10px;border:none;border-radius:8px;background:var(--primary-color);color:white;font-weight:600;cursor:pointer;">OK</button>
         </div>
     </div>
 
     <style>
     @keyframes logoutModalPop {
-        from { transform:scale(0.9);opacity:0; }
-        to   { transform:scale(1);opacity:1; }
+        from { transform:scale(0.9); opacity:0; }
+        to   { transform:scale(1);   opacity:1; }
     }
     #logoutModalOverlay.show { display:flex !important; }
-    #logoutCancelBtn:hover { background:var(--hover-bg);color:var(--text-main); }
+    #logoutCancelBtn:hover  { background:var(--hover-bg); color:var(--text-main); }
     #logoutConfirmBtn:hover { background:#b91c1c; }
     </style>
 
@@ -414,20 +438,19 @@
 
     <script>
         document.addEventListener("DOMContentLoaded", () => {
-            // Sidebar Logic
             const hamburger = document.getElementById('hamburgerBtn');
-            const sidebar = document.getElementById('sidebar');
-            const overlay = document.getElementById('overlay');
-            const closeBtn = document.getElementById('closeBtn');
+            const sidebar   = document.getElementById('sidebar');
+            const overlay   = document.getElementById('overlay');
+            const closeBtn  = document.getElementById('closeBtn');
 
             function toggleSidebar() {
                 sidebar.classList.toggle('open');
                 overlay.classList.toggle('show');
             }
 
-            if(hamburger) hamburger.addEventListener('click', toggleSidebar);
-            if(closeBtn) closeBtn.addEventListener('click', toggleSidebar);
-            if(overlay) overlay.addEventListener('click', toggleSidebar);
+            if (hamburger) hamburger.addEventListener('click', toggleSidebar);
+            if (closeBtn)  closeBtn.addEventListener('click', toggleSidebar);
+            if (overlay)   overlay.addEventListener('click', toggleSidebar);
         });
     </script>
 </body>

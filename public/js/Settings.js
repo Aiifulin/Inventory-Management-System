@@ -6,6 +6,13 @@ import { db, auth, storage } from "./firebase.js";
 
 const SETTINGS_DOC_ID = "global_config";
 
+// ================================================
+// PENDING USER CHANGES
+// Map<userId, { originalRole, pendingRole, name, email }>
+// Nothing hits Firestore until Save Changes is clicked.
+// ================================================
+const pendingUserChanges = new Map();
+
 async function getCachedUserData(uid) {
     const key    = `user_data_${uid}`;
     const cached = sessionStorage.getItem(key);
@@ -30,7 +37,7 @@ function setSettingsLoading(loading) {
 }
 
 // ================================================
-// AUTH — parallel: user data + settings + users table fire at the same time
+// AUTH
 // ================================================
 onAuthStateChanged(auth, async (user) => {
     if (!user) { window.location.href = "index.html"; return; }
@@ -38,7 +45,6 @@ onAuthStateChanged(auth, async (user) => {
     const main = document.getElementById('mainContent');
     main.style.visibility = 'visible';
 
-    // Logout modal setup (needed regardless of role)
     const doSignOut = () => {
         localStorage.removeItem("user_session");
         localStorage.removeItem("user_uid");
@@ -49,32 +55,29 @@ onAuthStateChanged(auth, async (user) => {
     const openLogoutModal = initLogoutModal(doSignOut);
     window.logout = function () { if (openLogoutModal) openLogoutModal(); };
 
-    // 🔥 Fire user data AND settings/users loads simultaneously
     const [userData] = await Promise.all([
         getCachedUserData(user.uid),
-        // Pre-load settings and users in background — access check below
         loadSettings(),
         loadUserTable()
     ]);
 
-    const nameEl  = document.getElementById('userNameDisplay');
+    const nameEl = document.getElementById('userNameDisplay');
     if (nameEl) nameEl.textContent = userData?.name || "User";
 
     const isAdmin = userData?.role?.toLowerCase() === 'admin';
 
     if (!isAdmin) {
         main.innerHTML = `
-            <div style="display:flex; flex-direction:column; align-items:center; 
-                        justify-content:center; height:60vh; text-align:center; 
+            <div style="display:flex;flex-direction:column;align-items:center;
+                        justify-content:center;height:60vh;text-align:center;
                         color:var(--text-secondary);">
-                <i class="fas fa-lock" style="font-size:48px; margin-bottom:16px;"></i>
-                <h2 style="margin:0 0 8px; color:var(--text-main); font-size:20px;">Access Denied</h2>
-                <p style="margin:0; font-size:14px;">You do not have permission to view Settings.</p>
+                <i class="fas fa-lock" style="font-size:48px;margin-bottom:16px;"></i>
+                <h2 style="margin:0 0 8px;color:var(--text-main);font-size:20px;">Access Denied</h2>
+                <p style="margin:0;font-size:14px;">You do not have permission to view Settings.</p>
             </div>`;
         return;
     }
 
-    // Admin-only setup
     const fullUser = {
         ...user,
         displayName: userData?.name || user.displayName || "Admin User",
@@ -86,38 +89,41 @@ onAuthStateChanged(auth, async (user) => {
     initDarkMode();
     initAutoBackup();
     await loadAutoBackupSettings();
+    initUserDrawer();
 });
 
+// ================================================
+// SUCCESS / CONFIRM MODALS
+// ================================================
 function showSuccessModal(title, message) {
     const overlay = document.getElementById("successModalOverlay");
     const titleEl = document.getElementById("successTitle");
     const msgEl   = document.getElementById("successMessage");
     const okBtn   = document.getElementById("successOkBtn");
-
     titleEl.textContent = title;
     msgEl.textContent   = message;
     overlay.style.display = "flex";
     okBtn.onclick = () => { overlay.style.display = "none"; };
 }
 
-// --- DARK MODE ---
+// ================================================
+// DARK MODE
+// ================================================
 function initDarkMode() {
     const toggle       = document.getElementById('darkModeToggle');
     const currentTheme = localStorage.getItem('theme');
     if (currentTheme === 'dark' && toggle) toggle.checked = true;
 
     toggle?.addEventListener('change', (e) => {
-        if (e.target.checked) {
-            document.documentElement.setAttribute('data-theme', 'dark');
-            localStorage.setItem('theme', 'dark');
-        } else {
-            document.documentElement.setAttribute('data-theme', 'light');
-            localStorage.setItem('theme', 'light');
-        }
+        const theme = e.target.checked ? 'dark' : 'light';
+        document.documentElement.setAttribute('data-theme', theme);
+        localStorage.setItem('theme', theme);
     });
 }
 
-// --- LOAD USERS TABLE ---
+// ================================================
+// LOAD USERS TABLE  (read-only display)
+// ================================================
 async function loadUserTable() {
     const tbody = document.querySelector('#usersTable tbody');
     if (!tbody) return;
@@ -128,65 +134,187 @@ async function loadUserTable() {
             return;
         }
 
-        let html = '';
+        // Cache all users for the drawer
+        window._allUsersCache = {};
         querySnapshot.forEach((docSnap) => {
-            const u      = docSnap.data();
-            const userId = docSnap.id;
-            const isSelf = (userId === auth.currentUser?.uid);
-
-            const adminSelected = u.role === 'admin' ? 'selected' : '';
-            const userSelected  = u.role === 'user'  ? 'selected' : '';
-            const disabledState = isSelf ? 'disabled' : '';
-
-            html += `
-                <tr>
-                    <td>
-                        <div class="user-info-cell">
-                            <span class="user-name">
-                                ${u.name || 'No Name'} 
-                                ${isSelf ? '<span class="user-self-tag">YOU</span>' : ''}
-                            </span>
-                        </div>
-                    </td>
-                    <td style="color: var(--text-secondary);">${u.email}</td>
-                    <td>
-                        <select class="role-select" id="role-${userId}" ${disabledState}>
-                            <option value="user"  ${userSelected}>User</option>
-                            <option value="admin" ${adminSelected}>Admin</option>
-                        </select>
-                    </td>
-                    <td style="text-align: right;">
-                        ${!isSelf
-                            ? `<button class="btn-update" onclick="updateUserRole('${userId}')">Update</button>`
-                            : '<span style="font-size:12px; color: var(--text-secondary); font-style:italic;">Locked</span>'}
-                    </td>
-                </tr>`;
+            window._allUsersCache[docSnap.id] = { id: docSnap.id, ...docSnap.data() };
         });
-        tbody.innerHTML = html;
+
+        renderUserTable();
     } catch (error) {
         console.error("Error loading users:", error);
-        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:red;">Error loading users.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:red;">Error loading users.</td></tr>';
     }
 }
 
-window.updateUserRole = async function(userId) {
-    const selectEl = document.getElementById(`role-${userId}`);
-    const newRole  = selectEl.value;
-    const btn      = selectEl.parentElement.nextElementSibling.querySelector('button');
-    try {
-        btn.textContent = "...";
-        btn.disabled    = true;
-        await updateDoc(doc(db, "users", userId), { role: newRole });
-        showSuccessModal("Role Updated", "User role updated successfully!");
-    } catch (error) {
-        console.error("Error updating role:", error);
-        showSuccessModal("Error", "An error occurred while updating the user role.");
-    } finally {
-        btn.textContent = "Update";
-        btn.disabled    = false;
-    }
-};
+function renderUserTable() {
+    const tbody = document.querySelector('#usersTable tbody');
+    if (!tbody || !window._allUsersCache) return;
 
+    const users = Object.values(window._allUsersCache);
+    let html = '';
+
+    users.forEach((u) => {
+        const userId = u.id;
+        const isSelf = userId === auth.currentUser?.uid;
+
+        // Use pending role if one exists, otherwise use saved role
+        const pending     = pendingUserChanges.get(userId);
+        const displayRole = pending ? pending.pendingRole : (u.role || 'user');
+        const hasPending  = !!pending;
+
+        const badgeClass  = displayRole === 'admin' ? 'admin' : 'user';
+        const badgeIcon   = displayRole === 'admin' ? 'fa-crown' : 'fa-user';
+        const badgeLabel  = displayRole === 'admin' ? 'Admin' : 'User';
+
+        html += `
+            <tr data-user-id="${userId}">
+                <td>
+                    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+                        <span class="user-name">
+                            ${u.name || 'No Name'}
+                            ${isSelf ? '<span class="user-self-tag">YOU</span>' : ''}
+                            ${hasPending ? '<span class="pending-dot" title="Unsaved change"></span>' : ''}
+                        </span>
+                        <span class="user-role-badge ${badgeClass}" style="display:none;" aria-hidden="true">
+                            <i class="fas ${badgeIcon}"></i> ${badgeLabel}
+                        </span>
+                    </div>
+                </td>
+                <td style="color:var(--text-secondary);">${u.email}</td>
+                <td>
+                    <span class="user-role-badge ${badgeClass}">
+                        <i class="fas ${badgeIcon}"></i> ${badgeLabel}
+                    </span>
+                </td>
+                <td style="text-align:right;">
+                    ${!isSelf
+                        ? `<button class="btn-edit-user" data-user-id="${userId}">
+                               <i class="fas fa-pen"></i> Edit
+                           </button>`
+                        : '<span style="font-size:12px;color:var(--text-secondary);font-style:italic;">Locked</span>'}
+                </td>
+            </tr>`;
+    });
+
+    tbody.innerHTML = html;
+}
+
+// ================================================
+// USER DRAWER
+// ================================================
+function initUserDrawer() {
+    // Event delegation on table — catches dynamically rendered edit buttons
+    document.querySelector('#usersTable tbody')?.addEventListener('click', (e) => {
+        const btn = e.target.closest('.btn-edit-user');
+        if (!btn) return;
+        const userId = btn.dataset.userId;
+        openUserDrawer(userId);
+    });
+
+    // Close via overlay click
+    document.getElementById('drawerOverlay')?.addEventListener('click', closeUserDrawer);
+    // Close via X button
+    document.getElementById('drawerCloseBtn')?.addEventListener('click', closeUserDrawer);
+    // Cancel button
+    document.getElementById('drawerCancelBtn')?.addEventListener('click', closeUserDrawer);
+
+    // Apply button — stages the change locally, updates table display
+    document.getElementById('drawerApplyBtn')?.addEventListener('click', () => {
+        const userId      = document.getElementById('userDrawer').dataset.userId;
+        const newRole     = document.getElementById('drawerRoleSelect').value;
+        const u           = window._allUsersCache[userId];
+        const originalRole = u.role || 'user';
+
+        if (newRole === originalRole) {
+            // If back to original, remove any pending entry
+            pendingUserChanges.delete(userId);
+        } else {
+            pendingUserChanges.set(userId, {
+                originalRole,
+                pendingRole: newRole,
+                name:  u.name,
+                email: u.email
+            });
+        }
+
+        renderUserTable();
+        updateSaveBtnLabel();
+        closeUserDrawer();
+    });
+
+    // Role select change → update pending note visibility inside drawer
+    document.getElementById('drawerRoleSelect')?.addEventListener('change', () => {
+        refreshDrawerPendingNote();
+    });
+}
+
+function openUserDrawer(userId) {
+    const u = window._allUsersCache[userId];
+    if (!u) return;
+
+    const drawer  = document.getElementById('userDrawer');
+    const overlay = document.getElementById('drawerOverlay');
+
+    // Populate hero section
+    document.getElementById('drawerUserName').textContent  = u.name  || 'No Name';
+    document.getElementById('drawerUserEmail').textContent = u.email || '—';
+    document.getElementById('drawerUserId').textContent    = userId;
+
+    // Role select: prefer any already-staged pending value
+    const pending   = pendingUserChanges.get(userId);
+    const roleSelect = document.getElementById('drawerRoleSelect');
+    roleSelect.value = pending ? pending.pendingRole : (u.role || 'user');
+
+    // Store which user is open
+    drawer.dataset.userId = userId;
+
+    refreshDrawerPendingNote();
+
+    overlay.classList.add('open');
+    drawer.classList.add('open');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeUserDrawer() {
+    document.getElementById('userDrawer')?.classList.remove('open');
+    document.getElementById('drawerOverlay')?.classList.remove('open');
+    document.body.style.overflow = '';
+}
+
+function refreshDrawerPendingNote() {
+    const userId   = document.getElementById('userDrawer')?.dataset.userId;
+    const u        = window._allUsersCache?.[userId];
+    if (!u) return;
+
+    const selected     = document.getElementById('drawerRoleSelect').value;
+    const originalRole = u.role || 'user';
+    const noteEl       = document.getElementById('drawerPendingNote');
+
+    if (selected !== originalRole) {
+        noteEl.classList.add('visible');
+    } else {
+        noteEl.classList.remove('visible');
+    }
+}
+
+// Update the Save Changes button to show pending count
+function updateSaveBtnLabel() {
+    const saveBtn  = document.getElementById('saveSettingsBtn');
+    const btnText  = saveBtn?.querySelector('.btn-text');
+    if (!btnText) return;
+
+    const count = pendingUserChanges.size;
+    if (count > 0) {
+        btnText.textContent = `Save Changes (${count} role${count > 1 ? 's' : ''} pending)`;
+    } else {
+        btnText.textContent = 'Save Changes';
+    }
+}
+
+// ================================================
+// ADMIN PROFILE
+// ================================================
 function populateAdminInfo(user) {
     const nameEl  = document.getElementById('adminNameDisplay');
     const emailEl = document.getElementById('adminEmailDisplay');
@@ -196,10 +324,12 @@ function populateAdminInfo(user) {
     if (idEl)    idEl.textContent    = user.uid;
 }
 
-// --- LOAD SETTINGS ---
+// ================================================
+// LOAD SETTINGS
+// ================================================
 async function loadSettings() {
     try {
-        const docSnap = await getDoc(doc(db, "settings", SETTINGS_DOC_ID));
+        const docSnap     = await getDoc(doc(db, "settings", SETTINGS_DOC_ID));
         const thresholdEl = document.getElementById('defaultThreshold');
         if (thresholdEl) {
             thresholdEl.value = docSnap.exists() && docSnap.data().defaultLowStockThreshold
@@ -211,7 +341,9 @@ async function loadSettings() {
     }
 }
 
-// --- SAVE SETTINGS ---
+// ================================================
+// SAVE SETTINGS — commits inventory settings + ALL pending user role changes
+// ================================================
 const saveBtn = document.getElementById('saveSettingsBtn');
 if (saveBtn) {
     saveBtn.addEventListener('click', async () => {
@@ -224,11 +356,12 @@ if (saveBtn) {
             return;
         }
 
-        const originalText    = saveBtn.innerHTML;
-        saveBtn.innerHTML     = `<i class="fas fa-spinner fa-spin"></i> Saving...`;
+        const originalContent = saveBtn.innerHTML;
+        saveBtn.innerHTML     = `<i class="fas fa-spinner fa-spin"></i> <span class="btn-text">Saving...</span>`;
         saveBtn.disabled      = true;
 
         try {
+            // 1. Save inventory settings
             const settingsData = {
                 defaultLowStockThreshold: thresholdVal,
                 autoBackupEnabled,
@@ -245,23 +378,43 @@ if (saveBtn) {
             }
 
             await setDoc(doc(db, "settings", SETTINGS_DOC_ID), settingsData, { merge: true });
-            showSuccessModal("Settings Saved", "Your settings have been updated successfully.");
+
+            // 2. Commit all pending user role changes
+            if (pendingUserChanges.size > 0) {
+                const updates = [...pendingUserChanges.entries()].map(([userId, change]) =>
+                    updateDoc(doc(db, "users", userId), { role: change.pendingRole })
+                );
+                await Promise.all(updates);
+
+                // Sync local cache & clear pending
+                pendingUserChanges.forEach((change, userId) => {
+                    if (window._allUsersCache[userId]) {
+                        window._allUsersCache[userId].role = change.pendingRole;
+                    }
+                });
+                pendingUserChanges.clear();
+                renderUserTable();
+            }
+
+            updateSaveBtnLabel();
+            showSuccessModal("Settings Saved", "Your settings and any role changes have been saved successfully.");
             await loadAutoBackupSettings();
         } catch (error) {
             console.error("Error saving settings:", error);
-            showSuccessModal("Error", "An error occurred while saving settings.");
+            showSuccessModal("Error", "An error occurred while saving. Please try again.");
         } finally {
-            saveBtn.innerHTML = originalText;
+            saveBtn.innerHTML = originalContent;
             saveBtn.disabled  = false;
         }
     });
 }
 
-// --- AUTO BACKUP LOGIC ---
+// ================================================
+// AUTO BACKUP
+// ================================================
 function initAutoBackup() {
     const toggle            = document.getElementById('autoBackupToggle');
     const intervalContainer = document.getElementById('backupIntervalContainer');
-
     toggle?.addEventListener('change', (e) => {
         intervalContainer.style.display = e.target.checked ? 'block' : 'none';
     });
@@ -286,7 +439,7 @@ async function loadAutoBackupSettings() {
 
         if (lastBackupSpan) {
             lastBackupSpan.textContent = data.lastBackupDate
-                ? data.lastBackupDate.toDate().toLocaleDateString("en-US", { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+                ? data.lastBackupDate.toDate().toLocaleDateString("en-US", { month:'short', day:'numeric', year:'numeric', hour:'2-digit', minute:'2-digit' })
                 : "Never";
         }
 
@@ -317,9 +470,9 @@ async function performAutoBackup() {
             const firstVariation = p.variations?.[0] || {};
             const firstAttribute = p.attributes?.[0]  || {};
             return {
-                "Product Name":        p.name || "",
+                "Product Name":        p.name        || "",
                 "Description":         p.description || "",
-                "Category":            p.category || "",
+                "Category":            p.category    || "",
                 "Price":               Number(p.price) || 0,
                 "Stock":               Number(p.stock) || 0,
                 "Low Stock Threshold": Number(p.lowStockThreshold) || 10,

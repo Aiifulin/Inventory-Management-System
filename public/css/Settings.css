@@ -336,3 +336,4 @@ input:checked + .slider:before { transform: translateX(24px); }
 .skel-td { height: 12px; border-radius: 999px; background: var(--hover-bg); }
 .skel-td-select { height: 32px; border-radius: 6px; width: 80%; background: var(--hover-bg); }
 .skel-td-btn { height: 32px; border-radius: 6px; width: 60px; background: var(--hover-bg); justify-self: end; }
+
