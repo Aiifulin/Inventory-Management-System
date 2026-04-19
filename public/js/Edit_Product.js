@@ -607,3 +607,5 @@ async function deleteImageByUrl(url) {
         }
     }
 }
+
+export { getCachedUserData, checkAdminRole, logActivity, sanitizeInput, loadCategories, getPathFromUrl, deleteImageByUrl };

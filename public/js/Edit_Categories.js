@@ -247,3 +247,5 @@ function showSuccessModal(categoryName) {
         window.location.href = "Categories.html";
     }, 1000);
 }
+
+export { getCachedUserData, logActivity, sanitizeInput };

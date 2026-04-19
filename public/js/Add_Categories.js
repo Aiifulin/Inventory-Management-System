@@ -194,3 +194,5 @@ function showSuccessModal(categoryName) {
         }
     }, 40); 
 }
+
+export { getCachedUserData, checkAdminRole, sanitizeInput, addCategory, logActivity };

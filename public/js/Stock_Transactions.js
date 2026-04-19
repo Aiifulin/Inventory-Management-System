@@ -764,3 +764,6 @@ document.addEventListener("DOMContentLoaded", () => {
         if (currentPage < total) { currentPage++; renderPage(); window.scrollTo({ top: 0, behavior: "smooth" }); }
     });
 });
+
+
+export { getCachedUserData, logActivity, formatDate, escHtml, updateSummaryStats };

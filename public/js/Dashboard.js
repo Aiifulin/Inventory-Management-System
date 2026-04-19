@@ -458,3 +458,5 @@ import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/
         if (closeBtn)     closeBtn.addEventListener('click', closeSidebar);
         if (overlay)      overlay.addEventListener('click', closeSidebar);
     });
+    
+    export { getCachedUserData, loadDashboard, fetchAndCache, loadStats, loadRecentActivities, loadCategoryCount, saveCache, loadCache, clearCache, formatTimeAgo };

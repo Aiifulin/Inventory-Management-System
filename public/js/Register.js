@@ -194,3 +194,5 @@ window.proceedAfterVerify = async function () {
     document.getElementById("verifyOverlay").style.display = "none";
     showRegisterSuccess();
 };
+
+export { showError };

@@ -1009,3 +1009,29 @@ document.addEventListener("DOMContentLoaded", () => {
     }    
 });
 
+
+function sanitizeInput(str) {
+    if (!str) return "";
+    if (typeof str !== 'string') return String(str);
+    const div = document.createElement('div');
+    div.innerText = str;
+    return div.innerHTML;
+}
+
+function preventNegatives(input) {
+    input.addEventListener('input', function() {
+        if (this.value < 0) this.value = 0;
+    });
+}
+
+function applyCharLimit(input) {
+    if (!input) return;
+    input.setAttribute("maxlength", "30");
+    input.addEventListener("input", function() {
+        this.style.borderColor  = this.value.length >= 30 ? "red" : "";
+        this.style.outlineColor = this.value.length >= 30 ? "red" : "";
+    });
+}
+
+
+export { getCachedUserData, checkAdminRole, sanitizeInput, logActivity, loadCategories, loadDefaultThreshold };

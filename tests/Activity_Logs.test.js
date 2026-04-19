@@ -1,268 +1,254 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
-    fetchLogsLogic,
-    filterLogsLogic,
-    sortLogsLogic,
-    paginateLogsLogic,
-    getLogBadgeClass,
-    checkAdminRole,
-    doSignOut
-} from "./Activity_Logs.js";
+    getCachedUserData,
+    saveLogsCache,
+    loadLogsCache,
+    fetchAndCacheLogs,
+    applyFilterAndRender,
+    renderPage,
+    initLogs
+} from "../public/js/Activity_Logs.js";
 
-import { signOut } from "firebase/auth";
-
-const { mockGetDocs, mockGetDoc, mockDoc, mockCollection, mockQuery, mockOrderBy } = vi.hoisted(() => ({
+// ==========================================
+// MOCKS SETUP
+// ==========================================
+const { mockGetDocs, mockGetDoc, mockDoc, mockCollection, mockQuery, mockOrderBy, mockLimit } = vi.hoisted(() => ({
     mockGetDocs: vi.fn(),
-    mockGetDoc: vi.fn(),
-    mockDoc: vi.fn(),
-    mockCollection: vi.fn(),
-    mockQuery: vi.fn(),
-    mockOrderBy: vi.fn()
+    mockGetDoc:  vi.fn(),
+    mockDoc:     vi.fn(() => ({})),
+    mockCollection: vi.fn(() => ({})),
+    mockQuery:   vi.fn(),
+    mockOrderBy: vi.fn(),
+    mockLimit:   vi.fn()
 }));
 
-vi.mock("firebase/firestore", () => ({
-    getFirestore: vi.fn(),
+vi.mock("https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js", () => ({
     collection: mockCollection,
-    query: mockQuery,
-    orderBy: mockOrderBy,
-    getDocs: mockGetDocs,
-    doc: mockDoc,
-    getDoc: mockGetDoc
+    query:      mockQuery,
+    orderBy:    mockOrderBy,
+    limit:      mockLimit,
+    getDocs:    mockGetDocs,
+    doc:        mockDoc,
+    getDoc:     mockGetDoc
 }));
 
-vi.mock("firebase/auth", () => ({
-    getAuth: vi.fn(),
+vi.mock("https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js", () => ({
     onAuthStateChanged: vi.fn(),
-    signOut: vi.fn()
+    signOut:            vi.fn()
 }));
 
-// Helper to create a mock Firestore timestamp
-const mockTimestamp = (isoString) => ({
-    toDate: () => new Date(isoString)
+vi.mock("../public/js/logout-modal.js", () => ({
+    initLogoutModal: vi.fn(() => vi.fn())
+}));
+
+vi.mock("../public/js/firebase.js", () => ({
+    auth:    {},
+    db:      {},
+    storage: {}
+}));
+
+global.localStorage = {
+    store: {},
+    getItem:    vi.fn(function(key)        { return this.store[key] ?? null; }),
+    setItem:    vi.fn(function(key, value) { this.store[key] = value; }),
+    removeItem: vi.fn(function(key)        { delete this.store[key]; }),
+    clear:      vi.fn(function()           { this.store = {}; })
+};
+
+global.sessionStorage = {
+    store: {},
+    getItem:    vi.fn(function(key)        { return this.store[key] ?? null; }),
+    setItem:    vi.fn(function(key, value) { this.store[key] = value; }),
+    removeItem: vi.fn(function(key)        { delete this.store[key]; }),
+    clear:      vi.fn(function()           { this.store = {}; })
+};
+
+global.document = {
+    getElementById: vi.fn(() => ({
+        value: '', textContent: '', style: {}, classList: { toggle: vi.fn(), add: vi.fn(), remove: vi.fn() },
+        disabled: false, addEventListener: vi.fn()
+    })),
+    querySelector:    vi.fn(() => ({ addEventListener: vi.fn(), style: {}, classList: { toggle: vi.fn() } })),
+    querySelectorAll: vi.fn(() => []),
+    addEventListener: vi.fn()
+};
+
+// ==========================================
+// TEST SUITES
+// ==========================================
+
+describe("Activity Logs — Cache Helpers", () => {
+
+    beforeEach(() => {
+        vi.clearAllMocks();
+        localStorage.clear();
+    });
+
+    describe("saveLogsCache", () => {
+        it("should save logs to localStorage", () => {
+            const logs = [{ id: "1", action: "Added Product", target: "Chair", user: "admin@test.com", timestamp: null }];
+            saveLogsCache(logs);
+            expect(localStorage.setItem).toHaveBeenCalledWith(
+                'activity_logs_cache',
+                expect.stringContaining("Added Product")
+            );
+        });
+
+        it("should include cachedAt timestamp", () => {
+            saveLogsCache([]);
+            const call = localStorage.setItem.mock.calls[0][1];
+            const parsed = JSON.parse(call);
+            expect(parsed.cachedAt).toBeDefined();
+            expect(typeof parsed.cachedAt).toBe("number");
+        });
+    });
+
+    describe("loadLogsCache", () => {
+        it("should return logs if cache is fresh", () => {
+            const logs = [{ id: "1", action: "Test", target: "X", user: "u", timestamp: null }];
+            localStorage.getItem.mockReturnValue(JSON.stringify({ logs, cachedAt: Date.now() }));
+            const result = loadLogsCache();
+            expect(result).toEqual(logs);
+        });
+
+        it("should return null if cache is expired", () => {
+            const logs = [{ id: "1", action: "Test", target: "X", user: "u", timestamp: null }];
+            const expiredTime = Date.now() - (6 * 60 * 1000); // 6 minutes ago
+            localStorage.getItem.mockReturnValue(JSON.stringify({ logs, cachedAt: expiredTime }));
+            expect(loadLogsCache()).toBeNull();
+        });
+
+        it("should return null if nothing in cache", () => {
+            localStorage.getItem.mockReturnValue(null);
+            expect(loadLogsCache()).toBeNull();
+        });
+
+        it("should return null if cache JSON is malformed", () => {
+            localStorage.getItem.mockReturnValue("not-valid-json{{");
+            expect(loadLogsCache()).toBeNull();
+        });
+    });
 });
 
-describe("Activity Logs Logic", () => {
+describe("Activity Logs — getCachedUserData", () => {
 
-    beforeEach(() => vi.clearAllMocks());
-
-    // ─── fetchLogsLogic ───────────────────────────────────────────────────────
-    describe("fetchLogsLogic", () => {
-        it("should fetch and format logs correctly", async () => {
-            const mockData = [
-                {
-                    id: "log1",
-                    data: () => ({
-                        action: "Added Product",
-                        target: "Gaming Chair",
-                        user: "admin@test.com",
-                        timestamp: mockTimestamp("2024-01-15T10:00:00.000Z")
-                    })
-                },
-                {
-                    id: "log2",
-                    data: () => ({
-                        action: "Deleted Product",
-                        target: "Old Item",
-                        user: "user@test.com",
-                        timestamp: null
-                    })
-                }
-            ];
-            mockGetDocs.mockResolvedValue({ forEach: (cb) => mockData.forEach(cb) });
-
-            const logs = await fetchLogsLogic({});
-            expect(logs).toHaveLength(2);
-            expect(logs[0].action).toBe("Added Product");
-            expect(logs[0].id).toBe("log1");
-            expect(logs[1].timestamp).toBeNull();
-        });
-
-        it("should default missing fields to empty strings / 'Admin'", async () => {
-            const mockData = [{ id: "l1", data: () => ({}) }];
-            mockGetDocs.mockResolvedValue({ forEach: (cb) => mockData.forEach(cb) });
-
-            const logs = await fetchLogsLogic({});
-            expect(logs[0].action).toBe('');
-            expect(logs[0].user).toBe('Admin');
-        });
-
-        it("should return empty array when no logs exist", async () => {
-            mockGetDocs.mockResolvedValue({ forEach: () => {} });
-            const logs = await fetchLogsLogic({});
-            expect(logs).toHaveLength(0);
-        });
+    beforeEach(() => {
+        vi.clearAllMocks();
+        sessionStorage.clear();
     });
 
-    // ─── filterLogsLogic ──────────────────────────────────────────────────────
-    describe("filterLogsLogic", () => {
-        const logs = [
-            { action: "Added Product",   target: "Laptop",       user: "alice@test.com", timestamp: null },
-            { action: "Deleted Product", target: "Old Mouse",    user: "bob@test.com",   timestamp: null },
-            { action: "Updated Product", target: "Gaming Chair", user: "alice@test.com", timestamp: null }
+    it("should return cached data from sessionStorage", async () => {
+        const mockUser = { role: "admin", name: "Alice" };
+        sessionStorage.getItem.mockReturnValue(JSON.stringify(mockUser));
+        const result = await getCachedUserData("uid-1");
+        expect(result).toEqual(mockUser);
+        expect(mockGetDoc).not.toHaveBeenCalled();
+    });
+
+    it("should fetch from Firestore if not cached", async () => {
+        sessionStorage.getItem.mockReturnValue(null);
+        mockGetDoc.mockResolvedValue({
+            exists: () => true,
+            data:   () => ({ role: "admin", name: "Alice" })
+        });
+        const result = await getCachedUserData("uid-1");
+        expect(result).toEqual({ role: "admin", name: "Alice" });
+        expect(sessionStorage.setItem).toHaveBeenCalled();
+    });
+
+    it("should return null if user document does not exist", async () => {
+        sessionStorage.getItem.mockReturnValue(null);
+        mockGetDoc.mockResolvedValue({ exists: () => false });
+        const result = await getCachedUserData("uid-1");
+        expect(result).toBeNull();
+    });
+
+    it("should return null if Firestore throws", async () => {
+        sessionStorage.getItem.mockReturnValue(null);
+        mockGetDoc.mockRejectedValue(new Error("Network error"));
+        const result = await getCachedUserData("uid-1");
+        expect(result).toBeNull();
+    });
+});
+
+describe("Activity Logs — fetchAndCacheLogs", () => {
+
+    beforeEach(() => {
+        vi.clearAllMocks();
+        localStorage.clear();
+    });
+
+    it("should fetch logs and save to cache", async () => {
+        const mockDocs = [
+            {
+                id:   "log1",
+                data: () => ({
+                    action:    "Added Product",
+                    target:    "Chair",
+                    user:      "admin@test.com",
+                    timestamp: { toDate: () => new Date("2024-01-15T10:00:00Z") }
+                })
+            }
         ];
+        mockGetDocs.mockResolvedValue({ forEach: (cb) => mockDocs.forEach(cb) });
 
-        it("should filter by action keyword", () => {
-            const result = filterLogsLogic(logs, "deleted");
-            expect(result).toHaveLength(1);
-            expect(result[0].target).toBe("Old Mouse");
-        });
+        await fetchAndCacheLogs();
 
-        it("should filter by target keyword", () => {
-            const result = filterLogsLogic(logs, "laptop");
-            expect(result).toHaveLength(1);
-        });
-
-        it("should filter by user email", () => {
-            const result = filterLogsLogic(logs, "alice");
-            expect(result).toHaveLength(2);
-        });
-
-        it("should return all logs when search is empty", () => {
-            expect(filterLogsLogic(logs, "")).toHaveLength(3);
-        });
-
-        it("should return empty array when nothing matches", () => {
-            expect(filterLogsLogic(logs, "zzznomatch")).toHaveLength(0);
-        });
-
-        it("should be case insensitive", () => {
-            expect(filterLogsLogic(logs, "ADDED")).toHaveLength(1);
-        });
+        expect(mockGetDocs).toHaveBeenCalled();
+        expect(localStorage.setItem).toHaveBeenCalledWith(
+            'activity_logs_cache',
+            expect.stringContaining("Added Product")
+        );
     });
 
-    // ─── sortLogsLogic ────────────────────────────────────────────────────────
-    describe("sortLogsLogic", () => {
-        const logs = [
-            { action: "A", timestamp: "2024-01-01T00:00:00.000Z" },
-            { action: "B", timestamp: "2024-03-01T00:00:00.000Z" },
-            { action: "C", timestamp: "2024-02-01T00:00:00.000Z" }
-        ];
-
-        it("should sort descending (newest first) by default", () => {
-            const sorted = sortLogsLogic(logs, 'desc');
-            expect(sorted[0].action).toBe("B");
-            expect(sorted[2].action).toBe("A");
-        });
-
-        it("should sort ascending (oldest first)", () => {
-            const sorted = sortLogsLogic(logs, 'asc');
-            expect(sorted[0].action).toBe("A");
-            expect(sorted[2].action).toBe("B");
-        });
-
-        it("should not mutate the original array", () => {
-            const original = [...logs];
-            sortLogsLogic(logs, 'asc');
-            expect(logs[0].action).toBe(original[0].action);
-        });
+    it("should handle null timestamps gracefully", async () => {
+        const mockDocs = [{ id: "log1", data: () => ({ action: "Test", target: "X", user: "u", timestamp: null }) }];
+        mockGetDocs.mockResolvedValue({ forEach: (cb) => mockDocs.forEach(cb) });
+        await expect(fetchAndCacheLogs()).resolves.not.toThrow();
     });
 
-    // ─── paginateLogsLogic ────────────────────────────────────────────────────
-    describe("paginateLogsLogic", () => {
-        const logs = Array.from({ length: 25 }, (_, i) => ({ action: `Log ${i + 1}` }));
-
-        it("should return the correct page of results", () => {
-            const { rows } = paginateLogsLogic(logs, 1, 10);
-            expect(rows).toHaveLength(10);
-            expect(rows[0].action).toBe("Log 1");
-        });
-
-        it("should return partial last page correctly", () => {
-            const { rows } = paginateLogsLogic(logs, 3, 10);
-            expect(rows).toHaveLength(5);
-        });
-
-        it("should calculate totalPages correctly", () => {
-            const { totalPages } = paginateLogsLogic(logs, 1, 10);
-            expect(totalPages).toBe(3);
-        });
-
-        it("should clamp page to totalPages if page is too large", () => {
-            const { currentPage } = paginateLogsLogic(logs, 999, 10);
-            expect(currentPage).toBe(3);
-        });
-
-        it("should clamp page to 1 if page is 0 or negative", () => {
-            const { currentPage } = paginateLogsLogic(logs, 0, 10);
-            expect(currentPage).toBe(1);
-        });
-
-        it("should return totalPages of 1 for an empty log list", () => {
-            const { totalPages, rows } = paginateLogsLogic([], 1, 10);
-            expect(totalPages).toBe(1);
-            expect(rows).toHaveLength(0);
-        });
+    it("should default missing fields", async () => {
+        const mockDocs = [{ id: "log1", data: () => ({}) }];
+        mockGetDocs.mockResolvedValue({ forEach: (cb) => mockDocs.forEach(cb) });
+        await fetchAndCacheLogs();
+        expect(localStorage.setItem).toHaveBeenCalledWith(
+            'activity_logs_cache',
+            expect.stringContaining('"user":"Admin"')
+        );
     });
 
-    // ─── getLogBadgeClass ─────────────────────────────────────────────────────
-    describe("getLogBadgeClass", () => {
-        it("should return 'green' for add actions", () => {
-            expect(getLogBadgeClass("Added Product")).toBe("green");
-        });
+    it("should not throw when Firestore fails", async () => {
+        mockGetDocs.mockRejectedValue(new Error("Firestore error"));
+        await expect(fetchAndCacheLogs()).resolves.not.toThrow();
+    });
+});
 
-        it("should return 'red' for delete actions", () => {
-            expect(getLogBadgeClass("Deleted Product")).toBe("red");
-        });
+describe("Activity Logs — initLogs", () => {
 
-        it("should return 'orange' for archive actions", () => {
-            expect(getLogBadgeClass("Archived Category")).toBe("orange");
-        });
-
-        it("should return 'orange' for restore actions", () => {
-            expect(getLogBadgeClass("Restore Product")).toBe("orange");
-        });
-
-        it("should return 'blue' for update/edit actions", () => {
-            expect(getLogBadgeClass("Updated Product")).toBe("blue");
-        });
-
-        it("should return 'blue' for unknown actions", () => {
-            expect(getLogBadgeClass("Unknown action")).toBe("blue");
-        });
-
-        it("should be case insensitive", () => {
-            expect(getLogBadgeClass("ADDED PRODUCT")).toBe("green");
-        });
-
-        it("should return 'blue' for null/empty input", () => {
-            expect(getLogBadgeClass(null)).toBe("blue");
-            expect(getLogBadgeClass("")).toBe("blue");
-        });
+    beforeEach(() => {
+        vi.clearAllMocks();
+        localStorage.clear();
     });
 
-    // ─── checkAdminRole ───────────────────────────────────────────────────────
-    describe("checkAdminRole", () => {
-        it("should return true for admin", async () => {
-            mockGetDoc.mockResolvedValue({ exists: () => true, data: () => ({ role: 'admin' }) });
-            expect(await checkAdminRole("uid1", {})).toBe(true);
-        });
+    it("should use cache if available and not force refresh", async () => {
+        const logs = [{ id: "1", action: "Cached", target: "X", user: "u", timestamp: null }];
+        localStorage.getItem.mockReturnValue(JSON.stringify({ logs, cachedAt: Date.now() }));
 
-        it("should return false for non-admin", async () => {
-            mockGetDoc.mockResolvedValue({ exists: () => true, data: () => ({ role: 'user' }) });
-            expect(await checkAdminRole("uid1", {})).toBe(false);
-        });
+        await initLogs(false);
+
+        expect(mockGetDocs).not.toHaveBeenCalled();
     });
 
-    describe("Sign Out", () => {
-        it("should clear storage and call signOut", async () => {
-            // Arrange
-            localStorage.setItem("user_session", "test");
-            localStorage.setItem("user_uid", "123");
-            localStorage.setItem("user_role", "admin");
-            sessionStorage.setItem("something", "value");
-        
-            signOut.mockResolvedValue(); // mock Firebase signOut
-        
-            // Act
-            await doSignOut({}); // pass fake auth instance
-        
-            // Assert
-            expect(localStorage.getItem("user_session")).toBeNull();
-            expect(localStorage.getItem("user_uid")).toBeNull();
-            expect(localStorage.getItem("user_role")).toBeNull();
-            expect(sessionStorage.length).toBe(0);
-        
-            expect(signOut).toHaveBeenCalled();
-        });
+    it("should fetch from Firestore when forceRefresh is true", async () => {
+        mockGetDocs.mockResolvedValue({ forEach: () => {} });
+        await initLogs(true);
+        expect(mockGetDocs).toHaveBeenCalled();
+    });
+
+    it("should fetch from Firestore when cache is empty", async () => {
+        localStorage.getItem.mockReturnValue(null);
+        mockGetDocs.mockResolvedValue({ forEach: () => {} });
+        await initLogs(false);
+        expect(mockGetDocs).toHaveBeenCalled();
     });
 });

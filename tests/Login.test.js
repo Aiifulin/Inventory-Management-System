@@ -1,127 +1,321 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { firebaseConfig, togglePassword } from "./Login.js";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { togglePassword, login, goToRegister } from "../public/js/Login.js";
 
-// --- MOCK FIREBASE ---
-vi.mock("firebase/auth", () => ({
-    getAuth: vi.fn(),
-    signInWithEmailAndPassword: vi.fn()
+// ==========================================
+// MOCKS SETUP
+// ==========================================
+const {
+    mockSignInWithEmailAndPassword,
+    mockSignOut,
+    mockGetDoc,
+    mockDoc
+} = vi.hoisted(() => ({
+    mockSignInWithEmailAndPassword: vi.fn(),
+    mockSignOut:                    vi.fn(),
+    mockGetDoc:                     vi.fn(),
+    mockDoc:                        vi.fn(() => ({}))
 }));
 
-vi.mock("firebase/firestore", () => ({
-    getFirestore: vi.fn()
+vi.mock("https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js", () => ({
+    signInWithEmailAndPassword: mockSignInWithEmailAndPassword,
+    signOut:                    mockSignOut
 }));
 
-describe("firebaseConfig", () => {
-    it("should have all required Firebase configuration properties", () => {
-        expect(firebaseConfig).toHaveProperty("apiKey");
-        expect(firebaseConfig).toHaveProperty("authDomain");
-        expect(firebaseConfig).toHaveProperty("projectId");
-        expect(firebaseConfig).toHaveProperty("storageBucket");
-        expect(firebaseConfig).toHaveProperty("messagingSenderId");
-        expect(firebaseConfig).toHaveProperty("appId");
-        expect(firebaseConfig).toHaveProperty("measurementId");
+vi.mock("https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js", () => ({
+    doc:    mockDoc,
+    getDoc: mockGetDoc
+}));
+
+vi.mock("../public/js/firebase.js", () => ({
+    auth: {},
+    db:   {}
+}));
+
+// ==========================================
+// STORAGE STUBS
+// ==========================================
+const makeStorage = () => {
+    let store = {};
+    const getItem    = vi.fn((k)    => store[k] ?? null);
+    const setItem    = vi.fn((k, v) => { store[k] = String(v); });
+    const removeItem = vi.fn((k)    => { delete store[k]; });
+    const clear      = vi.fn(()     => { store = {}; });
+    return {
+        getItem, setItem, removeItem, clear,
+        get length() { return Object.keys(store).length; },
+        _reset() {
+            store = {};
+            getItem.mockImplementation((k)    => store[k] ?? null);
+            setItem.mockImplementation((k, v) => { store[k] = String(v); });
+            removeItem.mockImplementation((k)  => { delete store[k]; });
+            clear.mockImplementation(()        => { store = {}; });
+        }
+    };
+};
+
+global.localStorage   = makeStorage();
+global.sessionStorage = makeStorage();
+
+// ==========================================
+// LOCATION STUB
+// ==========================================
+let _href = "";
+Object.defineProperty(global, "location", {
+    configurable: true,
+    value: {
+        get href()  { return _href; },
+        set href(v) { _href = v;   },
+        replace: vi.fn()
+    }
+});
+
+// ==========================================
+// DOM STUBS
+// ==========================================
+global.setInterval  = vi.fn(() => 99);
+global.clearInterval = vi.fn();
+
+global.document = {
+    getElementById:   vi.fn(),
+    querySelector:    vi.fn(() => null),
+    querySelectorAll: vi.fn(() => []),
+    addEventListener: vi.fn(),
+    createElement:    vi.fn(() => ({
+        textContent: "", innerHTML: "", style: {},
+        classList: { toggle: vi.fn(), add: vi.fn(), remove: vi.fn() },
+        appendChild: vi.fn(), addEventListener: vi.fn()
+    })),
+    documentElement: { style: {} }
+};
+
+// ==========================================
+// DOM HELPERS
+// ==========================================
+function buildLoginDom(overrides = {}) {
+    const els = {
+        email:               { value: overrides.email    ?? "admin@test.com", style: {} },
+        password:            { value: overrides.password ?? "password123",    style: {} },
+        errorMessage:        { style: { display: "none" }, textContent: "", offsetHeight: 0, animation: "" },
+        loginBtn:            { disabled: false },
+        loginBtnText:        { textContent: "Sign In" },
+        loginSpinner:        { style: { display: "none" } },
+        loginSuccessOverlay: { style: { display: "none" } },
+        loginProgressBar:    { style: { width: "0%" } },
+    };
+
+    global.document.getElementById.mockImplementation((id) => els[id] ?? null);
+
+    const titleEl = { textContent: "" };
+    global.document.querySelector.mockImplementation((sel) => {
+        if (sel === ".login-success-title") return titleEl;
+        return { textContent: "", style: { display: "none", width: "0%" } };
     });
 
-    it("should have non-empty string values for all properties", () => {
-        Object.values(firebaseConfig).forEach((value) => {
-            expect(typeof value).toBe("string");
-            expect(value.length).toBeGreaterThan(0);
-        });
+    return { els, titleEl };
+}
+
+// ==========================================
+// TEST SUITES
+// ==========================================
+
+describe("Login — togglePassword", () => {
+
+    it("should switch input type from password to text", () => {
+        const input = { type: "password" };
+        const icon  = { classList: { remove: vi.fn(), add: vi.fn() } };
+        const el    = { querySelector: vi.fn(() => icon) };
+        global.document.getElementById.mockReturnValue(input);
+
+        togglePassword("password", el);
+
+        expect(input.type).toBe("text");
+        expect(icon.classList.remove).toHaveBeenCalledWith("fa-eye");
+        expect(icon.classList.add).toHaveBeenCalledWith("fa-eye-slash");
     });
 
-    it("should have valid Firebase project configuration format", () => {
-        expect(firebaseConfig.projectId).toMatch(/^[a-z0-9-]+$/);
-        expect(firebaseConfig.authDomain).toMatch(/\.firebaseapp\.com$/);
-        expect(firebaseConfig.storageBucket).toMatch(/\.firebasestorage\.app$/);
-        expect(firebaseConfig.messagingSenderId).toMatch(/^\d+$/);
+    it("should switch input type from text back to password", () => {
+        const input = { type: "text" };
+        const icon  = { classList: { remove: vi.fn(), add: vi.fn() } };
+        const el    = { querySelector: vi.fn(() => icon) };
+        global.document.getElementById.mockReturnValue(input);
+
+        togglePassword("password", el);
+
+        expect(input.type).toBe("password");
+        expect(icon.classList.remove).toHaveBeenCalledWith("fa-eye-slash");
+        expect(icon.classList.add).toHaveBeenCalledWith("fa-eye");
     });
 
-    it("should have a valid apiKey format", () => {
-        expect(firebaseConfig.apiKey).toMatch(/^AIza[0-9A-Za-z_-]{35}$/);
-    });
+    it("should toggle back and forth correctly", () => {
+        const input = { type: "password" };
+        const icon  = { classList: { remove: vi.fn(), add: vi.fn() } };
+        const el    = { querySelector: vi.fn(() => icon) };
+        global.document.getElementById.mockReturnValue(input);
 
-    it("should have a valid appId format", () => {
-        expect(firebaseConfig.appId).toMatch(/^1:\d+:web:[0-9a-f]{22}$/);
-    });
+        togglePassword("password", el);
+        expect(input.type).toBe("text");
 
-    it("should not have any properties with null values", () => {
-        Object.values(firebaseConfig).forEach((value) => {
-            expect(value).not.toBeNull();
-        });
-    });
-
-    it("should have a valid measurementId format", () => {
-        expect(firebaseConfig.measurementId).toMatch(/^G-[A-Z0-9]{10}$/);
-    });
-
-    it("should contain a valid projectId", () => {
-        expect(firebaseConfig.projectId).toBe("inventory-management-sys-baccc");
+        togglePassword("password", el);
+        expect(input.type).toBe("password");
     });
 });
 
-describe("togglePassword", () => {
-    let input;
-    let icon;
-    let button;
-    const inputId = "test-password-input";
+// ==========================================
+
+describe("Login — login", () => {
 
     beforeEach(() => {
-        document.body.innerHTML = `
-            <button id="toggle-button">
-                <i id="test-icon" class="fa-eye"></i>
-            </button>
-            <input id="${inputId}" type="password"/>
-        `;
-        input = document.getElementById(inputId);
-        icon = document.getElementById("test-icon");
-        button = document.getElementById("toggle-button");
-
-        delete window.location;
-        window.location = { href: "Initial.html" };
+        vi.clearAllMocks();
+        global.localStorage._reset();
+        global.sessionStorage._reset();
+        _href = "";
     });
 
-    afterEach(() => {
-        document.body.innerHTML = '';
+    it("should call signInWithEmailAndPassword with email and password", async () => {
+        buildLoginDom();
+        mockSignInWithEmailAndPassword.mockResolvedValue({
+            user: { uid: "uid-1", emailVerified: true }
+        });
+        mockGetDoc.mockResolvedValue({ exists: () => true, data: () => ({ name: "Alice" }) });
+
+        await login();
+
+        expect(mockSignInWithEmailAndPassword).toHaveBeenCalledWith(
+            expect.anything(),
+            "admin@test.com",
+            "password123"
+        );
     });
 
-    it("should change input type from 'password' to 'text'", () => {
-        expect(input.type).toBe("password");
-        togglePassword(inputId, button);
-        expect(input.type).toBe("text");
+    it("should set localStorage on successful login", async () => {
+        buildLoginDom();
+        mockSignInWithEmailAndPassword.mockResolvedValue({
+            user: { uid: "uid-1", emailVerified: true }
+        });
+        mockGetDoc.mockResolvedValue({ exists: () => true, data: () => ({ name: "Alice" }) });
+
+        await login();
+
+        expect(global.localStorage.setItem).toHaveBeenCalledWith("user_session", "true");
+        expect(global.localStorage.setItem).toHaveBeenCalledWith("user_uid", "uid-1");
     });
 
-    it("should change input type from 'text' back to 'password'", () => {
-        input.type = "text";
-        icon.classList.remove('fa-eye');
-        icon.classList.add('fa-eye-slash');
-        togglePassword(inputId, button);
-        expect(input.type).toBe("password");
+    it("should sign out and show error when email is not verified", async () => {
+        const { els } = buildLoginDom();
+        mockSignInWithEmailAndPassword.mockResolvedValue({
+            user: { uid: "uid-1", emailVerified: false }
+        });
+        mockSignOut.mockResolvedValue();
+
+        await login();
+
+        expect(mockSignOut).toHaveBeenCalled();
+        expect(els.errorMessage.textContent).toContain("verify your email");
+        expect(els.loginBtn.disabled).toBe(false);
     });
 
-    it("should toggle icon class from 'fa-eye' to 'fa-eye-slash'", () => {
-        expect(icon.classList.contains('fa-eye')).toBe(true);
-        togglePassword(inputId, button);
-        expect(icon.classList.contains('fa-eye')).toBe(false);
-        expect(icon.classList.contains('fa-eye-slash')).toBe(true);
+    it("should show error for invalid credentials", async () => {
+        const { els } = buildLoginDom();
+        mockSignInWithEmailAndPassword.mockRejectedValue({
+            code:    "auth/invalid-credential",
+            message: "Invalid credential"
+        });
+
+        await login();
+
+        expect(els.errorMessage.textContent).toBe("Invalid email or password. Please try again.");
+        expect(els.loginBtn.disabled).toBe(false);
+        expect(els.loginBtnText.textContent).toBe("Sign In");
     });
 
-    it("should toggle icon class from 'fa-eye-slash' back to 'fa-eye'", () => {
-        input.type = "text";
-        icon.classList.remove('fa-eye');
-        icon.classList.add('fa-eye-slash');
-        togglePassword(inputId, button);
-        expect(icon.classList.contains('fa-eye-slash')).toBe(false);
-        expect(icon.classList.contains('fa-eye')).toBe(true);
+    it("should show error for wrong password", async () => {
+        const { els } = buildLoginDom();
+        mockSignInWithEmailAndPassword.mockRejectedValue({
+            code:    "auth/wrong-password",
+            message: "Wrong password"
+        });
+
+        await login();
+
+        expect(els.errorMessage.textContent).toBe("Invalid email or password. Please try again.");
     });
 
-    it("should not throw when called on a non-existent input ID", () => {
-        expect(() => togglePassword("non-existent-id", button)).not.toThrow();
+    it("should show error for user not found", async () => {
+        const { els } = buildLoginDom();
+        mockSignInWithEmailAndPassword.mockRejectedValue({
+            code:    "auth/user-not-found",
+            message: "User not found"
+        });
+
+        await login();
+
+        expect(els.errorMessage.textContent).toBe("Invalid email or password. Please try again.");
     });
 
-    it("should be idempotent when toggled twice (back to original state)", () => {
-        togglePassword(inputId, button);
-        togglePassword(inputId, button);
-        expect(input.type).toBe("password");
-        expect(icon.classList.contains('fa-eye')).toBe(true);
+    it("should show rate limit error for too many requests", async () => {
+        const { els } = buildLoginDom();
+        mockSignInWithEmailAndPassword.mockRejectedValue({
+            code:    "auth/too-many-requests",
+            message: "Too many requests"
+        });
+
+        await login();
+
+        expect(els.errorMessage.textContent).toBe("Too many attempts. Please wait a moment and try again.");
+    });
+
+    it("should show raw error message for unknown error codes", async () => {
+        const { els } = buildLoginDom();
+        mockSignInWithEmailAndPassword.mockRejectedValue({
+            code:    "auth/unknown",
+            message: "Something went wrong"
+        });
+
+        await login();
+
+        expect(els.errorMessage.textContent).toBe("Something went wrong");
+    });
+
+    it("should show loading state while signing in", async () => {
+        const { els } = buildLoginDom();
+        mockSignInWithEmailAndPassword.mockReturnValue(new Promise(() => {}));
+
+        login();
+
+        expect(els.loginBtn.disabled).toBe(true);
+        expect(els.loginBtnText.textContent).toBe("Signing in...");
+        expect(els.loginSpinner.style.display).toBe("inline-block");
+    });
+
+    it("should use 'User' as fallback when Firestore name fetch fails", async () => {
+        buildLoginDom();
+        mockSignInWithEmailAndPassword.mockResolvedValue({
+            user: { uid: "uid-1", emailVerified: true }
+        });
+        mockGetDoc.mockRejectedValue(new Error("Firestore error"));
+
+        await expect(login()).resolves.not.toThrow();
+    });
+
+    it("should use 'User' fallback when user document does not exist", async () => {
+        buildLoginDom();
+        mockSignInWithEmailAndPassword.mockResolvedValue({
+            user: { uid: "uid-1", emailVerified: true }
+        });
+        mockGetDoc.mockResolvedValue({ exists: () => false });
+
+        await expect(login()).resolves.not.toThrow();
+    });
+});
+
+// ==========================================
+
+describe("Login — goToRegister", () => {
+
+    beforeEach(() => { _href = ""; });
+
+    it("should redirect to Register.html", () => {
+        goToRegister();
+        expect(global.location.href).toBe("Register.html");
     });
 });

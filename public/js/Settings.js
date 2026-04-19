@@ -516,3 +516,5 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 });
+
+export { getCachedUserData, checkAndRunBackup };

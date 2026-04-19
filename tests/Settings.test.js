@@ -1,185 +1,209 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import {
-    checkAdminAccess,
-    updateUserRoleLogic,
-    saveSettingsLogic,
-    loadUsersLogic,
-    doSignOut
-} from "./Settings.js";
+// tests/Settings.test.js
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { getCachedUserData, checkAndRunBackup } from "../public/js/Settings.js";
 
-import { signOut } from "firebase/auth";
-
-const { mockGetDoc, mockUpdateDoc, mockSetDoc, mockGetDocs, mockDoc, mockCollection } = vi.hoisted(() => ({
-    mockGetDoc: vi.fn(),
+// ==========================================
+// MOCKS SETUP
+// ==========================================
+const {
+    mockGetDoc,
+    mockGetDocs,
+    mockSetDoc,
+    mockUpdateDoc,
+    mockDoc,
+    mockCollection,
+    mockAddDoc,
+} = vi.hoisted(() => ({
+    mockGetDoc:    vi.fn(),
+    mockGetDocs:   vi.fn(),
+    mockSetDoc:    vi.fn(),
     mockUpdateDoc: vi.fn(),
-    mockSetDoc: vi.fn(),
-    mockGetDocs: vi.fn(),
-    mockDoc: vi.fn(),
-    mockCollection: vi.fn()
+    mockDoc:       vi.fn(() => ({})),
+    mockCollection: vi.fn(() => ({})),
+    mockAddDoc:    vi.fn(),
 }));
 
-vi.mock("firebase/firestore", () => ({
-    getFirestore: vi.fn(),
-    doc: mockDoc,
-    getDoc: mockGetDoc,
-    updateDoc: mockUpdateDoc,
-    setDoc: mockSetDoc,
-    collection: mockCollection,
-    getDocs: mockGetDocs
+vi.mock("https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js", () => ({
+    doc:             mockDoc,
+    getDoc:          mockGetDoc,
+    getDocs:         mockGetDocs,
+    setDoc:          mockSetDoc,
+    updateDoc:       mockUpdateDoc,
+    addDoc:          mockAddDoc,
+    collection:      mockCollection,
+    serverTimestamp: vi.fn(() => ({ _seconds: Date.now() / 1000 })),
 }));
 
-vi.mock("firebase/auth", () => ({
-    getAuth: vi.fn(),
+vi.mock("https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js", () => ({
     onAuthStateChanged: vi.fn(),
-    signOut: vi.fn()
+    signOut:            vi.fn(),
 }));
 
-describe("Settings / Admin Page Logic", () => {
+vi.mock("../public/js/firebase.js", () => ({
+    auth:    { currentUser: { email: "admin@test.com", uid: "admin-uid" } },
+    db:      {},
+    storage: {},
+}));
 
-    beforeEach(() => vi.clearAllMocks());
+vi.mock("../public/js/logout-modal.js", () => ({
+    initLogoutModal: vi.fn(() => vi.fn()),
+}));
 
-    // ─── checkAdminAccess ─────────────────────────────────────────────────────
-    describe("checkAdminAccess", () => {
-        it("should return true if user role is 'admin'", async () => {
-            mockGetDoc.mockResolvedValue({ exists: () => true, data: () => ({ role: 'admin' }) });
-            expect(await checkAdminAccess("uid_admin", {})).toBe(true);
-        });
+// ==========================================
+// GLOBALS
+// ==========================================
+global.sessionStorage = {
+    store: {},
+    getItem:    vi.fn(function (key)        { return this.store[key] ?? null; }),
+    setItem:    vi.fn(function (key, value) { this.store[key] = value; }),
+    removeItem: vi.fn(function (key)        { delete this.store[key]; }),
+    clear:      vi.fn(function ()           { this.store = {}; }),
+};
 
-        it("should return false if user role is 'user'", async () => {
-            mockGetDoc.mockResolvedValue({ exists: () => true, data: () => ({ role: 'user' }) });
-            expect(await checkAdminAccess("uid_user", {})).toBe(false);
-        });
+global.localStorage = {
+    store: {},
+    getItem:    vi.fn(function (key)        { return this.store[key] ?? null; }),
+    setItem:    vi.fn(function (key, value) { this.store[key] = value; }),
+    removeItem: vi.fn(function (key)        { delete this.store[key]; }),
+    clear:      vi.fn(function ()           { this.store = {}; }),
+};
 
-        it("should return true for hardcoded fallback ID even if doc missing", async () => {
-            mockGetDoc.mockResolvedValue({ exists: () => false });
-            expect(await checkAdminAccess("eisTKTAY9LfdMpXZ7ebo0spRDAN2", {})).toBe(true);
-        });
+global.document = {
+    getElementById:   vi.fn(() => ({
+        textContent: '',
+        style: {},
+        innerHTML: '',
+        checked: false,
+        value: '10',
+        classList: { toggle: vi.fn(), add: vi.fn(), remove: vi.fn() },
+        appendChild: vi.fn(),
+        addEventListener: vi.fn(),
+        querySelector: vi.fn(() => null),
+    })),
+    querySelector:    vi.fn(() => null),
+    querySelectorAll: vi.fn(() => []),
+    addEventListener: vi.fn(),
+    createElement:    vi.fn(() => ({
+        className: '', innerHTML: '', style: {}, appendChild: vi.fn(),
+    })),
+    documentElement: { style: {}, setAttribute: vi.fn() },
+};
 
-        it("should return false for unknown UID with no document", async () => {
-            mockGetDoc.mockResolvedValue({ exists: () => false });
-            expect(await checkAdminAccess("unknown_uid", {})).toBe(false);
-        });
+global.window = {
+    location:         { href: '', replace: vi.fn() },
+    addEventListener: vi.fn(),
+};
 
-        it("should return false on Firestore error", async () => {
-            mockGetDoc.mockRejectedValue(new Error("error"));
-            expect(await checkAdminAccess("uid1", {})).toBe(false);
-        });
+// ==========================================
+// HELPER
+// ==========================================
+const defaultGetDocsMock = () =>
+    mockGetDocs.mockResolvedValue({
+        empty: true,
+        docs: [],
+        forEach: vi.fn(),
     });
 
-    // ─── updateUserRoleLogic ──────────────────────────────────────────────────
-    describe("updateUserRoleLogic", () => {
-        it("should call updateDoc with the new role", async () => {
-            await updateUserRoleLogic("target_uid", "admin", {});
-            expect(mockUpdateDoc).toHaveBeenCalled();
-            const updateCallArgs = mockUpdateDoc.mock.calls[0];
-            expect(updateCallArgs[1]).toEqual({ role: "admin" });
-        });
+// ==========================================
+// TEST SUITES
+// ==========================================
 
-        it("should call updateDoc with 'user' role", async () => {
-            await updateUserRoleLogic("target_uid", "user", {});
-            const updateCallArgs = mockUpdateDoc.mock.calls[0];
-            expect(updateCallArgs[1]).toEqual({ role: "user" });
-        });
+describe("Settings — getCachedUserData", () => {
+    const uid      = "user-abc";
+    const cacheKey = `user_data_${uid}`;
+    const fakeUser = { name: "Alice", role: "admin" };
 
-        it("should throw an error when userId is missing", async () => {
-            await expect(updateUserRoleLogic("", "admin", {}))
-                .rejects.toThrow("Invalid parameters");
-        });
-
-        it("should throw an error when newRole is missing", async () => {
-            await expect(updateUserRoleLogic("uid123", "", {}))
-                .rejects.toThrow("Invalid parameters");
-        });
+    beforeEach(() => {
+        vi.clearAllMocks();
+        defaultGetDocsMock();
+        sessionStorage.clear();
     });
 
-    // ─── saveSettingsLogic ────────────────────────────────────────────────────
-    describe("saveSettingsLogic", () => {
-        it("should save a valid threshold to global_config", async () => {
-            await saveSettingsLogic(15, "admin_uid", {});
-            expect(mockSetDoc).toHaveBeenCalled();
+    it("should return cached data from sessionStorage without calling Firestore", async () => {
+        sessionStorage.getItem.mockReturnValue(JSON.stringify(fakeUser));
 
-            const setCallArgs = mockSetDoc.mock.calls[0];
-            const data    = setCallArgs[1];
-            const options = setCallArgs[2];
+        const result = await getCachedUserData(uid);
 
-            expect(data.defaultLowStockThreshold).toBe(15);
-            expect(data.updatedBy).toBe("admin_uid");
-            expect(options.merge).toBe(true);
-        });
-
-        it("should save a threshold of zero (valid edge case)", async () => {
-            await saveSettingsLogic(0, "uid", {});
-            const data = mockSetDoc.mock.calls[0][1];
-            expect(data.defaultLowStockThreshold).toBe(0);
-        });
-
-        it("should throw for a negative threshold", async () => {
-            await expect(saveSettingsLogic(-5, "uid", {}))
-                .rejects.toThrow("Please enter a valid Low Stock Threshold");
-            expect(mockSetDoc).not.toHaveBeenCalled();
-        });
-
-        it("should throw for NaN threshold", async () => {
-            await expect(saveSettingsLogic(NaN, "uid", {}))
-                .rejects.toThrow("Please enter a valid Low Stock Threshold");
-        });
+        expect(result).toEqual(fakeUser);
+        expect(mockGetDoc).not.toHaveBeenCalled();
     });
 
-    // ─── loadUsersLogic ───────────────────────────────────────────────────────
-    describe("loadUsersLogic", () => {
-        it("should fetch all users and format them", async () => {
-            const mockData = [
-                { id: "u1", data: () => ({ name: "Alice", role: "admin" }) },
-                { id: "u2", data: () => ({ name: "Bob",   role: "user"  }) }
-            ];
-            mockGetDocs.mockResolvedValue({
-                empty: false,
-                forEach: (cb) => mockData.forEach(cb)
-            });
-
-            const users = await loadUsersLogic({});
-            expect(users).toHaveLength(2);
-            expect(users[0].name).toBe("Alice");
-            expect(users[1].role).toBe("user");
+    it("should fetch from Firestore and cache the result when cache is empty", async () => {
+        sessionStorage.getItem.mockReturnValue(null);
+        mockGetDoc.mockResolvedValue({
+            exists: () => true,
+            data:   () => fakeUser,
         });
 
-        it("should return an empty array when no users exist", async () => {
-            mockGetDocs.mockResolvedValue({
-                empty: true,
-                forEach: () => {}
-            });
-            const users = await loadUsersLogic({});
-            expect(users).toHaveLength(0);
-        });
+        const result = await getCachedUserData(uid);
 
-        it("should include user IDs in the returned objects", async () => {
-            const mockData = [{ id: "u1", data: () => ({ name: "Alice" }) }];
-            mockGetDocs.mockResolvedValue({ empty: false, forEach: (cb) => mockData.forEach(cb) });
-            const users = await loadUsersLogic({});
-            expect(users[0].id).toBe("u1");
-        });
+        expect(result).toEqual(fakeUser);
+        expect(mockGetDoc).toHaveBeenCalledOnce();
+        expect(sessionStorage.setItem).toHaveBeenCalledWith(
+            cacheKey,
+            JSON.stringify(fakeUser),
+        );
     });
 
-    describe("Sign Out", () => {
-        it("should clear storage and call signOut", async () => {
-            // Arrange
-            localStorage.setItem("user_session", "test");
-            localStorage.setItem("user_uid", "123");
-            localStorage.setItem("user_role", "admin");
-            sessionStorage.setItem("something", "value");
-        
-            signOut.mockResolvedValue(); // mock Firebase signOut
-        
-            // Act
-            await doSignOut({}); // pass fake auth instance
-        
-            // Assert
-            expect(localStorage.getItem("user_session")).toBeNull();
-            expect(localStorage.getItem("user_uid")).toBeNull();
-            expect(localStorage.getItem("user_role")).toBeNull();
-            expect(sessionStorage.length).toBe(0);
-        
-            expect(signOut).toHaveBeenCalled();
-        });
+    it("should return null when the Firestore document does not exist", async () => {
+        sessionStorage.getItem.mockReturnValue(null);
+        mockGetDoc.mockResolvedValue({ exists: () => false });
+
+        const result = await getCachedUserData(uid);
+
+        expect(result).toBeNull();
+        expect(sessionStorage.setItem).not.toHaveBeenCalled();
+    });
+
+    it("should return null and log an error when Firestore throws", async () => {
+        sessionStorage.getItem.mockReturnValue(null);
+        const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+        mockGetDoc.mockRejectedValue(new Error("Network error"));
+
+        const result = await getCachedUserData(uid);
+
+        expect(result).toBeNull();
+        expect(consoleSpy).toHaveBeenCalledWith(
+            "Error fetching user data:",
+            expect.any(Error),
+        );
+        consoleSpy.mockRestore();
+    });
+});
+
+
+describe("Settings — checkAndRunBackup", () => {
+
+    function daysAgo(n) {
+        const d = new Date();
+        d.setDate(d.getDate() - n);
+        return d;
+    }
+
+    beforeEach(() => {
+        vi.clearAllMocks();
+        defaultGetDocsMock();
+    });
+
+    it("should trigger a backup when days elapsed equals intervalDays (boundary)", async () => {
+        mockGetDocs.mockResolvedValue({ forEach: vi.fn() });
+
+        await checkAndRunBackup(7, daysAgo(7));
+
+        expect(mockGetDocs).toHaveBeenCalledOnce();
+    });
+
+    it("should trigger a backup when days elapsed exceeds intervalDays", async () => {
+        mockGetDocs.mockResolvedValue({ forEach: vi.fn() });
+
+        await checkAndRunBackup(7, daysAgo(10));
+
+        expect(mockGetDocs).toHaveBeenCalledOnce();
+    });
+
+    it("should NOT trigger a backup when days elapsed is less than intervalDays", async () => {
+        await checkAndRunBackup(7, daysAgo(3));
+
+        expect(mockGetDocs).not.toHaveBeenCalled();
     });
 });

@@ -1,227 +1,463 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
-    checkAdminRole,
-    fetchProductsLogic,
-    deleteProductLogic,
-    filterProductsLogic,
-    sortProductsLogic,
-    doSignOut
-} from "./Products.js";
+    getCachedUserData,
+    logActivity,
+    fetchProducts,
+    saveProductsCache,
+    loadProductsCache,
+    validateImportData,
+    importProducts,
+    readExcelFile,
+    exportToExcel
+} from "../public/js/Products.js";
 
-import { signOut } from "firebase/auth";
-
-const { mockGetDocs, mockDeleteDoc, mockAddDoc, mockDoc, mockCollection, mockGetDoc } = vi.hoisted(() => ({
-    mockGetDocs: vi.fn(),
-    mockDeleteDoc: vi.fn(),
-    mockAddDoc: vi.fn(),
-    mockDoc: vi.fn(),
-    mockCollection: vi.fn(),
-    mockGetDoc: vi.fn()
+// ==========================================
+// HOISTED MOCKS
+// ==========================================
+const {
+    mockGetDocs,
+    mockAddDoc,
+    mockDoc,
+    mockCollection,
+    mockGetDoc,
+    mockQuery,
+    mockWhere,
+    mockUpdateDoc,
+    mockServerTimestamp
+} = vi.hoisted(() => ({
+    mockGetDocs:         vi.fn(),
+    mockAddDoc:          vi.fn(),
+    mockDoc:             vi.fn(() => ({})),
+    mockCollection:      vi.fn(() => ({})),
+    mockGetDoc:          vi.fn(),
+    mockQuery:           vi.fn((...args) => args[0]),
+    mockWhere:           vi.fn(() => ({})),
+    mockUpdateDoc:       vi.fn(),
+    mockServerTimestamp: vi.fn(() => "MOCK_TIMESTAMP")
 }));
 
-vi.mock("firebase/firestore", () => ({
-    getFirestore: vi.fn(),
-    collection: mockCollection,
-    getDocs: mockGetDocs,
-    deleteDoc: mockDeleteDoc,
-    doc: mockDoc,
-    addDoc: mockAddDoc,
-    getDoc: mockGetDoc,
-    serverTimestamp: () => "MOCK_TIME"
+vi.mock("https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js", () => ({
+    collection:      mockCollection,
+    getDocs:         mockGetDocs,
+    doc:             mockDoc,
+    addDoc:          mockAddDoc,
+    getDoc:          mockGetDoc,
+    updateDoc:       mockUpdateDoc,
+    query:           mockQuery,
+    where:           mockWhere,
+    serverTimestamp: mockServerTimestamp
 }));
 
-vi.mock("firebase/auth", () => ({
-    getAuth: vi.fn(),
+vi.mock("https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js", () => ({
     onAuthStateChanged: vi.fn(),
-    signOut: vi.fn()
+    signOut:            vi.fn()
 }));
 
-describe("Product List Logic", () => {
+vi.mock("../public/js/firebase.js", () => ({
+    auth:    { currentUser: { uid: "uid-test", email: "admin@test.com" } },
+    db:      {},
+    storage: {}
+}));
+
+vi.mock("../public/js/logout-modal.js", () => ({
+    initLogoutModal: vi.fn(() => vi.fn())
+}));
+
+// ==========================================
+// STORAGE STUBS
+// ==========================================
+const makeStorage = () => {
+    let store = {};
+    const stub = {
+        getItem:    vi.fn((k)    => store[k] ?? null),
+        setItem:    vi.fn((k, v) => { store[k] = String(v); }),
+        removeItem: vi.fn((k)    => { delete store[k]; }),
+        clear:      vi.fn(()     => { store = {}; }),
+        get length() { return Object.keys(store).length; },
+        _store: () => store,
+        _reset() {
+            store = {};
+            this.getItem.mockImplementation((k)    => store[k] ?? null);
+            this.setItem.mockImplementation((k, v) => { store[k] = String(v); });
+            this.removeItem.mockImplementation((k)  => { delete store[k]; });
+            this.clear.mockImplementation(()        => { store = {}; });
+        }
+    };
+    return stub;
+};
+
+global.sessionStorage = makeStorage();
+global.localStorage   = makeStorage();
+
+// ==========================================
+// DOM STUB — getElementById must ALWAYS return
+// an object with addEventListener so module-level
+// calls like getElementById('exportBtn').addEventListener(...)
+// don't crash on import.
+// ==========================================
+const makeSafeEl = () => ({
+    value:          "",
+    innerHTML:      "",
+    textContent:    "",
+    style:          {},
+    disabled:       false,
+    classList:      { toggle: vi.fn(), add: vi.fn(), remove: vi.fn() },
+    appendChild:    vi.fn(),
+    addEventListener: vi.fn(),
+    getAttribute:   vi.fn(),
+    setAttribute:   vi.fn(),
+    querySelector:  vi.fn(() => makeSafeEl()),
+    closest:        vi.fn()
+});
+
+global.document = {
+    getElementById:   vi.fn(() => makeSafeEl()),
+    querySelector:    vi.fn(() => makeSafeEl()),
+    querySelectorAll: vi.fn(() => []),
+    addEventListener: vi.fn(),
+    createElement:    vi.fn(() => makeSafeEl()),
+    body:             { insertAdjacentHTML: vi.fn() },
+    documentElement:  { style: {} }
+};
+
+global.window = { location: { href: "", replace: vi.fn() } };
+
+global.XLSX = {
+    utils: {
+        json_to_sheet:    vi.fn(() => ({})),
+        book_new:         vi.fn(() => ({})),
+        book_append_sheet: vi.fn(),
+        sheet_to_json:    vi.fn()
+    },
+    read:      vi.fn(),
+    writeFile: vi.fn()
+};
+
+// ==========================================
+// HELPERS
+// ==========================================
+function makeDocsSnapshot(rows) {
+    return { forEach: (cb) => rows.forEach(cb) };
+}
+
+// ==========================================
+// TESTS
+// ==========================================
+
+describe("Products — saveProductsCache / loadProductsCache", () => {
+
+    beforeEach(() => {
+        global.sessionStorage._reset();
+        vi.clearAllMocks();
+    });
+
+    it("should save and reload products from cache", () => {
+        const products = [{
+            id: "1", name: "Widget",
+            createdAt: { seconds: 1700000000, toDate: () => new Date(1700000000 * 1000) }
+        }];
+        saveProductsCache(products);
+
+        expect(global.sessionStorage.setItem).toHaveBeenCalled();
+
+        const loaded = loadProductsCache();
+        expect(loaded).not.toBeNull();
+        expect(loaded).toHaveLength(1);
+        expect(loaded[0].name).toBe("Widget");
+    });
+
+    it("should restore createdAt.toDate() as a callable function", () => {
+        const products = [{ id: "1", name: "A", createdAt: { seconds: 1700000000, toDate: () => new Date(1700000000000) } }];
+        saveProductsCache(products);
+        const loaded = loadProductsCache();
+        expect(typeof loaded[0].createdAt.toDate).toBe("function");
+        expect(loaded[0].createdAt.toDate()).toBeInstanceOf(Date);
+    });
+
+    it("should return null when cache is empty", () => {
+        expect(loadProductsCache()).toBeNull();
+    });
+
+    it("should return null when cache is expired (>5 minutes)", () => {
+        const products = [{ id: "1", name: "Old", createdAt: null }];
+        saveProductsCache(products);
+
+        const raw = JSON.parse(global.sessionStorage._store()['products_cache']);
+        raw.cachedAt = Date.now() - 6 * 60 * 1000;
+        global.sessionStorage._store()['products_cache'] = JSON.stringify(raw);
+
+        expect(loadProductsCache()).toBeNull();
+    });
+
+    it("should handle products with null createdAt gracefully", () => {
+        const products = [{ id: "1", name: "NoDate", createdAt: null }];
+        saveProductsCache(products);
+        const loaded = loadProductsCache();
+        expect(loaded[0].createdAt).toBeNull();
+    });
+});
+
+// ==========================================
+
+describe("Products — getCachedUserData", () => {
+
+    beforeEach(() => {
+        global.sessionStorage._reset();
+        vi.clearAllMocks();
+    });
+
+    it("should return cached data without hitting Firestore on second call", async () => {
+        const userData = { name: "Alice", role: "admin" };
+        global.sessionStorage.setItem("user_data_uid-1", JSON.stringify(userData));
+
+        const result = await getCachedUserData("uid-1");
+
+        expect(result).toEqual(userData);
+        expect(mockGetDoc).not.toHaveBeenCalled();
+    });
+
+    it("should fetch from Firestore and cache when not cached", async () => {
+        mockGetDoc.mockResolvedValue({ exists: () => true, data: () => ({ name: "Bob", role: "user" }) });
+
+        const result = await getCachedUserData("uid-2");
+
+        expect(result.name).toBe("Bob");
+        expect(mockGetDoc).toHaveBeenCalledTimes(1);
+        expect(global.sessionStorage.setItem).toHaveBeenCalledWith(
+            "user_data_uid-2",
+            JSON.stringify({ name: "Bob", role: "user" })
+        );
+    });
+
+    it("should return null when user document does not exist", async () => {
+        mockGetDoc.mockResolvedValue({ exists: () => false });
+        const result = await getCachedUserData("uid-ghost");
+        expect(result).toBeNull();
+    });
+
+    it("should return null on Firestore error", async () => {
+        mockGetDoc.mockRejectedValue(new Error("Firestore down"));
+        const result = await getCachedUserData("uid-err");
+        expect(result).toBeNull();
+    });
+});
+
+// ==========================================
+
+describe("Products — logActivity", () => {
 
     beforeEach(() => vi.clearAllMocks());
 
-    // ─── checkAdminRole ───────────────────────────────────────────────────────
-    describe("checkAdminRole", () => {
-        it("should return true for admin role", async () => {
-            mockGetDoc.mockResolvedValue({ exists: () => true, data: () => ({ role: 'admin' }) });
-            expect(await checkAdminRole("uid1", {})).toBe(true);
-        });
+    it("should add an activity document with correct fields", async () => {
+        mockAddDoc.mockResolvedValue({});
+        await logActivity("Added Product", "Widget Pro");
 
-        it("should return false for user role", async () => {
-            mockGetDoc.mockResolvedValue({ exists: () => true, data: () => ({ role: 'user' }) });
-            expect(await checkAdminRole("uid1", {})).toBe(false);
-        });
-
-        it("should return false when document does not exist", async () => {
-            mockGetDoc.mockResolvedValue({ exists: () => false });
-            expect(await checkAdminRole("uid1", {})).toBe(false);
-        });
-
-        it("should return false on Firestore error", async () => {
-            mockGetDoc.mockRejectedValue(new Error("error"));
-            expect(await checkAdminRole("uid1", {})).toBe(false);
-        });
+        expect(mockAddDoc).toHaveBeenCalledTimes(1);
+        const logData = mockAddDoc.mock.calls[0][1];
+        expect(logData.action).toBe("Added Product");
+        expect(logData.target).toBe("Widget Pro");
+        expect(logData.user).toBe("admin@test.com");
     });
 
-    // ─── fetchProductsLogic ───────────────────────────────────────────────────
-    describe("fetchProductsLogic", () => {
-        it("should fetch and format products with IDs", async () => {
-            const mockData = [
-                { id: "1", data: () => ({ name: "Apple", price: 10 }) },
-                { id: "2", data: () => ({ name: "Banana", price: 5  }) }
-            ];
-            mockGetDocs.mockResolvedValue({ forEach: (cb) => mockData.forEach(cb) });
+    it("should not throw when addDoc fails", async () => {
+        mockAddDoc.mockRejectedValue(new Error("write failed"));
+        await expect(logActivity("X", "Y")).resolves.not.toThrow();
+    });
+});
 
-            const products = await fetchProductsLogic({});
-            expect(products).toHaveLength(2);
-            expect(products[0].name).toBe("Apple");
-            expect(products[0].id).toBe("1");
-        });
+// ==========================================
 
-        it("should return an empty array when no products exist", async () => {
-            mockGetDocs.mockResolvedValue({ forEach: () => {} });
-            const products = await fetchProductsLogic({});
-            expect(products).toHaveLength(0);
-        });
+describe("Products — validateImportData", () => {
+
+    beforeEach(() => vi.clearAllMocks());
+
+    function makeValidRow(overrides = {}) {
+        return {
+            "Product Name": "Test Widget",
+            "Category":     "Electronics",
+            "Price":         99,
+            "Stock":         10,
+            "Size":         "M",
+            "Color":        "Red",
+            ...overrides
+        };
+    }
+
+    function setupFirestoreMocks({ existingProducts = [], categories = ["Electronics"] } = {}) {
+        mockGetDocs
+            .mockResolvedValueOnce(makeDocsSnapshot(
+                existingProducts.map(name => ({ data: () => ({ name }) }))
+            ))
+            .mockResolvedValueOnce(makeDocsSnapshot(
+                categories.map(name => ({ data: () => ({ name }) }))
+            ));
+    }
+
+    it("should pass a valid row with no errors", async () => {
+        setupFirestoreMocks();
+        const result = await validateImportData([makeValidRow()]);
+        expect(result.errors).toHaveLength(0);
+        expect(result.validProducts).toHaveLength(1);
     });
 
-    // ─── deleteProductLogic ───────────────────────────────────────────────────
-    describe("deleteProductLogic", () => {
-        it("should delete doc and log activity", async () => {
-            const allProducts = [{ id: "123", name: "Old Phone" }];
-            const mockAuth = { currentUser: { email: "admin@test.com" } };
-
-            await deleteProductLogic("123", allProducts, {}, mockAuth);
-
-            expect(mockDeleteDoc).toHaveBeenCalled();
-            expect(mockAddDoc).toHaveBeenCalled();
-
-            const logData = mockAddDoc.mock.calls[0][1];
-            expect(logData.action).toBe("Deleted Product");
-            expect(logData.target).toBe("Old Phone");
-        });
-
-        it("should log 'Unknown Product' if ID is not found in allProducts", async () => {
-            await deleteProductLogic("999", [], {}, { currentUser: { email: "a@b.com" } });
-            const logData = mockAddDoc.mock.calls[0][1];
-            expect(logData.target).toBe("Unknown Product");
-        });
+    it("should report error when Product Name is missing", async () => {
+        setupFirestoreMocks();
+        const result = await validateImportData([makeValidRow({ "Product Name": "" })]);
+        expect(result.errors.some(e => e.includes("Product Name is required"))).toBe(true);
     });
 
-    // ─── filterProductsLogic ─────────────────────────────────────────────────
-    describe("filterProductsLogic", () => {
-        const products = [
-            { name: "Gaming Mouse",  category: "Electronics", price: 75,  stock: 20, lowStockThreshold: 5  },
-            { name: "Office Chair",  category: "Furniture",   price: 300, stock: 3,  lowStockThreshold: 5  },
-            { name: "USB Hub",       category: "Electronics", price: 25,  stock: 0,  lowStockThreshold: 5  },
-            { name: "Standing Desk", category: "Furniture",   price: 1200,stock: 10, lowStockThreshold: 5  }
-        ];
-
-        it("should filter by search text (name)", () => {
-            const result = filterProductsLogic(products, { searchVal: "mouse", catVal: "", priceRangeVal: "", statusVal: "" });
-            expect(result).toHaveLength(1);
-            expect(result[0].name).toBe("Gaming Mouse");
-        });
-
-        it("should filter by category", () => {
-            const result = filterProductsLogic(products, { searchVal: "", catVal: "Furniture", priceRangeVal: "", statusVal: "" });
-            expect(result).toHaveLength(2);
-        });
-
-        it("should filter by out-of-stock status", () => {
-            const result = filterProductsLogic(products, { searchVal: "", catVal: "", priceRangeVal: "", statusVal: "out-of-stock" });
-            expect(result).toHaveLength(1);
-            expect(result[0].name).toBe("USB Hub");
-        });
-
-        it("should filter by low-stock status", () => {
-            const result = filterProductsLogic(products, { searchVal: "", catVal: "", priceRangeVal: "", statusVal: "low-stock" });
-            expect(result).toHaveLength(1);
-            expect(result[0].name).toBe("Office Chair");
-        });
-
-        it("should filter by price range", () => {
-            const result = filterProductsLogic(products, { searchVal: "", catVal: "", priceRangeVal: "51-100", statusVal: "" });
-            expect(result).toHaveLength(1);
-            expect(result[0].name).toBe("Gaming Mouse");
-        });
-
-        it("should filter by price range 1000+", () => {
-            const result = filterProductsLogic(products, { searchVal: "", catVal: "", priceRangeVal: "1000+", statusVal: "" });
-            expect(result).toHaveLength(1);
-            expect(result[0].name).toBe("Standing Desk");
-        });
-
-        it("should return all products when no filters are applied", () => {
-            const result = filterProductsLogic(products, { searchVal: "", catVal: "", priceRangeVal: "", statusVal: "" });
-            expect(result).toHaveLength(4);
-        });
-
-        it("should return empty array when nothing matches", () => {
-            const result = filterProductsLogic(products, { searchVal: "zzznomatch", catVal: "", priceRangeVal: "", statusVal: "" });
-            expect(result).toHaveLength(0);
-        });
+    it("should report error when Category does not exist", async () => {
+        setupFirestoreMocks({ categories: ["Furniture"] });
+        const result = await validateImportData([makeValidRow({ "Category": "Electronics" })]);
+        expect(result.errors.some(e => e.includes("does not exist"))).toBe(true);
     });
 
-    // ─── sortProductsLogic ────────────────────────────────────────────────────
-    describe("sortProductsLogic", () => {
-        const products = [
-            { name: "Banana", price: 100, stock: 50 },
-            { name: "Apple",  price: 50,  stock: 10 },
-            { name: "Cherry", price: 200, stock: 30 }
-        ];
-
-        it("should sort by price ascending", () => {
-            const sorted = sortProductsLogic(products, 'price', 'asc');
-            expect(sorted[0].price).toBe(50);
-            expect(sorted[2].price).toBe(200);
-        });
-
-        it("should sort by price descending", () => {
-            const sorted = sortProductsLogic(products, 'price', 'desc');
-            expect(sorted[0].price).toBe(200);
-            expect(sorted[2].price).toBe(50);
-        });
-
-        it("should sort by name ascending (alphabetical)", () => {
-            const sorted = sortProductsLogic(products, 'name', 'asc');
-            expect(sorted[0].name).toBe("Apple");
-            expect(sorted[2].name).toBe("Cherry");
-        });
-
-        it("should sort by stock ascending", () => {
-            const sorted = sortProductsLogic(products, 'stock', 'asc');
-            expect(sorted[0].stock).toBe(10);
-            expect(sorted[2].stock).toBe(50);
-        });
-
-        it("should not mutate the original array", () => {
-            const original = [...products];
-            sortProductsLogic(products, 'price', 'desc');
-            expect(products[0].name).toBe(original[0].name);
-        });
+    it("should report error for negative price", async () => {
+        setupFirestoreMocks();
+        const result = await validateImportData([makeValidRow({ "Price": -5 })]);
+        expect(result.errors.some(e => e.includes("Price must be a valid number"))).toBe(true);
     });
 
-    describe("Sign Out", () => {
-        it("should clear storage and call signOut", async () => {
-            // Arrange
-            localStorage.setItem("user_session", "test");
-            localStorage.setItem("user_uid", "123");
-            localStorage.setItem("user_role", "admin");
-            sessionStorage.setItem("something", "value");
-        
-            signOut.mockResolvedValue(); // mock Firebase signOut
-        
-            // Act
-            await doSignOut({}); // pass fake auth instance
-        
-            // Assert
-            expect(localStorage.getItem("user_session")).toBeNull();
-            expect(localStorage.getItem("user_uid")).toBeNull();
-            expect(localStorage.getItem("user_role")).toBeNull();
-            expect(sessionStorage.length).toBe(0);
-        
-            expect(signOut).toHaveBeenCalled();
+    it("should report error when Stock is missing", async () => {
+        setupFirestoreMocks();
+        const result = await validateImportData([makeValidRow({ "Stock": "" })]);
+        expect(result.errors.some(e => e.includes("Stock is required"))).toBe(true);
+    });
+
+    it("should report error when Size is missing", async () => {
+        setupFirestoreMocks();
+        const result = await validateImportData([makeValidRow({ "Size": "" })]);
+        expect(result.errors.some(e => e.includes("Size is required"))).toBe(true);
+    });
+
+    it("should report error when Color is missing", async () => {
+        setupFirestoreMocks();
+        const result = await validateImportData([makeValidRow({ "Color": "" })]);
+        expect(result.errors.some(e => e.includes("Color is required"))).toBe(true);
+    });
+
+    it("should report error when product already exists in DB", async () => {
+        setupFirestoreMocks({ existingProducts: ["Test Widget"] });
+        const result = await validateImportData([makeValidRow()]);
+        expect(result.errors.some(e => e.includes("already exists in database"))).toBe(true);
+    });
+
+    it("should report error for duplicate products within the same file", async () => {
+        setupFirestoreMocks();
+        const row = makeValidRow();
+        const result = await validateImportData([row, { ...row }]);
+        expect(result.errors.some(e => e.includes("Duplicate product"))).toBe(true);
+    });
+});
+
+// ==========================================
+
+describe("Products — importProducts", () => {
+
+    beforeEach(() => vi.clearAllMocks());
+
+    it("should call addDoc for each valid product", async () => {
+        mockAddDoc.mockResolvedValue({});
+        const products = [{
+            "Product Name": "Gadget A", "Description": "Desc", "Category": "Electronics",
+            "Price": 50, "Stock": 5, "Low Stock Threshold": 10,
+            "Size": "S", "Color": "Blue", "Custom Variation": "",
+            "Attribute Name": "", "Attribute Value": ""
+        }];
+
+        const result = await importProducts(products);
+
+        expect(mockAddDoc).toHaveBeenCalled();
+        expect(result.imported).toBe(1);
+        expect(result.errors).toHaveLength(0);
+    });
+
+    it("should record product attributes when provided", async () => {
+        mockAddDoc.mockResolvedValue({});
+        const products = [{
+            "Product Name": "Gadget B", "Description": "", "Category": "Electronics",
+            "Price": 80, "Stock": 3, "Low Stock Threshold": 5,
+            "Size": "M", "Color": "Green", "Custom Variation": "",
+            "Attribute Name": "Material", "Attribute Value": "Plastic"
+        }];
+
+        await importProducts(products);
+
+        const savedData = mockAddDoc.mock.calls[0][1];
+        expect(savedData.attributes).toHaveLength(1);
+        expect(savedData.attributes[0].name).toBe("Material");
+        expect(savedData.attributes[0].value).toBe("Plastic");
+    });
+
+    it("should track errors per product without throwing", async () => {
+        // importProducts calls addDoc TWICE per successful product:
+        //   1. addDoc(collection, productData)  — save the product
+        //   2. addDoc(collection, logData)       — logActivity
+        // So "Good" consumes two resolves, then "Bad"'s first addDoc rejects.
+        mockAddDoc
+            .mockResolvedValueOnce({})   // "Good" — product write
+            .mockResolvedValueOnce({})   // "Good" — logActivity write
+            .mockRejectedValueOnce(new Error("write error")); // "Bad" — product write fails
+
+        const row = (name) => ({
+            "Product Name": name, "Category": "A", "Price": 10, "Stock": 1,
+            "Size": "S", "Color": "R", "Low Stock Threshold": 5,
+            "Description": "", "Custom Variation": "", "Attribute Name": "", "Attribute Value": ""
         });
+
+        const result = await importProducts([row("Good"), row("Bad")]);
+        expect(result.imported).toBe(1);
+        expect(result.errors).toHaveLength(1);
+        expect(result.errors[0]).toContain("Bad");
+    });
+
+    it("should return zero imported when all products fail", async () => {
+        mockAddDoc.mockRejectedValue(new Error("fail"));
+        const products = [{
+            "Product Name": "X", "Category": "B", "Price": 5, "Stock": 1,
+            "Size": "S", "Color": "R", "Low Stock Threshold": 5,
+            "Description": "", "Custom Variation": "", "Attribute Name": "", "Attribute Value": ""
+        }];
+        const result = await importProducts(products);
+        expect(result.imported).toBe(0);
+        expect(result.errors).toHaveLength(1);
+    });
+});
+
+// ==========================================
+
+describe("Products — readExcelFile", () => {
+
+    it("should parse a valid Excel file via FileReader", async () => {
+        const fakeData = [{ "Product Name": "Test", "Price": 10 }];
+        global.XLSX.read.mockReturnValue({
+            SheetNames: ["Sheet1"],
+            Sheets:     { Sheet1: {} }
+        });
+        global.XLSX.utils.sheet_to_json.mockReturnValue(fakeData);
+
+        const file = new File([new Blob(["fake"])], "test.xlsx");
+        const result = await readExcelFile(file);
+        expect(result).toEqual(fakeData);
+    });
+
+    it("should reject with a descriptive error when XLSX.read throws", async () => {
+        global.XLSX.read.mockImplementation(() => { throw new Error("bad file"); });
+
+        const file = new File([new Blob(["bad"])], "bad.xlsx");
+        await expect(readExcelFile(file)).rejects.toThrow("Failed to read file");
+    });
+});
+
+// ==========================================
+
+describe("Products — exportToExcel", () => {
+
+    beforeEach(() => vi.clearAllMocks());
+
+    it("should not call XLSX.writeFile when no products are loaded", () => {
+        // allProducts is [] at module init — takes the early-exit path
+        exportToExcel();
+        expect(global.XLSX.writeFile).not.toHaveBeenCalled();
     });
 });

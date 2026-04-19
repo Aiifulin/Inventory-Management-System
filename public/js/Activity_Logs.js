@@ -6,6 +6,7 @@ import { initLogoutModal } from "./logout-modal.js";
 import { db, auth, storage } from "./firebase.js";
 
 
+
 // ================================================
 // CONSTANTS & STATE
 // ================================================
@@ -294,3 +295,5 @@ document.addEventListener("DOMContentLoaded", () => {
     closeBtn?.addEventListener('click', closeSidebar);
     overlay?.addEventListener('click', closeSidebar);
 });
+
+export { getCachedUserData, saveLogsCache, loadLogsCache, fetchAndCacheLogs, applyFilterAndRender, renderPage, initLogs };

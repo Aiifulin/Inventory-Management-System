@@ -462,7 +462,9 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 });
 
-document.getElementById('exportBtn').addEventListener('click', exportToExcel);
+document.addEventListener("DOMContentLoaded", () => {
+    document.getElementById('exportBtn')?.addEventListener('click', exportToExcel);
+});
 
 function showToast(message, type = 'success') {
     const container = document.getElementById('toast-container');
@@ -756,3 +758,5 @@ function showImportResultModal(importedCount, errors) {
         </div>`;
     document.body.insertAdjacentHTML('beforeend', modal);
 }
+
+export { getCachedUserData, logActivity, fetchProducts, applyFilters, saveProductsCache, loadProductsCache, validateImportData, importProducts, readExcelFile, exportToExcel };

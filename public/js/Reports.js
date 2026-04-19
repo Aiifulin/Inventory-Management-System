@@ -1159,3 +1159,5 @@ function attachReportListeners() {
   if (btnStockMovementExport) btnStockMovementExport.addEventListener("click",  () => loadStockMovementReport(btnStockMovementExport));
   initDateFilter();
 }
+
+export { getCachedUserData, setDateRange, isInRange, formatRangeLabel, getTrendIndicator, convertToCSV, getDateStamp };

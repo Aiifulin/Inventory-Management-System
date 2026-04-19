@@ -24,16 +24,16 @@ const login = function () {
     btnText.textContent = "Signing in...";
     spinner.style.display = "inline-block";
 
-    signInWithEmailAndPassword(auth, email, pass)
+    return signInWithEmailAndPassword(auth, email, pass)
         .then(async (userCredential) => {
 
             if (!userCredential.user.emailVerified) {
-                await signOut(auth)
-        
+                await signOut(auth);
+
                 loginBtn.disabled     = false;
                 btnText.textContent   = "Sign In";
                 spinner.style.display = "none";
-        
+
                 if (errorBox) {
                     errorBox.textContent = "Please verify your email before signing in. Check your inbox for the verification link.";
                     errorBox.style.display = "block";
@@ -41,7 +41,7 @@ const login = function () {
                     errorBox.offsetHeight;
                     errorBox.style.animation = "";
                 }
-                return; 
+                return;
             }
 
             const uid = userCredential.user.uid;
@@ -135,3 +135,5 @@ const goToRegister = function () {
 window.login          = login;
 window.togglePassword = togglePassword;
 window.goToRegister   = goToRegister;
+
+export { login, togglePassword, goToRegister };

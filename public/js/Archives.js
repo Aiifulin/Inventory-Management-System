@@ -431,3 +431,5 @@ function showToast(message, type = 'success') {
         setTimeout(() => toast.remove(), 300);
     }, 3000);
 }
+
+export { getCachedUserData, restoreProduct, permanentlyDeleteProduct, restoreCategory, permanentlyDeleteCategory, logActivity };
