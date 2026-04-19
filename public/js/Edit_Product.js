@@ -581,7 +581,7 @@ function showSuccessModal(productName) {
 
     setTimeout(() => {
         window.location.href = "Products.html";
-    }, 2000);
+    }, 1000);
 }
 
 // Run on page load
