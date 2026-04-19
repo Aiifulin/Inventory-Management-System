@@ -468,6 +468,7 @@ async function saveTransaction() {
         await logActivity(`${type}${statusNote}`, `${product.name} (Qty: ${isIn ? "+" : "-"}${qty})`);
         sessionStorage.removeItem("dashboard_cache");
         sessionStorage.removeItem("tx_years");
+        sessionStorage.removeItem("products_cache");
 
         closeTxModal();
         if (!allYears.includes(thisYear)) allYears.unshift(thisYear);
@@ -579,6 +580,7 @@ async function confirmStatusChange() {
 
         await logActivity(`Status → ${newStatus}`, `${tx.productName} — ${tx.type}`);
         sessionStorage.removeItem("dashboard_cache");
+        sessionStorage.removeItem("products_cache");
 
         closeStatusModal();
         applyFilters();

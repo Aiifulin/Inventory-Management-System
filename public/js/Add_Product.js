@@ -1,4 +1,7 @@
-import { collection, addDoc, serverTimestamp, query, where, getDocs, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { 
+    collection, addDoc, setDoc, serverTimestamp, 
+    query, where, getDocs, doc, getDoc 
+} from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-storage.js";
 import { initLogoutModal } from "./logout-modal.js";
@@ -257,8 +260,8 @@ document.addEventListener("DOMContentLoaded", () => {
                 return;
             }
     
-            if (file.size > 5000000) { // 5MB limit for raw file size
-                alert("File is too large! Please select an image under 5mb.");
+            if (file.size > 10000000) { // 10MB limit for raw file size
+                alert("File is too large! Please select an image under 10mb.");
                 fileInput.value = "";
                 return;
             }
@@ -334,6 +337,8 @@ document.addEventListener("DOMContentLoaded", () => {
     if(form) {
         form.addEventListener("submit", async (e) => {
             e.preventDefault(); 
+            console.log('form submit fired, isBulkMode:', isBulkMode); // ✅ ADD
+
             if (isBulkMode) return;
 
             submitBtn.innerText = "Saving...";
@@ -437,7 +442,14 @@ document.addEventListener("DOMContentLoaded", () => {
                 }
 
                 // 1. SAVE PRODUCT
-                await addDoc(collection(db, "products"), productData);
+                const manualId = document.getElementById('productIdInput').value.trim();
+                if (!manualId) throw new Error("Product ID is required.");
+                
+                // Check if ID already exists in Firestore
+                const idCheckSnap = await getDoc(doc(db, "products", manualId));
+                if (idCheckSnap.exists()) throw new Error(`Product ID "${manualId}" is already in use.`);
+                
+                await setDoc(doc(db, "products", manualId), productData);
                 
                 isFormDirty = false; 
 
@@ -459,7 +471,8 @@ document.addEventListener("DOMContentLoaded", () => {
                     const interval = setInterval(() => {
                         if (width >= 100) {
                             clearInterval(interval);
-                            window.location.href = "Dashboard.html";
+                            sessionStorage.removeItem('products_cache');
+                            window.location.href = "Products.html";
                         } else {
                             width += 1;
                             progressBar.style.width = width + '%';
@@ -516,6 +529,9 @@ document.addEventListener("DOMContentLoaded", () => {
     const finalizeBtn    = document.getElementById('finalizeBtn');
     const finalizeBadge  = document.getElementById('finalizeBadge');
     const queueCount     = document.getElementById('queueCount');
+    const saveEditBtn = document.getElementById('saveEditBtn');
+    
+
     
     if (isBulkMode) {
         bulkBanner.style.display      = 'flex';
@@ -540,6 +556,17 @@ document.addEventListener("DOMContentLoaded", () => {
         const priceVal     = parseFloat(document.querySelector('input[type="number"][step="0.01"]').value) || 0;
         const stockVal     = parseInt(document.querySelector('input[placeholder="0"]').value) || 0;
         const thresholdVal = parseInt(document.querySelector('input[placeholder="10"]').value) || 10;
+        const manualId = document.getElementById('productIdInput').value.trim();
+        if (!manualId) throw new Error("Product ID is required.");
+
+        // Only check Firestore if not currently re-editing the same product
+        const idCheckSnap = await getDoc(doc(db, "products", manualId));
+        if (idCheckSnap.exists()) throw new Error(`Product ID "${manualId}" is already in use.`);
+        
+        // Check queue but skip if this ID was just removed for editing
+        const alreadyQueuedId = draftProducts.some(p => p.productId === manualId);
+        if (alreadyQueuedId) throw new Error(`Product ID "${manualId}" is already in your queue.`);
+
     
         if (priceVal < 0 || stockVal < 0 || thresholdVal < 0)
             throw new Error("Price and Stock values cannot be negative.");
@@ -574,6 +601,7 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     
         return {
+            productId:         manualId,
             name:              sanitizeInput(rawName),
             description:       sanitizeInput(document.querySelector('textarea').value),
             category:          categoryVal,  
@@ -590,8 +618,10 @@ document.addEventListener("DOMContentLoaded", () => {
     // --- RESET FORM FOR NEXT PRODUCT ---
     function resetFormForNext() {
         form.reset();
+        document.getElementById('productIdInput').value = '';
         resetImage();
         loadCategories();
+        
     
         // Reset variations to one empty row
         if (variationContainer) {
@@ -656,6 +686,40 @@ document.addEventListener("DOMContentLoaded", () => {
     const previewGrid    = document.getElementById('bulkPreviewGrid');
     const previewCountLbl = document.getElementById('previewCountLabel');
     const confirmSaveBtn = document.getElementById('confirmSaveBtn');
+
+    if (saveEditBtn) {
+        saveEditBtn.addEventListener('click', async () => {
+            console.log('saveEditBtn fired, stack:', new Error().stack); // ✅ ADD
+            console.log('saveEditBtn clicked, queue before push:', draftProducts.map(p => p.name)); // ✅ ADD
+            saveEditBtn.disabled = true;
+            saveEditBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+    
+            try {
+                const draft = await collectFormDraft();
+                draftProducts.push(draft);
+                updateBulkUI();
+                resetFormForNext();
+    
+                // Restore normal bulk UI
+                nextBtn.style.display = 'flex';
+                saveEditBtn.style.display = 'none';
+                bulkBanner.querySelector('.bulk-banner-text').textContent = 
+                    `Bulk Mode — ${draftProducts.length} product(s) in queue`;
+    
+                // Re-open the preview so they can continue
+                renderPreviewCards();
+                setTimeout(() => {
+                    overlay.style.display = 'flex'; // ✅ delay prevents click bleed-through
+                }, 100);
+    
+            } catch (err) {
+                alert("⚠️ " + err.message);
+            } finally {
+                saveEditBtn.disabled = false;
+                saveEditBtn.innerHTML = '<i class="fas fa-save"></i> Save Changes';
+            }
+        });
+    }
     
     function renderPreviewCards() {
         previewGrid.innerHTML = '';
@@ -720,9 +784,9 @@ document.addEventListener("DOMContentLoaded", () => {
     
     // Remove a card from queue
     previewGrid?.addEventListener('click', (e) => {
-        const removeBtn = e.target.closest('.btn-remove-card');
-        if (removeBtn) {
-            const idx = parseInt(removeBtn.dataset.index);
+        const removeBtnCard = e.target.closest('.btn-remove-card');
+        if (removeBtnCard) {
+            const idx = parseInt(removeBtnCard.dataset.index);
             draftProducts.splice(idx, 1);
             updateBulkUI();
             renderPreviewCards();
@@ -731,11 +795,16 @@ document.addEventListener("DOMContentLoaded", () => {
     
         const editBtn = e.target.closest('.btn-edit-card');
         if (!editBtn) return;
-    
+        
         const idx = parseInt(editBtn.dataset.index);
-        const product = draftProducts[idx];
-    
-        // Close the preview modal
+        if (idx < 0 || idx >= draftProducts.length) return;
+        
+        const product = { ...draftProducts[idx] }; 
+        draftProducts.splice(idx, 1);              
+        updateBulkUI();
+        console.log('After splice, queue length:', draftProducts.length); // ✅ ADD
+        console.log('Queue contents:', draftProducts.map(p => p.name));   // ✅ ADD
+        
         overlay.style.display = 'none';
     
         // Populate form fields
@@ -744,7 +813,8 @@ document.addEventListener("DOMContentLoaded", () => {
         document.querySelector('input[type="number"][step="0.01"]').value = product.price;
         document.querySelector('input[placeholder="0"]').value = product.stock;
         document.querySelector('input[placeholder="10"]').value = product.lowStockThreshold;
-
+        document.getElementById('productIdInput').value = product.productId || '';
+    
         // Wait for category options to be ready before setting value
         const categorySelect = document.getElementById('categorySelect');
         const setCategoryWhenReady = () => {
@@ -763,41 +833,57 @@ document.addEventListener("DOMContentLoaded", () => {
             placeholder.style.display = 'none';
             removeBtn.style.display = 'flex';
             selectedImageFile = product.imageFile || null;
+        } else {
+            resetImage();
         }
     
-        // Restore variations
-        if (variationContainer && product.variations.length > 0) {
-            variationContainer.innerHTML = product.variations.map(v => `
-                <div class="variations-row">
-                    <div class="input-group"><input type="text" class="var-size" placeholder="Ex: Large" value="${v.size}" required></div>
-                    <div class="input-group"><input type="text" class="var-color" placeholder="Ex: Red" value="${v.color}" required></div>
-                    <div class="input-group"><input type="text" class="var-custom" placeholder="Optional" value="${v.custom || ''}"></div>
-                    <button type="button" class="btn-delete remove-row-btn"><i class="fas fa-trash"></i></button>
-                </div>`).join('');
+        // Restore variations — always reset container first
+        if (variationContainer) {
+            if (product.variations && product.variations.length > 0) {
+                variationContainer.innerHTML = product.variations.map(v => `
+                    <div class="variations-row">
+                        <div class="input-group"><input type="text" class="var-size" placeholder="Ex: Large" value="${v.size}" required></div>
+                        <div class="input-group"><input type="text" class="var-color" placeholder="Ex: Red" value="${v.color}" required></div>
+                        <div class="input-group"><input type="text" class="var-custom" placeholder="Optional" value="${v.custom || ''}"></div>
+                        <button type="button" class="btn-delete remove-row-btn"><i class="fas fa-trash"></i></button>
+                    </div>`).join('');
+            } else {
+                variationContainer.innerHTML = `
+                    <div class="variations-row">
+                        <div class="input-group"><input type="text" class="var-size" placeholder="Ex: Large" required></div>
+                        <div class="input-group"><input type="text" class="var-color" placeholder="Ex: Red" required></div>
+                        <div class="input-group"><input type="text" class="var-custom" placeholder="Optional"></div>
+                        <button type="button" class="btn-delete remove-row-btn"><i class="fas fa-trash"></i></button>
+                    </div>`;
+            }
             variationContainer.querySelectorAll('input').forEach(inp => applyCharLimit(inp));
         }
     
-        // Restore attributes
-        if (attrContainer && product.attributes.length > 0) {
-            attrContainer.innerHTML = product.attributes.map(a => `
-                <div class="custom-attr-row">
-                    <div class="input-group"><input type="text" class="attr-name" placeholder="Ex: Material" value="${a.name}"></div>
-                    <div class="input-group"><input type="text" class="attr-value" placeholder="Ex: Cotton" value="${a.value}"></div>
-                    <button type="button" class="btn-delete remove-attr-btn"><i class="fas fa-trash"></i></button>
-                </div>`).join('');
+        // Restore attributes — always reset container first
+        if (attrContainer) {
+            if (product.attributes && product.attributes.length > 0) {
+                attrContainer.innerHTML = product.attributes.map(a => `
+                    <div class="custom-attr-row">
+                        <div class="input-group"><input type="text" class="attr-name" placeholder="Ex: Material" value="${a.name}"></div>
+                        <div class="input-group"><input type="text" class="attr-value" placeholder="Ex: Cotton" value="${a.value}"></div>
+                        <button type="button" class="btn-delete remove-attr-btn"><i class="fas fa-trash"></i></button>
+                    </div>`).join('');
+            } else {
+                attrContainer.innerHTML = `
+                    <div class="custom-attr-row">
+                        <div class="input-group"><input type="text" class="attr-name" placeholder="Ex: Material"></div>
+                        <div class="input-group"><input type="text" class="attr-value" placeholder="Ex: Cotton"></div>
+                        <button type="button" class="btn-delete remove-attr-btn"><i class="fas fa-trash"></i></button>
+                    </div>`;
+            }
             attrContainer.querySelectorAll('input').forEach(inp => applyCharLimit(inp));
-        } else if (attrContainer) {
-            attrContainer.innerHTML = `
-                <div class="custom-attr-row">
-                    <div class="input-group"><input type="text" class="attr-name" placeholder="Ex: Material"></div>
-                    <div class="input-group"><input type="text" class="attr-value" placeholder="Ex: Cotton"></div>
-                    <button type="button" class="btn-delete remove-attr-btn"><i class="fas fa-trash"></i></button>
-                </div>`;
         }
     
-        // Remove from queue — it'll be re-added when user clicks Next
-        draftProducts.splice(idx, 1);
-        updateBulkUI();
+    
+        // Show "Save Changes" button, hide "Next Product"
+        nextBtn.style.display = 'none';
+        saveEditBtn.style.display = 'flex';
+        bulkBanner.querySelector('.bulk-banner-text').textContent = `Editing: ${product.name}`;
     
         window.scrollTo({ top: 0, behavior: 'smooth' });
     });
@@ -805,6 +891,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // --- CONFIRM SAVE ALL ---
     if (confirmSaveBtn) {
         confirmSaveBtn.addEventListener('click', async () => {
+            e.stopPropagation();
             if (draftProducts.length === 0) return;
     
             confirmSaveBtn.disabled = true;
@@ -852,7 +939,7 @@ document.addEventListener("DOMContentLoaded", () => {
                         variations: product.variations,
                         attributes: product.attributes
                     };
-                    await addDoc(collection(db, "products"), productData);
+                    await setDoc(doc(db, "products", product.productId), productData);
                     await logActivity("Added Product", product.name);
     
                     saved++;
@@ -911,7 +998,8 @@ document.addEventListener("DOMContentLoaded", () => {
                     progressBar.style.width = width + '%';
                     if (width >= 100) {
                         clearInterval(interval);
-                        window.location.href = "Dashboard.html";
+                        sessionStorage.removeItem('products_cache');
+                        window.location.href = "Products.html";
                     }
                 }, stepTime);
             }

@@ -214,6 +214,8 @@ function initPage() {
 
                 // 4. BUST CACHES so Dashboard and Products reflect the change
                 sessionStorage.removeItem('dashboard_cache');
+                sessionStorage.removeItem('products_cache');
+                sessionStorage.removeItem('categories_cache');
 
                 isFormDirty = false;
                 showSuccessModal(rawName);

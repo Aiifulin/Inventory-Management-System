@@ -282,6 +282,9 @@ textarea { resize: vertical; height: 80px; font-family: inherit; }
     font-weight: 600;
     color: #fff;
     cursor: pointer;
+    display: flex;          /* ADD */
+    align-items: center;    /* ADD */
+    gap: 8px;               /* ADD */
 }
 
 .btn-finaladd {

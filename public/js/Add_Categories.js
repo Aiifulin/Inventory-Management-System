@@ -165,7 +165,11 @@ document.addEventListener("DOMContentLoaded", () => {
                 const newId = await addCategory(categoryData);
                 await logActivity("Added Category", categoryData.name);
 
+                // 3. BUST CACHES
                 sessionStorage.removeItem('dashboard_cache');
+                sessionStorage.removeItem('products_cache');
+                sessionStorage.removeItem('categories_cache');
+                
                 showSuccessModal(categoryData.name);
                 
 

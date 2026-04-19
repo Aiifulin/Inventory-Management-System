@@ -272,6 +272,9 @@ function initPage() {
                 document.getElementById('inpStock').value = data.stock || "";
                 document.getElementById('inpLowStock').value = data.lowStockThreshold || 10;
 
+                const productIdDisplay = document.getElementById('productIdDisplay');
+                if (productIdDisplay) productIdDisplay.value = productId;
+
                 // Load existing image
                 if (data.imageUrl) {
                     currentImageUrl = data.imageUrl;
@@ -438,6 +441,12 @@ function initPage() {
                 originalImageUrl = updatedData.imageUrl;
                 removeExistingImage = false;
                 selectedImageFile = null;
+
+                // 3. BUST CACHES
+                sessionStorage.removeItem('dashboard_cache');
+                sessionStorage.removeItem('products_cache');
+                sessionStorage.removeItem('categories_cache');
+                
                 showSuccessModal(updatedData.name);
 
             } catch (error) {

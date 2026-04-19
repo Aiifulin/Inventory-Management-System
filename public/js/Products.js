@@ -264,7 +264,7 @@ function renderTable(productsToRender) {
 
     productsToRender.forEach(p => {
         const docId    = p.id;
-        const shortId  = "#" + docId.slice(0, 6); 
+        const shortId = p.id;
 
         let imageHtml = p.imageUrl
         ? `<img src="${p.imageUrl}" alt="${p.name}"
