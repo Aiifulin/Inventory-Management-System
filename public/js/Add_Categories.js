@@ -68,8 +68,11 @@ async function displayUserName(uid) {
 
     const userData = await getCachedUserData(uid);
     const name = userData?.name || "User";
-    
-    nameEl.textContent = name;
+    const role = userData?.role
+        ? ` (${userData.role.charAt(0).toUpperCase() + userData.role.slice(1)})`
+        : "";
+
+    nameEl.innerHTML = `${name}<span style="font-size:11px; color:#FFA500; font-weight:600; opacity:0.7;">${role}</span>`;
 }
 
 

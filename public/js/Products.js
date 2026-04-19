@@ -95,7 +95,12 @@ onAuthStateChanged(auth, async (user) => {
 
     // Apply role-dependent UI after data is already loading
     const nameEl = document.getElementById('userNameDisplay');
-    if (nameEl) nameEl.textContent = userData?.name || "User";
+    if (nameEl) {
+        const name = userData?.name || "User";
+        const role = userData?.role || "user";
+        const roleLabel = role.charAt(0).toUpperCase() + role.slice(1);
+        nameEl.innerHTML = `${name} <span style="font-size:11px; color: #FFA500; font-weight:600; opacity:0.7;">(${roleLabel})</span>`;
+    }
 
     localStorage.setItem("user_uid",  user.uid);
     localStorage.setItem("user_role", isAdmin ? "admin" : "user");

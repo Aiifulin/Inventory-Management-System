@@ -76,7 +76,12 @@ onAuthStateChanged(auth, async (user) => {
     ]);
 
     const nameEl = document.getElementById('userNameDisplay');
-    if (nameEl) nameEl.textContent = userData?.name || "User";
+    if (nameEl) {
+        const name = userData?.name || "User";
+        const role = userData?.role || "user";
+        const roleLabel = role.charAt(0).toUpperCase() + role.slice(1);
+        nameEl.innerHTML = `${name} <span style="font-size:11px; color: #FFA500; font-weight:600; opacity:0.7;">(${roleLabel})</span>`;
+    }
 
     document.querySelector('.main-content').style.visibility = 'visible';
 
