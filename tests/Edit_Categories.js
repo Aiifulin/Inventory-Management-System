@@ -1,11 +1,9 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
 import { getFirestore, doc, getDoc, updateDoc, collection, addDoc, serverTimestamp, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
-export {
-    getCachedUserData,
-    sanitizeInput,
-    logActivity
-};
+
+
+import { initLogoutModal } from "./logout-modal.js";
 
 const firebaseConfig = {
     apiKey: "AIzaSyBeaF2VKovHASuzhvZHzOoE0yB7QnBDej0",
@@ -19,7 +17,7 @@ const firebaseConfig = {
 
 
 const app = initializeApp(firebaseConfig);
-const db = initializeFirestore(app, {});
+const db = getFirestore(app);
 
 const auth = getAuth(app);
 
@@ -263,3 +261,4 @@ function showSuccessModal(categoryName) {
     }, 2000);
 }
 
+export { getCachedUserData, sanitizeInput, logActivity };
