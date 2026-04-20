@@ -294,8 +294,8 @@ document.addEventListener("DOMContentLoaded", () => {
             const newRow = document.createElement("div");
             newRow.classList.add("variations-row");
             newRow.innerHTML = `
-                <div class="input-group"><input type="text" class="var-size" placeholder="Ex: Large" required></div>
-                <div class="input-group"><input type="text" class="var-color" placeholder="Ex: Red" required></div>
+                <div class="input-group"><input type="text" class="var-size" placeholder="Ex: Large"></div>
+                <div class="input-group"><input type="text" class="var-color" placeholder="Ex: Red"></div>
                 <div class="input-group"><input type="text" class="var-custom" placeholder="Optional"></div>
                 <button type="button" class="btn-delete remove-row-btn"><i class="fas fa-trash"></i></button>
             `;
@@ -420,9 +420,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     }
                 });
                 
-                if (variations.length === 0) {
-                    throw new Error("Please add at least one valid Product Variation.");
-                }
+                
                 
                 // --- Harvest Attributes ---
                 const attributes = [];
@@ -455,9 +453,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
                 
 
-                if (productData.variations.length === 0) {
-                    throw new Error("Please add at least one valid Product Variation.");
-                }
+                
 
                 // 1. SAVE PRODUCT
                 const manualId = document.getElementById('productIdInput').value.trim();
@@ -621,7 +617,6 @@ document.addEventListener("DOMContentLoaded", () => {
             const custom = sanitizeInput(row.querySelector('.var-custom').value);
             if (size && color) variations.push({ size, color, custom });
         });
-        if (variations.length === 0) throw new Error("Add at least one valid variation.");
     
         const attributes = [];
         document.querySelectorAll('.custom-attr-row').forEach(row => {
@@ -657,8 +652,8 @@ document.addEventListener("DOMContentLoaded", () => {
         if (variationContainer) {
             variationContainer.innerHTML = `
                 <div class="variations-row">
-                    <div class="input-group"><input type="text" class="var-size" placeholder="Ex: Large" required></div>
-                    <div class="input-group"><input type="text" class="var-color" placeholder="Ex: Red" required></div>
+                    <div class="input-group"><input type="text" class="var-size" placeholder="Ex: Large"></div>
+                    <div class="input-group"><input type="text" class="var-color" placeholder="Ex: Red"></div>
                     <div class="input-group"><input type="text" class="var-custom" placeholder="Optional"></div>
                     <button type="button" class="btn-delete remove-row-btn" title="Remove"><i class="fas fa-trash"></i></button>
                 </div>`;
@@ -872,16 +867,16 @@ document.addEventListener("DOMContentLoaded", () => {
             if (product.variations && product.variations.length > 0) {
                 variationContainer.innerHTML = product.variations.map(v => `
                     <div class="variations-row">
-                        <div class="input-group"><input type="text" class="var-size" placeholder="Ex: Large" value="${v.size}" required></div>
-                        <div class="input-group"><input type="text" class="var-color" placeholder="Ex: Red" value="${v.color}" required></div>
+                        <div class="input-group"><input type="text" class="var-size" placeholder="Ex: Large" value="${v.size}"></div>
+                        <div class="input-group"><input type="text" class="var-color" placeholder="Ex: Red" value="${v.color}"></div>
                         <div class="input-group"><input type="text" class="var-custom" placeholder="Optional" value="${v.custom || ''}"></div>
                         <button type="button" class="btn-delete remove-row-btn"><i class="fas fa-trash"></i></button>
                     </div>`).join('');
             } else {
                 variationContainer.innerHTML = `
                     <div class="variations-row">
-                        <div class="input-group"><input type="text" class="var-size" placeholder="Ex: Large" required></div>
-                        <div class="input-group"><input type="text" class="var-color" placeholder="Ex: Red" required></div>
+                        <div class="input-group"><input type="text" class="var-size" placeholder="Ex: Large"></div>
+                        <div class="input-group"><input type="text" class="var-color" placeholder="Ex: Red"></div>
                         <div class="input-group"><input type="text" class="var-custom" placeholder="Optional"></div>
                         <button type="button" class="btn-delete remove-row-btn"><i class="fas fa-trash"></i></button>
                     </div>`;

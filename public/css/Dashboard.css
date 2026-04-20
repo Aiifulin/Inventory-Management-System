@@ -564,3 +564,24 @@ body {
 .btn-refresh.loading #refreshIcon {
     animation: spin 0.7s linear infinite;
 }
+
+.chart-toggle {
+    display: flex;
+    gap: 4px;
+}
+.toggle-btn {
+    padding: 5px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-body);
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.toggle-btn.active {
+    background: var(--primary-color);
+    color: #fff;
+    border-color: var(--primary-color);
+}

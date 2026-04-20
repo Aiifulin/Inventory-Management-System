@@ -306,7 +306,8 @@ function renderPage() {
             const isPositive = tx.type === "Stock In";
             const deltaSign  = isPositive ? "+" : "-";
             const deltaClass = isPositive ? "positive" : "negative";
-            const badgeClass = { "Stock In": "stock-in", "Sold": "sold", "Adjustment": "adjustment", "Damaged": "damaged" }[tx.type] || "adjustment";
+            const badgeClass = { "Stock In": "stock-in", "Sold": "sold", "Adjustment": "adjustment" }[tx.type] || "adjustment";
+
 
             const statusKey   = (tx.status || "Completed").toLowerCase();
             const statusIcons = { completed: "✅", pending: "⏳", cancelled: "❌" };
@@ -434,11 +435,12 @@ function updateStockPreview() {
 
     const before  = product.stock;
     const isIn    = type === "Stock In";
-    const isDeduct = type === "Sold" || type === "Damaged" || type === "Adjustment";
+    const isDeduct = type === "Sold" || type === "Adjustment";
+
 
     // ─── Inline stock warning (replaces confirm()) ─────────────────────────────
     if (isDeduct && statusVal === "Completed" && qty > before) {
-        const typeLabel = type === "Sold" ? "sell" : type === "Damaged" ? "mark as damaged" : "adjust";
+        const typeLabel = type === "Sold" ? "sell" : "adjust";
         setStockWarning(
             true,
             `Not enough stock to ${typeLabel}`,

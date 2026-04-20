@@ -1,12 +1,11 @@
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
-    import { collection, query, orderBy, limit, where, doc, getDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+    import { collection, query, orderBy, limit, where, doc, getDoc, getDocs, Timestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
     import { initLogoutModal } from "./logout-modal.js";
     import { db, auth, storage } from "./firebase.js";
 
 
     // --- GLOBALS ---
     let barChartInstance = null;
-    let pieChartInstance = null;
     let dashboardStage = {};
     const CACHE_KEY = 'dashboard_cache';
 
@@ -95,6 +94,8 @@ import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/
             updateStat("statLowStock",      cached.lowStockCount);
             updateStat("statCategories",    cached.categoryCount);
             updateStat("statTotalValue",    cached.totalValue);
+            updateStat("statStockIn", cached.stockIn?.toLocaleString() ?? "—");
+            updateStat("statSold",    cached.sold?.toLocaleString()    ?? "—");
             initCharts(cached.categoryMap);
             renderLowStockTable(cached.lowStockItems);
             renderActivities(cached.activities);
@@ -112,7 +113,8 @@ import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/
             await Promise.all([
                 loadStats(),
                 loadRecentActivities(),
-                loadCategoryCount()
+                loadCategoryCount(),
+                loadMonthlyTxStats()
             ]);
             saveCache(dashboardStage);
         } catch (err) {
@@ -223,7 +225,7 @@ import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/
     function renderLowStockTable(items) {
         const tableBody = document.querySelector('#lowStockTable tbody');
         if (!tableBody) return;
-
+    
         if (items.length === 0) {
             tableBody.innerHTML = `
                 <tr>
@@ -233,29 +235,46 @@ import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/
                 </tr>`;
             return;
         }
-
+    
         items.sort((a, b) => a.stock - b.stock);
+        const badge = document.getElementById('lowStockBadge');
+        if (badge && items.length > 0) {
+            badge.textContent = items.length;
+            badge.style.display = 'inline';
+        }
         const displayItems = items.slice(0, 5);
-
+        const remaining    = items.length - displayItems.length;  // ← ADD
+    
         let html = '';
         displayItems.forEach(item => {
             const pillClass  = item.stock === 0 ? "pill-red"    : "pill-orange";
             const statusText = item.stock === 0 ? "Out of Stock" : "Low Stock";
-
+    
             const imgTag = item.imageUrl
                 ? `<img src="${item.imageUrl}" class="sm-product-img" alt="img">`
-                : `<div style="display:inline-block; width:32px; height:32px; background:#f3f4f6; border-radius:6px; margin-right:10px; vertical-align:middle; text-align:center; line-height:32px;">
-                    <i class="fas fa-box" style="font-size:12px; color:#9ca3af;"></i>
-                </div>`;
-
+                : `<div style="display:inline-block;width:32px;height:32px;background:#f3f4f6;border-radius:6px;margin-right:10px;vertical-align:middle;text-align:center;line-height:32px;">
+                    <i class="fas fa-box" style="font-size:12px;color:#9ca3af;"></i>
+                   </div>`;
+    
             html += `
                 <tr>
                     <td>${imgTag}<span style="font-weight:500;">${item.name}</span></td>
-                    <td style="font-family:monospace; font-size:14px;">${item.stock}</td>
+                    <td style="font-family:monospace;font-size:14px;">${item.stock}</td>
                     <td><span class="pill ${pillClass}">${statusText}</span></td>
                 </tr>`;
         });
-
+    
+        // ← ADD: "and X more" row
+        if (remaining > 0) {
+            html += `
+                <tr>
+                    <td colspan="3" style="text-align:center;padding:10px;font-size:13px;color:var(--text-secondary);">
+                        and <a href="Products.html" style="color:#f97316;font-weight:600;text-decoration:none;">${remaining} more</a> low stock item${remaining !== 1 ? 's' : ''} — 
+                        <a href="Products.html" style="color:var(--text-secondary);font-size:12px;">view all</a>
+                    </td>
+                </tr>`;
+        }
+    
         tableBody.innerHTML = html;
     }
 
@@ -314,101 +333,64 @@ import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/
         const labels = Object.keys(dataMap);
         const counts = labels.map(cat => dataMap[cat].count);
         const values = labels.map(cat => dataMap[cat].value);
-
+    
         const isDark    = document.documentElement.getAttribute('data-theme') === 'dark';
-        const barColor  = isDark ? '#3b82f6' : '#0f172a';
         const textColor = isDark ? '#e5e7eb' : '#374151';
         const gridColor = isDark ? '#374151' : '#e5e7eb';
         const chartColors = ['#0f172a','#3b82f6','#64748b','#cbd5e1','#f59e0b','#10b981','#ef4444'];
-
-        const ctxBar = document.getElementById('barChart');
-        if (ctxBar) {
-            if (barChartInstance) barChartInstance.destroy();
-            barChartInstance = new Chart(ctxBar.getContext('2d'), {
-                type: 'bar',
-                data: {
-                    labels,
-                    datasets: [{
-                        label: 'Number of Products',
-                        data: counts,
-                        backgroundColor: barColor,
-                        borderRadius: 4
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            ticks: { stepSize: 1, color: textColor },
-                            grid: { color: gridColor }
-                        },
-                        x: {
-                            ticks: { color: textColor },
-                            grid: { display: false }
-                        }
-                    }
+    
+        const ctx = document.getElementById('barChart');
+        if (!ctx) return;
+    
+        if (barChartInstance) barChartInstance.destroy();
+    
+        barChartInstance = new Chart(ctx.getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels,
+                datasets: [{
+                    label: 'Products',
+                    data: counts,
+                    backgroundColor: chartColors.map((c, i) => chartColors[i % chartColors.length]),
+                    borderRadius: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: { beginAtZero: true, ticks: { stepSize: 1, color: textColor }, grid: { color: gridColor } },
+                    x: { ticks: { color: textColor }, grid: { display: false } }
                 }
-            });
-        }
+            }
+        });
+    
+        // Wire up toggle buttons
+        window._chartModeData = { counts, values, labels, chartColors, textColor, gridColor };
 
-        const ctxPie = document.getElementById('pieChart');
-        if (ctxPie) {
-            if (pieChartInstance) pieChartInstance.destroy();
-            pieChartInstance = new Chart(ctxPie.getContext('2d'), {
-                type: 'doughnut',
-                data: {
-                    labels,
-                    datasets: [{
-                        data: values,
-                        backgroundColor: chartColors,
-                        hoverOffset: 4,
-                        borderWidth: 0
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: { display: false },
-                        tooltip: {
-                            callbacks: {
-                                label(context) {
-                                    let label = context.label ? context.label + ': ' : '';
-                                    if (context.parsed !== null) {
-                                        label += new Intl.NumberFormat('en-PH', {
-                                            style: 'currency', currency: 'PHP'
-                                        }).format(context.parsed);
-                                    }
-                                    return label;
-                                }
-                            }
-                        }
-                    }
-                }
-            });
-        }
-
-        const legendContainer = document.getElementById('pieLegend');
-        if (legendContainer) {
-            legendContainer.innerHTML = labels.map((label, i) => {
-                const color = chartColors[i % chartColors.length];
-                const formattedValue = new Intl.NumberFormat('en-PH', {
-                    style: 'currency', currency: 'PHP'
-                }).format(values[i]);
-
-                return `
-                    <div class="legend-item">
-                        <div class="legend-left">
-                            <span class="legend-color" style="background-color:${color};"></span>
-                            <span>${label}</span>
-                        </div>
-                        <span class="legend-value">${formattedValue}</span>
-                    </div>`;
-            }).join('');
-        }
+        
+    }
+    
+    function switchChartMode(mode, data, labels, chartColors, textColor, gridColor) {
+        if (!barChartInstance) return;
+    
+        document.getElementById('toggleCount')?.classList.toggle('active', mode === 'count');
+        document.getElementById('toggleValue')?.classList.toggle('active', mode === 'value');
+    
+        barChartInstance.data.datasets[0].data  = data;
+        barChartInstance.data.datasets[0].label = mode === 'count' ? 'Products' : 'Value (₱)';
+        barChartInstance.options.scales.y.ticks.callback = mode === 'value'
+            ? v => `₱${Number(v).toLocaleString()}`
+            : undefined;
+        barChartInstance.options.plugins.tooltip = {
+            callbacks: {
+                label: ctx => mode === 'value'
+                    ? ` ₱${Number(ctx.raw).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`
+                    : ` ${ctx.raw} product(s)`
+            }
+        };
+        barChartInstance.update();
     }
 
     // ================================================
@@ -462,6 +444,48 @@ import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/
         if (hamburgerBtn) hamburgerBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleSidebar(); });
         if (closeBtn)     closeBtn.addEventListener('click', closeSidebar);
         if (overlay)      overlay.addEventListener('click', closeSidebar);
+
+        // At the bottom of DOMContentLoaded, add:
+        document.getElementById('toggleCount')?.addEventListener('click', () => {
+            if (window._chartModeData) switchChartMode('count', window._chartModeData.counts, window._chartModeData.labels, window._chartModeData.chartColors, window._chartModeData.textColor, window._chartModeData.gridColor);
+        });
+        document.getElementById('toggleValue')?.addEventListener('click', () => {
+            if (window._chartModeData) switchChartMode('value', window._chartModeData.values, window._chartModeData.labels, window._chartModeData.chartColors, window._chartModeData.textColor, window._chartModeData.gridColor);
+        });
     });
+
+    async function loadMonthlyTxStats() {
+        const now = new Date();
+        const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        const currentYear = now.getFullYear();
+    
+        try {
+            const snap = await getDocs(
+                query(
+                    collection(db, "stock_transactions", String(currentYear), "transactions"),
+                    where("createdAt", ">=", Timestamp.fromDate(thisMonthStart))
+                )
+            );
+    
+            let stockIn = 0, sold = 0;
+            snap.forEach(docSnap => {
+                const d = docSnap.data();
+                if (d.status === "Cancelled") return;
+                const qty = Number(d.qty) || 0;
+                if (d.type === "Stock In") stockIn += qty;
+                else if (d.type === "Sold") sold += qty;
+            });
+    
+            updateStat("statStockIn", stockIn.toLocaleString());
+            updateStat("statSold", sold.toLocaleString());
+    
+            dashboardStage.stockIn = stockIn;
+            dashboardStage.sold = sold;
+        } catch (e) {
+            console.error("loadMonthlyTxStats:", e);
+            updateStat("statStockIn", "—");
+            updateStat("statSold", "—");
+        }
+    }
     
     export { getCachedUserData, loadDashboard, fetchAndCache, loadStats, loadRecentActivities, loadCategoryCount, saveCache, loadCache, clearCache, formatTimeAgo };

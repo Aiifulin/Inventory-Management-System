@@ -130,7 +130,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
             try {
                 const rawName = document.getElementById('categoryNameInput').value.trim();
-                const rawDesc = document.getElementById('categoryDescInput').value.trim();
 
                 const manualId = document.getElementById('categoryIdInput').value.trim();
                 if (!manualId) throw new Error("Category ID is required.");
@@ -151,7 +150,6 @@ document.addEventListener("DOMContentLoaded", () => {
                 const categoryData = {
                     name: rawName,
                     normalizedName,
-                    description: sanitizeInput(rawDesc),
                     createdBy: auth.currentUser ? auth.currentUser.uid : "unknown"
                 };
 

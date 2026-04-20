@@ -107,24 +107,36 @@
                 </div>
                 <div class="stat-icon icon-gold"><i class="fas fa-peso-sign"></i></div>
             </div>
+
+            <div class="stat-card">
+                <div class="stat-info">
+                    <h4>Stock In This Month</h4>
+                    <p id="statStockIn">—</p>
+                </div>
+                <div class="stat-icon icon-teal"><i class="fas fa-arrow-down"></i></div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-info">
+                    <h4>Sold This Month</h4>
+                    <p id="statSold">—</p>
+                </div>
+                <div class="stat-icon icon-gold"><i class="fas fa-tag"></i></div>
+            </div>
         </div>
 
         <div class="charts-grid">
-            <section class="card-container">
-                <div class="card-header"><h3>Products by Category</h3></div>
-                <div class="chart-wrapper" style="position: relative; height: 300px; width: 100%;">
+            <section class="card-container" style="grid-column: 1 / -1;">
+                <div class="card-header">
+                    <h3>Products by Category</h3>
+                    <div class="chart-toggle">
+                        <button class="toggle-btn active" id="toggleCount">Count</button>
+                        <button class="toggle-btn" id="toggleValue">Value (₱)</button>
+                    </div>
+                </div>
+                <div class="chart-wrapper" style="position:relative; height:300px; width:100%;">
                     <canvas id="barChart"></canvas>
                 </div>
-            </section>
-        
-            <section class="card-container">
-                <div class="card-header"><h3>Inventory Value Distribution</h3></div>
-                        
-                <div class="chart-wrapper" style="position: relative; height: 250px; width: 100%;">
-                    <canvas id="pieChart"></canvas>
-                </div>
-            
-                <div id="pieLegend" class="custom-legend"></div>
             </section>
         </div>
 
@@ -139,8 +151,8 @@
 
             <section class="card-container no-min-width">
                 <div class="card-header">
-                    <h3>Low Stock Alert</h3>
-                    <a href="Products.html" style="font-size:12px; text-decoration:none; color:#FFA500;">Manage</a>
+                    <h3>Low Stock Alert <span id="lowStockBadge" style="display:none;font-size:12px;font-weight:600;padding:2px 8px;border-radius:10px;background:rgba(239,68,68,0.1);color:#ef4444;margin-left:6px;"></span></h3>
+                    <a href="Products.html" style="font-size:12px;text-decoration:none;color:#FFA500;">Manage</a>
                 </div>
                 <div class="table-responsive">
                     <table class="simple-table" id="lowStockTable">

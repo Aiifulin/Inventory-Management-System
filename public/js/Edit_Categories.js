@@ -1,4 +1,3 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
 import { doc, getDoc, updateDoc, collection, addDoc, serverTimestamp, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 import { initLogoutModal } from "./logout-modal.js";
@@ -84,14 +83,6 @@ async function logActivity(action, targetName) {
     }
 }
 
-// --- SANITIZER ---
-function sanitizeInput(str) {
-    if (!str) return "";
-    if (typeof str !== 'string') return String(str);
-    const div = document.createElement('div');
-    div.innerText = str;
-    return div.innerHTML;
-}
 
 function applyCharLimit(input) {
     if (!input) return;
@@ -138,7 +129,6 @@ function initPage() {
                 const data = docSnap.data();
 
                 nameInput.value = data.name || "";
-                document.getElementById('inpDesc').value = data.description || "";
 
                 document.getElementById('inpCategoryId').value = categoryId;
 
@@ -169,7 +159,6 @@ function initPage() {
 
             try {
                 const rawName = document.getElementById('inpName').value.trim();
-                const rawDesc = document.getElementById('inpDesc').value.trim();
                 const originalName = document.getElementById('inpName').dataset.originalName || "";
 
                 if (!rawName) throw new Error("Category name is required.");
@@ -184,7 +173,6 @@ function initPage() {
                 const updatedData = {
                     name:        rawName,          // plain text, no sanitize needed for stored name
                     normalizedName: rawName.toLowerCase(),
-                    description: sanitizeInput(rawDesc),
                     updatedAt:   serverTimestamp()
                 };
 
@@ -251,4 +239,4 @@ function showSuccessModal(categoryName) {
     }, 1000);
 }
 
-export { getCachedUserData, logActivity, sanitizeInput };
+export { getCachedUserData, logActivity,};

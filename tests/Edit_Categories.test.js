@@ -1,8 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
     getCachedUserData,
-    logActivity,
-    sanitizeInput
+    logActivity
 } from "../public/js/Edit_Categories.js";
 
 // ==========================================
@@ -92,20 +91,8 @@ const makeElement = () => ({
     appendChild: vi.fn(),
     addEventListener: vi.fn(),
     setAttribute: vi.fn(),
-    getAttribute: vi.fn(() => null),
-    // sanitizeInput uses div.innerText + div.innerHTML — provide both
-    set innerText(v) { this._innerText = v; this.innerHTML = escapeHtml(v); },
-    get innerText()  { return this._innerText || ""; }
+    getAttribute: vi.fn(() => null)
 });
-
-// Minimal HTML-escape so sanitizeInput tests work without a real DOM
-function escapeHtml(str) {
-    return String(str)
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;");
-}
 
 global.document = {
     getElementById:   vi.fn(() => makeElement()),
@@ -182,49 +169,6 @@ describe("Edit_Categories — getCachedUserData", () => {
         });
         const result = await getCachedUserData("uid-1");
         expect(result?.role?.toLowerCase() === "admin").toBe(false);
-    });
-});
-
-// ==========================================
-
-describe("Edit_Categories — sanitizeInput", () => {
-
-    it("should return empty string for falsy input", () => {
-        expect(sanitizeInput("")).toBe("");
-        expect(sanitizeInput(null)).toBe("");
-        expect(sanitizeInput(undefined)).toBe("");
-    });
-
-    it("should convert non-string types to string", () => {
-        expect(sanitizeInput(123)).toBe("123");
-        expect(sanitizeInput(true)).toBe("true");
-    });
-
-    it("should escape < and > in HTML tags", () => {
-        const result = sanitizeInput("<script>alert('xss')</script>");
-        expect(result).not.toContain("<script>");
-        expect(result).toContain("&lt;script&gt;");
-    });
-
-    it("should escape dangerous attributes", () => {
-        const result = sanitizeInput('<img src=x onerror="alert(1)">');
-        // The whole tag is escaped — angle brackets are converted so it cannot execute
-        expect(result).toContain("&lt;img");
-        expect(result).toContain("&gt;");
-        // The quotes around the handler value are also escaped
-        expect(result).toContain("&quot;");
-        // Must NOT contain an unescaped opening tag — this is what prevents XSS
-        expect(result).not.toContain("<img");
-    });
-
-    it("should preserve normal plain text unchanged", () => {
-        expect(sanitizeInput("Normal category name")).toBe("Normal category name");
-    });
-
-    it("should handle text with ampersands", () => {
-        const result = sanitizeInput("Cats & Dogs");
-        expect(result).toContain("Cats");
-        expect(result).toContain("Dogs");
     });
 });
 
