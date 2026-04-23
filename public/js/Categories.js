@@ -5,7 +5,15 @@ import { getCountFromServer } from "https://www.gstatic.com/firebasejs/10.13.0/f
 import { db, auth, storage } from "./firebase.js";
 
 
-// --- GLOBAL STATE ---
+// ============================================================
+// GLOBAL STATE
+// allCategories      — master list of all fetched (non-archived) categories
+// filteredCategories — the subset currently shown after search/sort
+// currentSortDir     — 'asc' or 'desc', toggled by the sort direction button
+// currentUser        — the signed-in Firebase Auth user object
+// isAdmin            — true if the user's role is 'admin'; gates write actions
+// isCategoriesLoading — true while Firestore fetch is in progress; blocks renders
+// ============================================================
 let allCategories      = [];
 let filteredCategories = []; 
 let currentSortDir     = 'asc';
@@ -13,9 +21,22 @@ let currentUser        = null;
 let isAdmin            = false;
 let isCategoriesLoading = true;
 
-// Add near the top with other state variables
+// ============================================================
+// SECTION 1 — CATEGORIES CACHE
+// Categories are cached in sessionStorage with a 5-minute TTL so
+// navigating away and back doesn't trigger another Firestore read.
+// Firestore Timestamps are converted to plain objects before
+// serialisation (they aren't JSON-safe) and restored on read.
+// Note: item counts are patched in AFTER the initial fetch, so
+// the cache is only written once counts are fully loaded.
+// ============================================================
 const CATEGORIES_CACHE_KEY = 'categories_cache';
 
+/**
+ * Serialises the categories array and writes it to sessionStorage.
+ * Firestore Timestamps are converted to { _type, seconds } objects
+ * so they survive JSON serialisation without losing date information.
+ */
 function saveCategoriesCache(categories) {
     try {
         const serialisable = categories.map(c => ({
@@ -28,6 +49,13 @@ function saveCategoriesCache(categories) {
     } catch (e) { console.warn("Could not save categories cache:", e); }
 }
 
+/**
+ * Reads and deserialises the categories cache from sessionStorage.
+ * Returns null if nothing is cached, the 5-minute TTL has expired,
+ * or JSON parsing fails.
+ * Restores a synthetic .toDate() on Timestamp objects so
+ * date-based sorting and display still work correctly.
+ */
 function loadCategoriesCache() {
     try {
         const raw = sessionStorage.getItem(CATEGORIES_CACHE_KEY);
@@ -43,6 +71,19 @@ function loadCategoriesCache() {
     } catch { return null; }
 }
 
+// ============================================================
+// SECTION 2 — USER DATA CACHE
+// Fetches the signed-in user's Firestore document (name, role).
+// Cached per-UID in sessionStorage so repeated calls within the
+// same tab skip the Firestore read entirely.
+// ============================================================
+
+/**
+ * Returns the user's Firestore document data from sessionStorage
+ * cache if available, otherwise fetches from Firestore and caches.
+ * @param {string} uid — Firebase Auth UID
+ * @returns {Object|null}
+ */
 async function getCachedUserData(uid) {
     const CACHE_KEY = `user_data_${uid}`;
     const cached = sessionStorage.getItem(CACHE_KEY);
@@ -60,6 +101,17 @@ async function getCachedUserData(uid) {
     return null;
 }
 
+// ============================================================
+// SECTION 3 — ACTIVITY LOGGING
+// ============================================================
+
+/**
+ * Writes a single activity entry to the "activities" Firestore collection.
+ * Called after every archive action on a category.
+ * Falls back to "Admin" as the user label if auth.currentUser is null.
+ * @param {string} action     — e.g. "Archived Category"
+ * @param {string} targetName — the name of the affected category
+ */
 async function logActivity(action, targetName) {
     try {
         const userEmail = auth.currentUser ? auth.currentUser.email : "Admin";
@@ -71,9 +123,16 @@ async function logActivity(action, targetName) {
     }
 }
 
-// ================================================
-// AUTH — parallel: user data + categories fire at the same time
-// ================================================
+// ============================================================
+// SECTION 4 — AUTH LISTENER
+// Runs once on page load. Unauthenticated users are redirected
+// to the login page. Fires getCachedUserData() and fetchCategories()
+// simultaneously via Promise.all so the sidebar name and the
+// category table both load as fast as possible.
+// Once the user role is resolved, the Add Category button is
+// shown or hidden and the table is re-rendered so admin action
+// icons (Edit / Archive) appear for admins.
+// ============================================================
 onAuthStateChanged(auth, async (user) => {
     if (!user) { window.location.href = "index.html"; return; }
 
@@ -99,7 +158,7 @@ onAuthStateChanged(auth, async (user) => {
     const addBtn = document.getElementById('addCategoryBtn');
     if (addBtn) addBtn.style.display = isAdmin ? 'flex' : 'none';
 
-    // Re-render so admin action icons appear
+    // Re-render so admin action icons appear now that isAdmin is set
     renderTable(filteredCategories);
 
     // Logout modal
@@ -114,7 +173,24 @@ onAuthStateChanged(auth, async (user) => {
     window.logout = function () { if (openLogoutModal) openLogoutModal(); };
 });
 
-// --- FETCH DATA ---
+// ============================================================
+// SECTION 5 — DATA FETCHING
+// fetchCategories() serves from cache on normal visits and falls
+// back to Firestore on the first load or when the cache has expired.
+// Item counts are intentionally loaded AFTER the initial render so
+// the table appears immediately with 0 counts, then counts are
+// patched in smoothly once the parallel count queries complete.
+// The cache is only saved after counts are fully populated so
+// cached data always includes accurate item counts.
+// ============================================================
+
+/**
+ * Loads all non-archived categories from Firestore (or cache).
+ * On a cache hit: populates allCategories and renders immediately.
+ * On a cache miss: fetches categories, renders with 0 item counts,
+ * then fires loadCategoryCounts() in the background to patch in
+ * real counts and save the completed data to cache.
+ */
 async function fetchCategories() {
     setCategoriesLoading(true);
 
@@ -123,7 +199,7 @@ async function fetchCategories() {
         allCategories = cached;
         setCategoriesLoading(false);
         applyFilters();
-        return; // ← skip Firestore + count queries entirely
+        return; // Skip Firestore + count queries entirely on cache hit
     }
 
     try {
@@ -133,15 +209,15 @@ async function fetchCategories() {
         allCategories = querySnapshot.docs.map(docSnap => ({
             id: docSnap.id,
             ...docSnap.data(),
-            itemCount: 0
+            itemCount: 0 // Placeholder — real counts loaded below
         }));
 
         setCategoriesLoading(false);
-        applyFilters();
+        applyFilters(); // Render immediately with 0 counts
 
-        // Load counts then save the complete data to cache
+        // Load counts in the background, then save complete data to cache
         await loadCategoryCounts(querySnapshot.docs);
-        saveCategoriesCache(allCategories); // ← save AFTER counts are patched in
+        saveCategoriesCache(allCategories); // Save AFTER counts are patched in
 
     } catch (error) {
         console.error("Error loading categories:", error);
@@ -150,6 +226,12 @@ async function fetchCategories() {
     }
 }
 
+/**
+ * Toggles the skeleton loaders and hides/shows the table and
+ * mobile list. Called with true at the start of a fetch and
+ * false when it completes.
+ * @param {boolean} loading
+ */
 function setCategoriesLoading(loading) {
     isCategoriesLoading = loading;
 
@@ -164,7 +246,18 @@ function setCategoriesLoading(loading) {
     mobileList?.classList.toggle("hidden", loading);
 }
 
-// --- FILTER & SORT ---
+// ============================================================
+// SECTION 6 — FILTER & SORT
+// applyFilters() reads the search input and sort select, filters
+// allCategories by name and creation date, sorts the result, and
+// passes it to renderTable(). Called on every filter change event.
+// ============================================================
+
+/**
+ * Filters allCategories against the current search text, sorts by
+ * name or creation date in the current direction, writes the result
+ * to filteredCategories, and re-renders the table.
+ */
 function applyFilters() {
     const searchVal = document.getElementById("searchInput").value.trim().toLowerCase();
     const sortVal   = document.getElementById("filterSort").value; 
@@ -197,12 +290,22 @@ function applyFilters() {
     renderTable(filteredCategories);
 }
 
+/**
+ * Fetches the live product count for every non-archived category
+ * using Firestore's getCountFromServer() (a lightweight aggregation
+ * query that doesn't download the actual documents).
+ * All count queries run in parallel via Promise.all to minimise
+ * total wait time regardless of the number of categories.
+ * After all counts are resolved, patches them into allCategories
+ * and calls applyFilters() to update the visible counts smoothly.
+ * @param {QueryDocumentSnapshot[]} docs — raw Firestore snapshots from fetchCategories()
+ */
 async function loadCategoryCounts(docs) {
-    // 🔥 All count queries in parallel
+    // 🔥 All count queries run in parallel
     const updates = await Promise.all(
         docs.map(async (docSnap) => {
             const data = docSnap.data();
-            if (data.archived === true) return null;
+            if (data.archived === true) return null; // Skip archived categories
             try {
                 const q    = query(collection(db, "products"), where("category", "==", data.name), where("archived", "==", false));
                 const snap = await getCountFromServer(q);
@@ -214,16 +317,32 @@ async function loadCategoryCounts(docs) {
         })
     );
 
+    // Patch the live count into the matching allCategories entry
     updates.forEach(update => {
         if (!update) return;
         const cat = allCategories.find(c => c.id === update.id);
         if (cat) cat.itemCount = update.count;
     });
 
-    applyFilters(); // smooth patch update
+    applyFilters(); // Re-render to show updated counts
 }
 
-// --- RENDER TABLE ---
+// ============================================================
+// SECTION 7 — RENDER
+// renderTable() is the single function responsible for writing
+// category data to the DOM. It builds both the desktop <table>
+// rows and the mobile card list from the same categories array.
+// Admin-only action buttons (Edit / Archive) are injected only
+// when isAdmin is true.
+// ============================================================
+
+/**
+ * Renders the provided categories array into both the desktop table
+ * and the mobile card list. Shows an empty state message if the
+ * array is empty. Calls attachDeleteListeners() after rendering
+ * so the dynamically created Archive buttons are wired up.
+ * @param {Array} categoriesToRender
+ */
 function renderTable(categoriesToRender) {
     const tableBody  = document.getElementById("productTableBody");
     const mobileList = document.getElementById("mobileProductList");
@@ -241,12 +360,12 @@ function renderTable(categoriesToRender) {
         const docId   = c.id;
         const shortId = docId;
 
-
         let dateAdded = "N/A";
         if (c.createdAt && c.createdAt.toDate) {
             dateAdded = c.createdAt.toDate().toLocaleDateString("en-US", { month: 'short', day: 'numeric', year: 'numeric' });
         }
 
+        // Action buttons are only injected for admins
         const adminActions = isAdmin ? `
             <i class="fa-regular fa-pen-to-square" title="Edit" onclick="editCategory('${docId}')" style="cursor: pointer;"></i>
             <i class="fa-regular fa-trash-can delete-btn" data-id="${docId}" title="Delete" style="cursor: pointer;"></i>
@@ -290,7 +409,15 @@ function renderTable(categoriesToRender) {
     if (isAdmin) attachDeleteListeners();
 }
 
-// --- EDIT FUNCTION ---
+// ============================================================
+// SECTION 8 — EDIT & DELETE (ARCHIVE) ACTIONS
+// ============================================================
+
+/**
+ * Navigates to the Edit Category page for the given category ID.
+ * Exposed on window so it can be called from inline onclick attributes.
+ * Shows an error toast and blocks navigation for non-admins.
+ */
 window.editCategory = function(id) {
     if (isAdmin) {
         window.location.href = `Edit_Category.html?id=${id}`;
@@ -299,10 +426,24 @@ window.editCategory = function(id) {
     }
 }
 
-// --- MODAL STATE ---
+// ============================================================
+// SECTION 9 — DELETE (ARCHIVE) MODAL
+// pendingDeleteId / pendingDeleteName store the category awaiting
+// confirmation so the confirm button knows which document to update.
+// Archiving a category also reassigns all of its products to
+// "Uncategorized" via a parallel Promise.all so no product is
+// left pointing to a non-existent category.
+// ============================================================
 let pendingDeleteId   = null;
 let pendingDeleteName = null;
 
+/**
+ * Populates and opens the archive confirmation modal.
+ * Stores the category ID and name in module-level variables so
+ * the confirm button can act on the correct document.
+ * @param {string} id   — Firestore document ID
+ * @param {string} name — displayed inside the modal body
+ */
 function openDeleteModal(id, name) {
     pendingDeleteId   = id;
     pendingDeleteName = name;
@@ -310,6 +451,10 @@ function openDeleteModal(id, name) {
     document.getElementById('deleteModalOverlay').style.display = 'flex';
 }
 
+/**
+ * Hides the archive modal, resets pendingDeleteId/Name to null,
+ * and restores the confirm button to its default enabled state.
+ */
 function closeDeleteModal() {
     pendingDeleteId   = null;
     pendingDeleteName = null;
@@ -319,9 +464,20 @@ function closeDeleteModal() {
     confirmBtn.innerHTML = '<i class="fas fa-archive"></i> Archive';
 }
 
+// ============================================================
+// SECTION 10 — MODAL EVENT LISTENERS
+// Cancel button and backdrop click both call closeDeleteModal().
+// Confirm button: sets archived=true on the category, then
+// reassigns all products in that category to "Uncategorized"
+// using a parallel Promise.all, logs the activity, clears the
+// dashboard cache, removes the item from allCategories, and
+// re-renders. Always resets the button state via the catch block
+// so the modal never gets stuck in a loading state on error.
+// ============================================================
 document.addEventListener("DOMContentLoaded", () => {
     document.getElementById('modalCancelBtn')?.addEventListener('click', closeDeleteModal);
 
+    // Close modal when clicking the backdrop (outside the card)
     document.getElementById('deleteModalOverlay')?.addEventListener('click', (e) => {
         if (e.target === document.getElementById('deleteModalOverlay')) closeDeleteModal();
     });
@@ -336,10 +492,13 @@ document.addEventListener("DOMContentLoaded", () => {
         confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Archiving...';
     
         try {
+            // 1. Archive the category document
             await updateDoc(doc(db, "categories", pendingDeleteId), {
                 archived: true, archivedAt: serverTimestamp()
             });
             
+            // 2. Reassign all products in this category to "Uncategorized"
+            //    in parallel so no product is left with a dead category reference
             const productsQuery    = query(collection(db, "products"), where("category", "==", categoryName));
             const productsSnapshot = await getDocs(productsQuery);
             
@@ -352,7 +511,7 @@ document.addEventListener("DOMContentLoaded", () => {
             await logActivity("Archived Category", categoryName);
             allCategories = allCategories.filter(c => c.id !== pendingDeleteId);
             applyFilters();
-            sessionStorage.removeItem('dashboard_cache');
+            sessionStorage.removeItem('dashboard_cache'); // Bust dashboard category count
             closeDeleteModal();
             showToast(`Category "${categoryName}" archived successfully!`, 'success');
         } catch (err) {
@@ -364,6 +523,13 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 });
 
+/**
+ * Attaches click listeners to every .delete-btn element currently
+ * in the DOM. Must be called after renderTable() since the buttons
+ * are created dynamically. Looks up the category name from
+ * allCategories before opening the modal so it can be displayed
+ * in the confirmation dialog.
+ */
 function attachDeleteListeners() {
     if (!isAdmin) return;
     document.querySelectorAll('.delete-btn').forEach(btn => {
@@ -378,6 +544,14 @@ function attachDeleteListeners() {
     });
 }
 
+// ============================================================
+// SECTION 11 — UI EVENT LISTENERS
+// Search input and sort select both call applyFilters() on change.
+// Sort direction button toggles currentSortDir and updates the
+// icon and label before re-running the filter.
+// Reset button restores all controls to their default values and
+// calls applyFilters() to show the full unsorted list.
+// ============================================================
 document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("searchInput").addEventListener("input", applyFilters);
     document.getElementById("filterSort").addEventListener("change", applyFilters);
@@ -409,6 +583,16 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 });
 
+// ============================================================
+// SECTION 12 — TOAST NOTIFICATIONS
+// ============================================================
+
+/**
+ * Appends a self-dismissing toast notification to #toast-container.
+ * Automatically removed after 3 seconds with a fade-out animation.
+ * @param {string} message
+ * @param {'success'|'error'} type
+ */
 function showToast(message, type = 'success') {
     const container = document.getElementById('toast-container');
     const toast = document.createElement('div');
@@ -422,4 +606,16 @@ function showToast(message, type = 'success') {
     }, 3000);
 }
 
-export { getCachedUserData, logActivity, fetchCategories, applyFilters, loadCategoryCounts, saveCategoriesCache, loadCategoriesCache, };
+// ============================================================
+// EXPORTS
+// Named exports allow other modules and test suites to import
+// individual helpers directly without pulling in the full module.
+// ============================================================
+export { 
+    getCachedUserData, 
+    logActivity, 
+    fetchCategories, 
+    applyFilters, 
+    loadCategoryCounts, 
+    saveCategoriesCache, 
+    loadCategoriesCache, };

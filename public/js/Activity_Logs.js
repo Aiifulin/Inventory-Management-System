@@ -7,9 +7,19 @@ import { db, auth, storage } from "./firebase.js";
 
 
 
-// ================================================
+// ============================================================
 // CONSTANTS & STATE
-// ================================================
+// LOGS_CACHE_KEY — localStorage key for the activity logs cache
+// CACHE_TTL_MS   — cache lifetime: 5 minutes in milliseconds
+// FETCH_LIMIT    — max log entries fetched from Firestore per request
+// PAGE_SIZE      — number of rows shown per page in the table
+//
+// allLogs       — full list of fetched log entries
+// filteredLogs  — the subset currently shown after search/sort
+// currentPage   — the active pagination page (1-based)
+// sortDir       — 'asc' or 'desc'; toggled by clicking the date header
+// isLogsLoading — true while Firestore fetch is in progress; blocks renders
+// ============================================================
 const LOGS_CACHE_KEY = 'activity_logs_cache';
 const CACHE_TTL_MS   = 5 * 60 * 1000;
 const FETCH_LIMIT    = 200;
@@ -21,9 +31,15 @@ let currentPage   = 1;
 let sortDir       = 'desc';
 let isLogsLoading = true;
 
-// ================================================
-// CACHE HELPERS
-// ================================================
+// ============================================================
+// SECTION 1 — CACHE HELPERS
+// Logs are cached in localStorage (not sessionStorage) with a
+// 5-minute TTL. localStorage is used here so the cache survives
+// tab refreshes, unlike the product/user caches which use
+// sessionStorage and reset on close.
+// ============================================================
+
+/** Serialises the logs array and writes it to localStorage with a timestamp. */
 function saveLogsCache(logs) {
     try {
         localStorage.setItem(LOGS_CACHE_KEY, JSON.stringify({ logs, cachedAt: Date.now() }));
@@ -32,6 +48,10 @@ function saveLogsCache(logs) {
     }
 }
 
+/**
+ * Reads and parses the logs cache from localStorage.
+ * Returns null if nothing is cached, the TTL has expired, or JSON parsing fails.
+ */
 function loadLogsCache() {
     try {
         const raw = localStorage.getItem(LOGS_CACHE_KEY);
@@ -44,9 +64,19 @@ function loadLogsCache() {
     }
 }
 
-// ================================================
-// USER DATA CACHE
-// ================================================
+// ============================================================
+// SECTION 2 — USER DATA CACHE
+// Fetches the current user's Firestore document (name, role).
+// Cached per-UID in sessionStorage so repeat visits within the
+// same tab skip the Firestore read entirely.
+// ============================================================
+
+/**
+ * Returns the user's Firestore document data, reading from sessionStorage
+ * if available or fetching from Firestore and caching the result.
+ * @param {string} uid — Firebase Auth UID
+ * @returns {Object|null}
+ */
 async function getCachedUserData(uid) {
     const key    = `user_data_${uid}`;
     const cached = sessionStorage.getItem(key);
@@ -63,9 +93,15 @@ async function getCachedUserData(uid) {
     return null;
 }
 
-// ================================================
-// AUTH — parallel: user data + logs fire at the same time
-// ================================================
+// ============================================================
+// SECTION 3 — AUTH LISTENER
+// Runs once on page load. Redirects unauthenticated users to login.
+// Fires getCachedUserData() and initLogs() simultaneously via
+// Promise.all so the sidebar name and the log table both load
+// as fast as possible without waiting on each other.
+// Makes .main-content visible only after auth resolves, preventing
+// a flash of unstyled/unauthorised content.
+// ============================================================
 onAuthStateChanged(auth, async (user) => {
     if (!user) { window.location.href = "index.html"; return; }
 
@@ -97,9 +133,17 @@ onAuthStateChanged(auth, async (user) => {
     window.logout = function () { if (openLogoutModal) openLogoutModal(); };
 });
 
-// ================================================
-// CORE: INIT & FETCH
-// ================================================
+// ============================================================
+// SECTION 4 — CORE: INIT & FETCH
+// ============================================================
+
+/**
+ * Entry point for loading the activity log table.
+ * Serves from cache on normal visits; fetches fresh data when
+ * forceRefresh=true (triggered by the Refresh button) or when
+ * the cache is missing or expired.
+ * @param {boolean} forceRefresh
+ */
 async function initLogs(forceRefresh = false) {
     setLogsLoading(true);
 
@@ -116,6 +160,14 @@ async function initLogs(forceRefresh = false) {
     await fetchAndCacheLogs();
 }
 
+/**
+ * Fetches the most recent FETCH_LIMIT activity log entries from
+ * Firestore, ordered by timestamp descending.
+ * Converts each Firestore Timestamp to an ISO string before storing
+ * so the data is safely JSON-serialisable for caching.
+ * Saves the result to localStorage via saveLogsCache(), then
+ * triggers applyFilterAndRender() to populate the table.
+ */
 async function fetchAndCacheLogs() {
     setRefreshLoading(true);
     try {
@@ -149,6 +201,12 @@ async function fetchAndCacheLogs() {
     }
 }
 
+/**
+ * Toggles the skeleton loader visibility and shows/hides the
+ * log table wrapper and pagination bar.
+ * Called with true at the start of a fetch and false on completion.
+ * @param {boolean} loading
+ */
 function setLogsLoading(loading) {
     isLogsLoading = loading;
     document.getElementById('logsSkeleton')?.classList.toggle('visible', loading);
@@ -156,9 +214,23 @@ function setLogsLoading(loading) {
     document.getElementById('paginationBar')?.classList.toggle('hidden', loading);
 }
 
-// ================================================
-// FILTER + SORT + RENDER
-// ================================================
+// ============================================================
+// SECTION 5 — FILTER + SORT + RENDER
+// applyFilterAndRender() is called on every search input change
+// or sort toggle. It filters allLogs by the search term (matched
+// against action, target, user, and formatted date strings),
+// sorts by timestamp, resets to page 1, then calls renderPage().
+//
+// renderPage() is the only function that writes to the DOM. It
+// slices filteredLogs to the current page window, builds the
+// table rows, colours action badges by type, and updates the
+// pagination controls.
+// ============================================================
+
+/**
+ * Filters allLogs against the current search input, sorts by timestamp,
+ * resets to page 1, and calls renderPage() to update the DOM.
+ */
 function applyFilterAndRender() {
     const search = (document.getElementById('logSearch')?.value || '').toLowerCase();
 
@@ -189,6 +261,20 @@ function applyFilterAndRender() {
     renderPage();
 }
 
+/**
+ * Renders the current page of filteredLogs into the log table.
+ * Calculates the correct slice from filteredLogs based on currentPage
+ * and PAGE_SIZE, then builds a table row per entry.
+ *
+ * Badge colour is assigned by action keyword:
+ *   green  → "add"
+ *   red    → "delete"
+ *   orange → "archive" or "restore"
+ *   blue   → everything else (default)
+ *
+ * Also updates the total count label and enables/disables the
+ * previous/next pagination buttons.
+ */
 function renderPage() {
     const table = document.getElementById('logTable');
     if (!table || isLogsLoading) return;
@@ -241,9 +327,17 @@ function renderPage() {
     if (nextBtn)  nextBtn.disabled = currentPage >= totalPages;
 }
 
-// ================================================
-// REFRESH LOADING STATE
-// ================================================
+// ============================================================
+// SECTION 6 — REFRESH LOADING STATE
+// ============================================================
+
+/**
+ * Toggles the disabled state and .loading class on the Refresh button.
+ * The .loading class triggers a spin animation on the button icon.
+ * Kept separate from setLogsLoading() because the refresh button
+ * needs its own loading state independent of the skeleton loader.
+ * @param {boolean} isLoading
+ */
 function setRefreshLoading(isLoading) {
     const btn = document.getElementById('refreshLogsBtn');
     if (!btn) return;
@@ -251,9 +345,17 @@ function setRefreshLoading(isLoading) {
     btn.classList.toggle('loading', isLoading);
 }
 
-// ================================================
-// EVENT LISTENERS
-// ================================================
+// ============================================================
+// SECTION 7 — EVENT LISTENERS
+// All interactivity is wired here inside DOMContentLoaded.
+//
+// dateHeader click  — toggles sortDir and updates the sort icon
+// logSearch input   — re-runs filter/render on every keystroke
+// refreshLogsBtn    — clears the localStorage cache and force-fetches
+// prevPageBtn       — decrements currentPage and scrolls to top
+// nextPageBtn       — increments currentPage and scrolls to top
+// hamburger/overlay — toggle the mobile sidebar open/closed
+// ============================================================
 document.addEventListener("DOMContentLoaded", () => {
 
     document.getElementById('dateHeader')?.addEventListener('click', () => {
@@ -301,4 +403,16 @@ document.addEventListener("DOMContentLoaded", () => {
     overlay?.addEventListener('click', closeSidebar);
 });
 
-export { getCachedUserData, saveLogsCache, loadLogsCache, fetchAndCacheLogs, applyFilterAndRender, renderPage, initLogs };
+// ============================================================
+// EXPORTS
+// Named exports allow other modules and test suites to import
+// individual helpers directly without pulling in the full module.
+// ============================================================
+export { 
+    getCachedUserData, 
+    saveLogsCache, 
+    loadLogsCache, 
+    fetchAndCacheLogs, 
+    applyFilterAndRender, 
+    renderPage, 
+    initLogs };

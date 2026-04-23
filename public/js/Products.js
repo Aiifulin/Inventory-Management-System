@@ -4,7 +4,15 @@ import { initLogoutModal } from "./logout-modal.js";
 import { db, auth, storage } from "./firebase.js";
 
 
-// --- GLOBAL STATE ---
+// ============================================================
+// GLOBAL STATE
+// allProducts      — master list of all fetched (non-archived) products
+// filteredProducts — the subset currently shown after search/filter/sort
+// currentSortDir   — 'asc' or 'desc', toggled by the sort direction button
+// currentUser      — the signed-in Firebase Auth user object
+// isAdmin          — true if the user's role is 'admin'; gates write actions
+// isProductsLoading — true while Firestore fetch is in progress; blocks renders
+// ============================================================
 let allProducts = [];
 let filteredProducts = []; 
 let currentSortDir = 'asc';
@@ -12,9 +20,18 @@ let currentUser = null;
 let isAdmin = false; 
 let isProductsLoading = true;
 
-// ── PRODUCTS CACHE ───────────────────────────────────────────────────────────
+// ============================================================
+// SECTION 1 — PRODUCTS CACHE
+// Products are cached in sessionStorage with a 5-minute TTL so
+// navigating away and back doesn't trigger another Firestore read.
+// Firestore Timestamps are converted to plain objects before
+// serialisation (they aren't JSON-safe) and restored on read.
+// ============================================================
 const PRODUCTS_CACHE_KEY = 'products_cache';
 
+
+/** Serialises the product list and writes it to sessionStorage.
+ *  Firestore Timestamps are converted to { _type, seconds } objects. */
 function saveProductsCache(products) {
     try {
         // Firestore Timestamps aren't JSON-serialisable — convert to millis
@@ -30,6 +47,12 @@ function saveProductsCache(products) {
     }
 }
 
+
+/**
+ * Reads and deserialises the product cache.
+ * Returns null if nothing is cached, the TTL has expired, or parsing fails.
+ * Restores a synthetic .toDate() on Timestamp objects so date-sorting works.
+ */
 function loadProductsCache() {
     try {
         const raw = sessionStorage.getItem(PRODUCTS_CACHE_KEY);
@@ -49,6 +72,12 @@ function loadProductsCache() {
     }
 }
 
+/**
+ * Fetches the current user's Firestore document (name, role, etc.).
+ * Cached per-UID in sessionStorage so repeat visits skip the Firestore read.
+ * @param {string} uid — Firebase Auth UID
+ * @returns {Object|null}
+ */
 async function getCachedUserData(uid) {
     const key = `user_data_${uid}`;
     const cached = sessionStorage.getItem(key);
@@ -65,6 +94,12 @@ async function getCachedUserData(uid) {
     return null;
 }
 
+/**
+ * Writes a single activity entry to the "activities" Firestore collection.
+ * Called after any create / edit / archive / import action.
+ * @param {string} action     — verb describing what happened, e.g. "Archived Product"
+ * @param {string} targetName — the name of the affected product or record
+ */
 async function logActivity(action, targetName) {
     try {
         const userEmail = auth.currentUser ? auth.currentUser.email : "Admin";
@@ -76,9 +111,14 @@ async function logActivity(action, targetName) {
     }
 }
 
-// ================================================
-// AUTH — parallel: user data + products + categories fire at the same time
-// ================================================
+
+// ============================================================
+// SECTION 2 — AUTH LISTENER
+// Runs once on page load. Redirects to login if no session exists.
+// Fires getCachedUserData(), fetchProducts(), and loadCategoryFilter()
+// in parallel via Promise.all so none waits on the others.
+// Once user role is resolved, role-gated UI elements are shown/hidden.
+// ============================================================
 onAuthStateChanged(auth, async (user) => {
     if (!user) { window.location.href = "index.html"; return; }
 
@@ -131,6 +171,17 @@ onAuthStateChanged(auth, async (user) => {
     window.logout = function () { if (openLogoutModal) openLogoutModal(); };
 });
 
+// ============================================================
+// SECTION 3 — DATA FETCHING
+// ============================================================
+
+/**
+ * Loads all non-archived products from Firestore (or cache).
+ * On success, populates allProducts and calls applyFilters() to render.
+ * Pass forceRefresh=true to bypass the cache (used after imports/archives).
+ * @param {boolean} forceRefresh
+ */
+
 async function fetchProducts(forceRefresh = false) {
     setProductsLoading(true);
 
@@ -161,6 +212,12 @@ async function fetchProducts(forceRefresh = false) {
     }
 }
 
+/**
+ * Toggles the skeleton loaders and hides/shows the table and mobile list.
+ * Called with true at the start of a fetch and false when it completes.
+ * @param {boolean} loading
+ */
+
 function setProductsLoading(loading) {
     isProductsLoading = loading;
 
@@ -175,7 +232,19 @@ function setProductsLoading(loading) {
     mobileList?.classList.toggle("hidden", loading);
 }
 
-// --- FILTER & SORT ---
+// ============================================================
+// SECTION 4 — FILTER & SORT
+// applyFilters() reads every filter control, runs the full
+// product list through search / category / status / price checks,
+// then sorts the result and hands it to renderTable().
+// It is called on every filter change event.
+// ============================================================
+
+/**
+ * Filters allProducts against the current search text, category,
+ * price range, and stock status, then sorts by the chosen field
+ * and direction. Writes the result to filteredProducts and re-renders.
+ */
 function applyFilters() {
     const searchVal     = document.getElementById("searchInput").value.trim().toLowerCase();
     const catVal        = document.getElementById("filterCategory").value;
@@ -238,7 +307,14 @@ function applyFilters() {
     renderTable(filteredProducts);
 }
 
-// --- RENDER TABLE ---
+// ============================================================
+// SECTION 5 — RENDER
+// renderTable() is the single function responsible for writing
+// product data to the DOM. It builds both the desktop <table>
+// rows and the mobile card list from the same product array.
+// Admin-only action buttons (Edit / Delete) are injected only
+// when isAdmin is true.
+// ============================================================
 function renderTable(productsToRender) {
     const tableBody = document.getElementById("productTableBody");
     const mobileList = document.getElementById("mobileProductList");
@@ -375,6 +451,12 @@ function renderTable(productsToRender) {
     if (isAdmin) attachDeleteListeners();
 }
 
+/**
+ * Navigates to the Edit Product page for the given product ID.
+ * Exposed on window so it can be called from inline onclick attributes.
+ * Blocks navigation and alerts if the user is not an admin.
+ */
+
 window.editProduct = function(id) {
     if (isAdmin) {
         window.location.href = `Edit_Product.html?id=${id}`;
@@ -382,6 +464,14 @@ window.editProduct = function(id) {
         alert("Access Denied: Only Admin can edit products.");
     }
 }
+
+/**
+ * Shows the archive confirmation modal and returns a Promise that
+ * resolves to true (confirmed) or false (cancelled).
+ * Used before any destructive action so the user must explicitly confirm.
+ * @param {string} productName — displayed in the modal body
+ * @returns {Promise<boolean>}
+ */
 
 function confirmAction(productName) {
     const modal      = document.getElementById('confirmModal');
@@ -397,6 +487,12 @@ function confirmAction(productName) {
         cancelBtn.onclick  = () => { modal.style.display = 'none'; resolve(false); };
     });
 }
+/**
+ * Attaches click listeners to every .delete-btn element currently in the DOM.
+ * Must be called after renderTable() since the buttons are created dynamically.
+ * On confirm: sets archived=true in Firestore, logs the activity, clears
+ * the products cache, removes the item from allProducts, and re-renders.
+ */
 
 function attachDeleteListeners() {
     if (!isAdmin) return;
@@ -429,6 +525,14 @@ function attachDeleteListeners() {
         });
     });
 }
+
+// ============================================================
+// SECTION 6 — UI EVENT LISTENERS
+// All filter controls, sort toggle, and reset button are wired
+// here inside DOMContentLoaded to guarantee elements exist.
+// Each change/input event simply calls applyFilters() which
+// re-reads all controls and re-renders the table from scratch.
+// ============================================================
 
 document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("searchInput").addEventListener("input", applyFilters);
@@ -471,6 +575,17 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById('exportBtn')?.addEventListener('click', exportToExcel);
 });
 
+// ============================================================
+// SECTION 7 — TOAST NOTIFICATIONS
+// ============================================================
+
+/**
+ * Appends a self-dismissing toast notification to #toast-container.
+ * Automatically removed after 3 seconds with a fade-out animation.
+ * @param {string} message
+ * @param {'success'|'error'} type
+ */
+
 function showToast(message, type = 'success') {
     const container = document.getElementById('toast-container');
     const toast = document.createElement('div');
@@ -484,6 +599,15 @@ function showToast(message, type = 'success') {
     }, 3000);
 }
 
+// ============================================================
+// SECTION 8 — EXPORT
+// ============================================================
+
+/**
+ * Exports the full allProducts list to an .xlsx file using SheetJS.
+ * Flattens variations and attributes to single columns (first entry only).
+ * File is named Products_Backup_YYYY-MM-DD.xlsx.
+ */
 function exportToExcel() {
     if (!allProducts || allProducts.length === 0) {
         showToast("No products available to export", "error");
@@ -515,6 +639,11 @@ function exportToExcel() {
     showToast("Products exported successfully!", "success");
 }
 
+/**
+ * Populates the Category filter <select> with all non-archived categories
+ * fetched from Firestore. Called once during auth initialisation in parallel
+ * with fetchProducts() so both resolve at the same time.
+ */
 async function loadCategoryFilter() {
     const select = document.getElementById("filterCategory");
     if (!select) return;
@@ -537,9 +666,13 @@ async function loadCategoryFilter() {
     }
 }
 
-// ================================================
-// IMPORT FUNCTIONALITY
-// ================================================
+// ============================================================
+// SECTION 9 — IMPORT
+// Allows admins to bulk-create products from an .xlsx file.
+// Flow: open modal → select file → processImportFile() reads the
+// file, validates every row, then writes valid products to Firestore.
+// A downloadable template is provided so the expected columns are clear.
+// ============================================================
 document.addEventListener("DOMContentLoaded", () => {
     const importBtn       = document.getElementById('importBtn');
     const importModal     = document.getElementById('importModalOverlay');
@@ -569,6 +702,10 @@ document.addEventListener("DOMContentLoaded", () => {
     processImportBtn?.addEventListener('click', processImportFile);
 });
 
+/**
+ * Generates and downloads a one-row Excel template showing every
+ * expected column and an example value.
+ */
 function downloadImportTemplate() {
     const templateData = [{
         "Product Name": "Example Product", "Description": "Product description (optional)",
@@ -583,6 +720,12 @@ function downloadImportTemplate() {
     showToast("Template downloaded successfully!", "success");
 }
 
+/**
+ * Main import handler. Reads the selected file, validates all rows,
+ * and writes valid products to Firestore one by one.
+ * Shows a result modal on completion and forces a cache-busting
+ * fetchProducts(true) so the table reflects the new data immediately.
+ */
 async function processImportFile() {
     const fileInput = document.getElementById('importFileInput');
     const file = fileInput.files[0];
@@ -627,6 +770,12 @@ async function processImportFile() {
     }
 }
 
+/**
+ * Reads an Excel or CSV file using SheetJS and returns its first
+ * sheet as an array of plain row objects (column headers become keys).
+ * @param {File} file
+ * @returns {Promise<Object[]>}
+ */
 function readExcelFile(file) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -645,6 +794,14 @@ function readExcelFile(file) {
     });
 }
 
+/**
+ * Validates every row in the import file before any Firestore writes.
+ * Checks: required fields, numeric ranges, existing category names,
+ * duplicates within the file, and duplicates against the live database.
+ * Fetches existing products and categories in parallel to minimise wait time.
+ * @param {Object[]} data — raw rows from readExcelFile()
+ * @returns {{ validProducts: Object[], errors: string[] }}
+ */
 async function validateImportData(data) {
     const errors        = [];
     const validProducts = [];
@@ -688,6 +845,14 @@ async function validateImportData(data) {
     return { validProducts, errors };
 }
 
+/**
+ * Writes each validated product row to Firestore as a new "products" document.
+ * Builds the full product shape (including variations and optional attributes)
+ * before each addDoc call. Logs each import individually via logActivity().
+ * Returns counts of successes and per-product error messages for failures.
+ * @param {Object[]} products — rows that passed validateImportData()
+ * @returns {{ imported: number, errors: string[] }}
+ */
 async function importProducts(products) {
     const imported = [];
     const errors   = [];
@@ -731,6 +896,11 @@ async function importProducts(products) {
     return { imported: imported.length, errors };
 }
 
+/**
+ * Injects an inline modal listing all validation errors returned by
+ * validateImportData(). The modal is self-closing via an inline onclick.
+ * @param {string[]} errors
+ */
 function displayImportErrors(errors) {
     const errorHtml = errors.map(err => `<li style="margin-bottom:8px;">${err}</li>`).join('');
     const modal = `
@@ -744,6 +914,14 @@ function displayImportErrors(errors) {
         </div>`;
     document.body.insertAdjacentHTML('beforeend', modal);
 }
+
+/**
+ * Shows a success modal after an import completes.
+ * Displays the count of successfully imported products and, if any
+ * individual rows failed during the Firestore write, lists those errors too.
+ * @param {number}   importedCount
+ * @param {string[]} errors
+ */
 
 function showImportResultModal(importedCount, errors) {
     const errorHtml = errors.length > 0 
@@ -764,4 +942,21 @@ function showImportResultModal(importedCount, errors) {
     document.body.insertAdjacentHTML('beforeend', modal);
 }
 
-export { getCachedUserData, logActivity, fetchProducts, applyFilters, saveProductsCache, loadProductsCache, validateImportData, importProducts, readExcelFile, exportToExcel };
+// ============================================================
+// EXPORTS
+// Named exports allow other modules (e.g. unit tests or other
+// pages) to reuse individual helpers without importing the
+// entire module.
+// ============================================================
+
+export { 
+    getCachedUserData,
+    logActivity,
+    fetchProducts, 
+    applyFilters, 
+    saveProductsCache, 
+    loadProductsCache, 
+    validateImportData, 
+    importProducts, 
+    readExcelFile, 
+    exportToExcel };

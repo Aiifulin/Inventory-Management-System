@@ -8,15 +8,36 @@ import { initLogoutModal } from "./logout-modal.js";
 import { db, auth, storage } from "./firebase.js";
 
 
+// ============================================================
+// GLOBAL STATE
+// isFormDirty      — true if the user has changed any form field;
+//                    triggers the "unsaved changes" browser warning
+// selectedImageFile — holds the raw File object chosen by the user;
+//                    used for upload and bulk queue storage
+// draftProducts    — array of validated product objects queued in
+//                    bulk mode, waiting to be saved to Firestore
+// isBulkMode       — true when ?mode=bulk is in the URL; switches
+//                    the form between single and bulk submission flow
+// ============================================================
 let isFormDirty = false;
 let selectedImageFile = null;
 let draftProducts = [];       // array of queued product objects
 let isBulkMode = false;
 
 
-// ================================================
-// OPTIMIZED USER DATA HELPER (SHARED)
-// ================================================
+// ============================================================
+// SECTION 1 — USER DATA CACHE
+// Fetches the signed-in user's Firestore document (name, role).
+// Cached per-UID in sessionStorage so repeated calls within the
+// same tab skip the Firestore read entirely.
+// ============================================================
+
+/**
+ * Returns the user's Firestore document data from sessionStorage
+ * cache if available, otherwise fetches from Firestore and caches.
+ * @param {string} uid — Firebase Auth UID
+ * @returns {Object|null}
+ */
 async function getCachedUserData(uid) {
     const CACHE_KEY = `user_data_${uid}`;
     
@@ -44,7 +65,15 @@ async function getCachedUserData(uid) {
     return null;
 }
 
-// --- AUTH CHECK WITH ROLE VALIDATION ---
+// ============================================================
+// SECTION 2 — AUTH LISTENER & ROLE GUARD
+// Runs once on page load. Unauthenticated users are redirected
+// to the login page. Non-admins see an Access Denied message
+// injected into #mainContent instead of the product form —
+// the form is never revealed to them even briefly.
+// Admins get the form revealed, the default threshold loaded,
+// and their name displayed in the sidebar.
+// ============================================================
 onAuthStateChanged(auth, async (user) => {
     if (!user) {
         window.location.href = "index.html";
@@ -87,11 +116,29 @@ onAuthStateChanged(auth, async (user) => {
     window.logout = function () { if (openLogoutModal) openLogoutModal(); }; 
 });
 
+// ============================================================
+// SECTION 3 — AUTH HELPERS
+// ============================================================
+
+/**
+ * Resolves whether the given user is an admin from the cached
+ * Firestore document. Returns true only if role === 'admin'
+ * (case-insensitive).
+ * @param {string} uid
+ * @returns {Promise<boolean>}
+ */
 async function checkAdminRole(uid) {
     const userData = await getCachedUserData(uid);
     return userData?.role?.toLowerCase() === 'admin';
 }
 
+/**
+ * Reads the user's name and role from cache and injects them
+ * into the #userNameDisplay sidebar element.
+ * Role label is capitalised and styled in orange to match the
+ * shared sidebar pattern used across all pages.
+ * @param {string} uid
+ */
 async function displayUserName(uid) {
     const nameEl = document.getElementById('userNameDisplay');
     if (!nameEl) return;
@@ -107,7 +154,17 @@ async function displayUserName(uid) {
 
 
 
-// --- HELPER: ACTIVITY LOGGING FUNCTION ---
+// ============================================================
+// SECTION 4 — ACTIVITY LOGGING
+// ============================================================
+
+/**
+ * Writes a single activity entry to the "activities" Firestore collection.
+ * Called after every successful product save (single or bulk).
+ * Falls back to "Admin" as the user label if auth.currentUser is null.
+ * @param {string} action     — e.g. "Added Product"
+ * @param {string} targetName — the name of the saved product
+ */
 async function logActivity(action, targetName) {
     try {
         const userEmail = auth.currentUser ? auth.currentUser.email : "Admin"; 
@@ -124,7 +181,16 @@ async function logActivity(action, targetName) {
     }
 }
 
-// --- HELPER: LOAD DEFAULT SETTINGS ---
+// ============================================================
+// SECTION 5 — SETTINGS & CATEGORY LOADERS
+// ============================================================
+
+/**
+ * Reads the global_config Firestore settings document and pre-fills
+ * the Low Stock Threshold input with the site-wide default value.
+ * Silently falls back to the hardcoded placeholder (10) if the
+ * settings document is missing or the fetch fails.
+ */
 async function loadDefaultThreshold() {
     try {
         const docRef = doc(db, "settings", "global_config");
@@ -145,7 +211,11 @@ async function loadDefaultThreshold() {
     }
 }
 
-// --- LOAD CATEGORIES INTO SELECT ---
+/**
+ * Populates the #categorySelect dropdown with all non-archived
+ * categories from Firestore. Called once on DOMContentLoaded and
+ * again after resetFormForNext() to keep the list fresh.
+ */
 async function loadCategories() {
     const select = document.getElementById("categorySelect");
     if (!select) return;
@@ -170,12 +240,30 @@ async function loadCategories() {
     }
 }
 
-// Call this once DOM is ready
+// ============================================================
+// SECTION 6 — FORM INITIALISATION & EVENT WIRING
+// Everything inside this DOMContentLoaded block runs once the
+// HTML is fully parsed. It is split into numbered sub-sections:
+//
+//   1. Data Loss Prevention  — sets isFormDirty on any input/change
+//                              and warns the user before tab close
+//   2. Sanitizers & Helpers  — sanitizeInput, applyCharLimit,
+//                              preventNegatives wired to inputs
+//   3. Image Upload & Remove — file validation, FileReader preview,
+//                              dynamically created Remove button
+//   4. Variation / Attribute — row add/remove logic for both tables
+//   5. Save Logic            — single-mode form submit with full
+//                              validation, image upload, and Firestore write
+//   6. Bulk Mode Setup       — reads ?mode=bulk, shows/hides buttons,
+//                              wires Next / Finalize / Preview modal
+// ============================================================
 document.addEventListener("DOMContentLoaded", loadCategories);
 
 document.addEventListener("DOMContentLoaded", () => {
 
     // --- 1. DATA LOSS PREVENTION ---
+    // Sets isFormDirty on any input or change event so the
+    // beforeunload handler can warn the user before they navigate away.
     const form = document.querySelector('form');
     
     if (form) {
@@ -190,7 +278,10 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
-    // --- 2. SANITIZERS & HELPERS --- this prevents XSS attacks by sanitizing inputs using DOM methods
+    // --- 2. SANITIZERS & HELPERS ---
+    // sanitizeInput  — escapes user text via innerText→innerHTML to prevent XSS
+    // applyCharLimit — caps any input at 30 chars and turns border red at limit
+    // preventNegatives — clamps number inputs to 0 if the user types a negative
     function sanitizeInput(str) {
         if (!str) return "";
         if (typeof str !== 'string') return String(str);
@@ -224,6 +315,10 @@ document.addEventListener("DOMContentLoaded", () => {
     document.querySelectorAll('input[type="number"]').forEach(inp => preventNegatives(inp));
 
     // --- 3. IMAGE UPLOAD & REMOVE LOGIC ---
+    // Validates MIME type and file size (10 MB cap) on selection.
+    // Uses FileReader to show a local preview without uploading yet.
+    // Stores the raw File in selectedImageFile for later upload on submit.
+    // The Remove button is created dynamically and appended to .image-upload-box.
     const fileInput = document.getElementById('fileInput');
     const preview = document.getElementById('imagePreview');
     const placeholder = document.getElementById('uploadPlaceholder');
@@ -334,7 +429,14 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-    // --- 4. SAVE LOGIC WITH LOGGING ---
+    // --- 4. SINGLE-MODE SAVE LOGIC ---
+    // Validates all numeric fields (negatives, whole numbers, sanity caps),
+    // checks for duplicate product names in Firestore, uploads and resizes
+    // the image if one was selected, then writes the full product document
+    // via setDoc using the manually supplied Product ID.
+    // On success: logs the activity, clears the products cache, and shows
+    // the success modal which auto-redirects to Products.html after 2.5s.
+    // On failure: surfaces the error via alert and re-enables the submit button.
     const submitBtn = document.querySelector('.btn-submit');
 
     if(form) {
@@ -503,6 +605,16 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
+    /**
+     * Resizes an image File to a maximum width using a Canvas element,
+     * then returns a compressed Blob at 70% JPEG quality.
+     * Called before every Firebase Storage upload to reduce file size
+     * and keep storage costs low.
+     * @param {File}   file     — the original image file
+     * @param {number} maxWidth — target max width in pixels (default 500)
+     * @returns {Promise<Blob>}
+     */
+
     async function resizeImage(file, maxWidth = 500) {
         return new Promise((resolve) => {
             const img = new Image();
@@ -534,6 +646,13 @@ document.addEventListener("DOMContentLoaded", () => {
     // ================================================
     // --- BULK MODE SETUP ---
     // ================================================
+
+    // Reads ?mode=bulk from the URL to decide which buttons to show.
+    // In bulk mode the normal submit button is hidden and replaced by
+    // "Next Product" (queues the form) and "Finalize" (opens preview modal).
+    // draftProducts accumulates validated product objects; images are not
+    // uploaded until Confirm Save is clicked so no storage writes happen
+    // for products the user removes from the queue.
     const urlParams = new URLSearchParams(window.location.search);
     isBulkMode = urlParams.get('mode') === 'bulk';
     
@@ -553,6 +672,11 @@ document.addEventListener("DOMContentLoaded", () => {
         nextBtn.style.display         = 'flex';
         finalizeBtn.style.display     = 'flex';
     }
+    /**
+     * Syncs the queue count badge on the Finalize button and the banner
+     * counter with the current draftProducts array length.
+     * Also disables Finalize when the queue is empty.
+     */
     
     function updateBulkUI() {
         const count = draftProducts.length;
@@ -561,7 +685,15 @@ document.addEventListener("DOMContentLoaded", () => {
         if (finalizeBtn) finalizeBtn.disabled = (count === 0);
     }
     
-    // --- COLLECT FORM DATA (no upload yet) ---
+    /**
+     * Reads and validates all form fields without writing to Firestore.
+     * Performs the same numeric and duplicate checks as single-mode submit,
+     * plus checks for duplicates within the current draftProducts queue.
+     * Returns a plain draft object including the raw imageFile reference
+     * so the image can be uploaded later during Confirm Save.
+     * @returns {Promise<Object>} — validated product draft
+     * @throws  {Error}           — if any validation check fails
+     */
     async function collectFormDraft() {
         const rawName = document.querySelector('input[placeholder="Enter product name"]').value.trim();
     
@@ -640,7 +772,12 @@ document.addEventListener("DOMContentLoaded", () => {
         };
     }
     
-    // --- RESET FORM FOR NEXT PRODUCT ---
+    /**
+     * Resets the form to a blank state ready for the next product entry.
+     * Clears all inputs, resets the image preview, reloads category options,
+     * and restores variation and attribute containers to a single empty row.
+     * Also clears isFormDirty and scrolls back to the top of the page.
+     */
     function resetFormForNext() {
         form.reset();
         document.getElementById('productIdInput').value = '';
@@ -676,6 +813,10 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     
     // --- NEXT BUTTON ---
+    // Calls collectFormDraft() to validate and snapshot the current form,
+    // pushes the result into draftProducts, updates the badge counter,
+    // resets the form for the next entry, and briefly flashes the banner
+    // green to confirm the product was queued successfully.
     if (nextBtn) {
         nextBtn.addEventListener('click', async () => {
             nextBtn.disabled = true;
@@ -707,6 +848,11 @@ document.addEventListener("DOMContentLoaded", () => {
     // ================================================
     // --- PREVIEW MODAL ---
     // ================================================
+    // Opens when the user clicks Finalize. Renders a card for every
+    // queued draft showing name, category, stock, price, and image preview.
+    // Each card has a Remove button (splices from draftProducts) and an
+    // Edit button (removes from queue, re-populates the form for correction,
+    // and swaps Next Product → Save Changes in the bulk toolbar).
     const overlay        = document.getElementById('bulkPreviewOverlay');
     const previewGrid    = document.getElementById('bulkPreviewGrid');
     const previewCountLbl = document.getElementById('previewCountLabel');
@@ -745,6 +891,12 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         });
     }
+    /**
+     * Rebuilds the preview modal grid from the current draftProducts array.
+     * Shows an empty state if the queue is empty and disables Confirm Save.
+     * Each card displays a thumbnail (or placeholder), product metadata,
+     * and Remove / Edit action buttons.
+     */
     
     function renderPreviewCards() {
         previewGrid.innerHTML = '';
@@ -914,6 +1066,12 @@ document.addEventListener("DOMContentLoaded", () => {
     });
     
     // --- CONFIRM SAVE ALL ---
+    // Iterates draftProducts sequentially (not in parallel) so image uploads
+    // don't race each other. For each product: resizes and uploads the image
+    // if one exists, then writes the Firestore document via setDoc.
+    // A progress bar in the modal footer tracks completion.
+    // showBatchResult() is called at the end to display a success or
+    // partial-failure summary before auto-redirecting to Products.html.
     if (confirmSaveBtn) {
         confirmSaveBtn.addEventListener('click', async (e) => {
             e.stopPropagation();
@@ -980,7 +1138,15 @@ document.addEventListener("DOMContentLoaded", () => {
             // REPLACE YOUR ALERT BLOCK WITH THIS:
             showBatchResult(saved, errors);
             
-            // THE FUNCTION:
+            /**
+             * Updates the success modal to show either a clean success message or
+             * a partial-failure summary listing per-product error strings.
+             * Animates a progress bar and redirects to Products.html after
+             * 2.5 s (success) or 5 s (errors, giving the user time to read them).
+             * Also clears the products_cache so the table reflects the new data.
+             * @param {number}   savedCount  — number of products saved successfully
+             * @param {string[]} errorsArray — per-product error messages for failures
+             */
             function showBatchResult(savedCount, errorsArray) {
                 const modal = document.getElementById('successModal');
                 const modalTitle = document.getElementById('modalTitle');
@@ -1034,7 +1200,13 @@ document.addEventListener("DOMContentLoaded", () => {
     }    
 });
 
-
+// ============================================================
+// SECTION 7 — MODULE-LEVEL UTILITIES
+// These are duplicate definitions of the same helpers defined
+// inside DOMContentLoaded above. They exist at module scope so
+// collectFormDraft() and the bulk save loop — which run outside
+// the DOMContentLoaded closure — can also call them.
+// ============================================================
 function sanitizeInput(str) {
     if (!str) return "";
     if (typeof str !== 'string') return String(str);
@@ -1058,5 +1230,17 @@ function applyCharLimit(input) {
     });
 }
 
+// ============================================================
+// EXPORTS
+// Shared helpers exported for reuse by other pages (e.g. Edit_Product)
+// that need the same user cache, role check, sanitizer, activity
+// logger, category loader, or settings loader.
+// ============================================================
 
-export { getCachedUserData, checkAdminRole, sanitizeInput, logActivity, loadCategories, loadDefaultThreshold };
+export { 
+    getCachedUserData, 
+    checkAdminRole, 
+    sanitizeInput, 
+    logActivity, 
+    loadCategories, 
+    loadDefaultThreshold };

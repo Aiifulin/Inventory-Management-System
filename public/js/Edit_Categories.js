@@ -3,11 +3,31 @@ import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/
 import { initLogoutModal } from "./logout-modal.js";
 import { db, auth, storage } from "./firebase.js";
 
+
+// ============================================================
+// GLOBALS
+// isFormDirty — tracks whether the user has made unsaved changes
+//   to the edit form. Used by the beforeunload guard to warn
+//   users before they accidentally navigate away mid-edit.
+// ============================================================
 let isFormDirty = false;
 
-// ================================================
-// CACHED USER DATA HELPER
-// ================================================
+
+// ============================================================
+// SECTION 1 — CACHE HELPERS
+// User data is cached in sessionStorage so revisiting the page
+// doesn't trigger an extra Firestore read. Same pattern used
+// across Dashboard.js and other pages for consistency.
+// ============================================================
+
+/**
+ * Fetches the current user's Firestore document (name, role, etc.).
+ * Results are cached per-UID in sessionStorage so repeat visits
+ * don't cost an extra read.
+ *
+ * @param {string} uid — Firebase Auth UID of the logged-in user.
+ * @returns {Object|null} — user data object, or null on failure.
+ */
 async function getCachedUserData(uid) {
     const CACHE_KEY = `user_data_${uid}`;
     const cached = sessionStorage.getItem(CACHE_KEY);
@@ -26,6 +46,13 @@ async function getCachedUserData(uid) {
     return null;
 }
 
+/**
+ * Fetches user data via getCachedUserData() and injects the
+ * user's name and role into the sidebar name badge element.
+ * The role is displayed in orange beside the name.
+ *
+ * @param {string} uid — Firebase Auth UID of the logged-in user.
+ */
 async function displayUserName(uid) {
     const nameEl = document.getElementById('userNameDisplay');
     if (!nameEl) return;
@@ -40,35 +67,60 @@ async function displayUserName(uid) {
 }
 
 
-// --- AUTH CHECK WITH ROLE VALIDATION ---
+// ============================================================
+// SECTION 2 — AUTH LISTENER
+// Runs once on page load. Non-authenticated users are sent to
+// the login page immediately. Authenticated non-admins are
+// redirected to Categories.html — this page is admin-only.
+// Only after confirming admin access is the page initialised.
+// ============================================================
 onAuthStateChanged(auth, async (user) => {
     if (user) {
         const userData = await getCachedUserData(user.uid);
         const isAdmin  = userData?.role?.toLowerCase() === 'admin';
 
         if (!isAdmin) {
+            // Block non-admins from accessing the edit page at all.
             alert("Access Denied: Only Admins can edit categories.");
             window.location.href = "Categories.html";
         } else {
             await displayUserName(user.uid);
             initPage();
-            // =======================================================
-            // Logout Confirmation Modal (shared pattern with Dashboard)
-            // =======================================================
+
+            // Wire up the logout modal with a sign-out callback that clears
+            // all local/session storage before signing the user out of Firebase.
             const doSignOut = () => {
-                localStorage.removeItem("user_session"); localStorage.removeItem("user_uid"); localStorage.removeItem("user_role");
+                localStorage.removeItem("user_session");
+                localStorage.removeItem("user_uid");
+                localStorage.removeItem("user_role");
                 sessionStorage.clear();
-                signOut(auth).then(() => window.location.replace("index.html")).catch(() => window.location.replace("index.html"));
+                signOut(auth)
+                    .then(() => window.location.replace("index.html"))
+                    .catch(() => window.location.replace("index.html"));
             };
             const openLogoutModal = initLogoutModal(doSignOut);
-            window.logout = function () { if (openLogoutModal) openLogoutModal(); }; 
+            window.logout = function () { if (openLogoutModal) openLogoutModal(); };
         }
     } else {
         window.location.href = "index.html";
     }
 });
 
-// --- HELPER: ACTIVITY LOGGING ---
+
+// ============================================================
+// SECTION 3 — ACTIVITY LOGGING
+// Writes a record to the "activities" Firestore collection so
+// the Dashboard's Recent Activities feed stays up to date.
+// All writes use serverTimestamp() to avoid clock-skew issues.
+// ============================================================
+
+/**
+ * Logs a user action (e.g. "Updated Category") to the activities
+ * collection. Used so the Dashboard can display a live audit trail.
+ *
+ * @param {string} action     — verb phrase describing what happened.
+ * @param {string} targetName — the name of the affected resource.
+ */
 async function logActivity(action, targetName) {
     try {
         const userEmail = auth.currentUser ? auth.currentUser.email : "Admin";
@@ -84,6 +136,18 @@ async function logActivity(action, targetName) {
 }
 
 
+// ============================================================
+// SECTION 4 — INPUT UTILITIES
+// Small helpers for enforcing input constraints on form fields.
+// ============================================================
+
+/**
+ * Attaches a 100-character hard limit to a text input and adds a
+ * visual red border when the limit is reached, giving users a
+ * clear warning before the input stops accepting characters.
+ *
+ * @param {HTMLInputElement} input — the input element to constrain.
+ */
 function applyCharLimit(input) {
     if (!input) return;
     input.setAttribute("maxlength", "100");
@@ -93,9 +157,27 @@ function applyCharLimit(input) {
     });
 }
 
-// ================================================
-// INIT PAGE
-// ================================================
+
+// ============================================================
+// SECTION 5 — PAGE INITIALISATION
+// initPage() is the main entry point called after the auth check
+// confirms the user is an admin. It:
+//   1. Reads the category ID from the URL query string.
+//   2. Attaches the unsaved-changes guard to the form.
+//   3. Fetches and pre-populates the existing category data.
+//   4. Handles the form submission, including duplicate-name
+//      checking and cascading the rename to all products.
+// ============================================================
+
+/**
+ * Bootstraps the Edit Category page:
+ *   - Reads ?id= from the URL to identify which category to edit.
+ *   - Sets up the data-loss prevention guard (beforeunload).
+ *   - Fetches the category document and pre-fills the form fields.
+ *   - Registers the submit handler that validates, updates
+ *     Firestore, cascades the rename to products, logs the
+ *     activity, busts relevant caches, and shows a success modal.
+ */
 function initPage() {
     const urlParams  = new URLSearchParams(window.location.search);
     const categoryId = urlParams.get('id');
@@ -107,6 +189,8 @@ function initPage() {
     }
 
     // --- DATA LOSS PREVENTION ---
+    // Mark the form as dirty whenever the user changes any field.
+    // The beforeunload listener will prompt them before leaving.
     const form = document.getElementById('editProductForm');
     if (form) {
         form.addEventListener('input',  () => isFormDirty = true);
@@ -119,7 +203,8 @@ function initPage() {
     const nameInput = document.getElementById('inpName');
     if (nameInput) applyCharLimit(nameInput);
 
-    // --- FETCH EXISTING DATA ---
+    // --- FETCH AND PRE-FILL EXISTING DATA ---
+    // Wrapped in an IIFE so we can use async/await inside initPage().
     (async () => {
         try {
             const docRef  = doc(db, "categories", categoryId);
@@ -128,12 +213,12 @@ function initPage() {
             if (docSnap.exists()) {
                 const data = docSnap.data();
 
+                // Pre-fill the name field with the current category name.
                 nameInput.value = data.name || "";
-
                 document.getElementById('inpCategoryId').value = categoryId;
 
-
-                // Store original name so we can detect renames later
+                // Store the original name so the save handler can detect
+                // renames and trigger the product cascade if needed.
                 nameInput.dataset.originalName = data.name || "";
 
             } else {
@@ -147,7 +232,7 @@ function initPage() {
         }
     })();
 
-    // --- SAVE LOGIC ---
+    // --- SAVE / SUBMIT LOGIC ---
     const submitBtn = document.querySelector('.btn-submit');
 
     if (form) {
@@ -158,12 +243,13 @@ function initPage() {
             submitBtn.disabled  = true;
 
             try {
-                const rawName = document.getElementById('inpName').value.trim();
+                const rawName      = document.getElementById('inpName').value.trim();
                 const originalName = document.getElementById('inpName').dataset.originalName || "";
 
                 if (!rawName) throw new Error("Category name is required.");
 
-                // Duplicate check — exclude current doc
+                // Duplicate check — query for any category with the same
+                // name and reject if one is found (excluding the current doc).
                 const q  = query(collection(db, "categories"), where("name", "==", rawName));
                 const qs = await getDocs(q);
                 let isDuplicate = false;
@@ -171,15 +257,16 @@ function initPage() {
                 if (isDuplicate) throw new Error(`Category "${rawName}" already exists!`);
 
                 const updatedData = {
-                    name:        rawName,          // plain text, no sanitize needed for stored name
+                    name:           rawName,
                     normalizedName: rawName.toLowerCase(),
-                    updatedAt:   serverTimestamp()
+                    updatedAt:      serverTimestamp()
                 };
 
-                // 1. UPDATE CATEGORY DOCUMENT
+                // STEP 1 — Update the category document itself.
                 await updateDoc(doc(db, "categories", categoryId), updatedData);
 
-                // 2. CASCADE RENAME TO ALL PRODUCTS IN THIS CATEGORY
+                // STEP 2 — Cascade the rename to every product in this category.
+                // Only runs when the name actually changed to avoid unnecessary writes.
                 const nameChanged = originalName && originalName !== rawName;
                 if (nameChanged) {
                     submitBtn.innerText = "Updating Products...";
@@ -190,6 +277,7 @@ function initPage() {
                     );
                     const productsSnap = await getDocs(productsQuery);
 
+                    // Fire all product updates in parallel for speed.
                     const updatePromises = [];
                     productsSnap.forEach(docSnap => {
                         updatePromises.push(
@@ -203,10 +291,11 @@ function initPage() {
                     console.log(`Updated category name in ${updatePromises.length} product(s).`);
                 }
 
-                // 3. LOG ACTIVITY
+                // STEP 3 — Write an audit log entry for the Dashboard feed.
                 await logActivity("Updated Category", rawName);
 
-                // 4. BUST CACHES so Dashboard and Products reflect the change
+                // STEP 4 — Bust all related caches so Dashboard, Products,
+                // and Categories pages reflect the change on next load.
                 sessionStorage.removeItem('dashboard_cache');
                 sessionStorage.removeItem('products_cache');
                 sessionStorage.removeItem('categories_cache');
@@ -225,8 +314,18 @@ function initPage() {
 }
 
 
+// ============================================================
+// SECTION 6 — SUCCESS MODAL
+// Shown briefly after a successful save before auto-redirecting
+// the user back to the Categories list page.
+// ============================================================
 
-// --- SUCCESS MODAL ---
+/**
+ * Displays the success confirmation modal with the updated
+ * category name, then redirects to Categories.html after 1 second.
+ *
+ * @param {string} categoryName — the name of the just-updated category.
+ */
 function showSuccessModal(categoryName) {
     const modal = document.getElementById('successModal');
     const label = document.getElementById('successCategoryName');
@@ -239,4 +338,12 @@ function showSuccessModal(categoryName) {
     }, 1000);
 }
 
-export { getCachedUserData, logActivity,};
+
+// ============================================================
+// EXPORTS
+// Named exports allow other modules to reuse these helpers
+// without importing the entire module.
+// ============================================================
+export { 
+    getCachedUserData, 
+    logActivity };

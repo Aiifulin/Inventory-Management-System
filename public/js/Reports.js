@@ -1,4 +1,10 @@
+// ============================================================
 // Reports.js
+// Handles all data fetching, chart rendering, date filtering,
+// and CSV/Excel export logic for the Reports page.
+// Only accessible to admin users — non-admins see an
+// "Access Denied" message instead of the report content.
+// ============================================================
 
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 import {
@@ -9,17 +15,46 @@ import { initLogoutModal } from "./logout-modal.js";
 import { db, auth, storage } from "./firebase.js";
 
 
+// ============================================================
+// GLOBALS
+// chartInstances  — registry of active Chart.js instances keyed
+//   by canvas ID. Used by destroyChart() to tear down a chart
+//   before re-rendering it, preventing "canvas already in use" errors.
+// activeDateRange — the currently selected date filter window
+//   ({ from: Date|null, to: Date|null }). All chart and export
+//   functions check this range before including a data point.
+// ============================================================
 const chartInstances = {};
 
-// ===============================
-// DATE RANGE STATE
-// ===============================
+
+// ============================================================
+// SECTION 1 — DATE RANGE STATE
+// Stores the active date filter and exposes helpers for setting,
+// checking, and formatting it. All chart renderers call
+// isInRange() to decide whether to include each data point.
+// ============================================================
+
+/** Module-level date range state. Null values mean "no boundary". */
 let activeDateRange = { from: null, to: null };
 
+/**
+ * Updates the active date range used by all chart and export functions.
+ *
+ * @param {Date|null} from — start of the range (inclusive), or null for no lower bound
+ * @param {Date|null} to   — end of the range (inclusive), or null for no upper bound
+ */
 function setDateRange(from, to) {
   activeDateRange = { from, to };
 }
 
+/**
+ * Returns true if a given timestamp falls within the active date range.
+ * Accepts both Firestore Timestamps ({ seconds }) and ISO strings / Date objects.
+ * If no range is set (both null), every timestamp passes.
+ *
+ * @param {Object|string|null} timestamp — the timestamp to test
+ * @returns {boolean}
+ */
 function isInRange(timestamp) {
   if (!activeDateRange.from && !activeDateRange.to) return true;
   if (!timestamp) return false;
@@ -31,12 +66,28 @@ function isInRange(timestamp) {
   return true;
 }
 
+/**
+ * Returns a human-readable string describing the current date range.
+ * Examples: "All time", "Jan 1, 2024 – Apr 22, 2025", "Mar 1, 2025 – Today"
+ *
+ * @param {Date|null} from
+ * @param {Date|null} to
+ * @returns {string}
+ */
 function formatRangeLabel(from, to) {
   if (!from && !to) return "All time";
   const opts = { month: "short", day: "numeric", year: "numeric" };
   return `${from ? from.toLocaleDateString("en-US", opts) : "—"} – ${to ? to.toLocaleDateString("en-US", opts) : "Today"}`;
 }
 
+/**
+ * Initialises the date-filter UI — pill buttons (30d, 3m, 1y, All, Custom)
+ * and the custom date range picker. Each selection updates activeDateRange
+ * and triggers a full chart reload via loadAllCharts().
+ *
+ * Pill buttons compute their "from" date relative to now.
+ * The custom range requires both a start and end date before applying.
+ */
 function initDateFilter() {
   const pills      = document.querySelectorAll(".date-pill");
   const customWrap = document.getElementById("customDateWrap");
@@ -52,6 +103,7 @@ function initDateFilter() {
       const now   = new Date();
       now.setHours(23, 59, 59, 999);
 
+      // Show the custom date picker only for the "custom" pill.
       if (range === "custom") { customWrap.classList.add("visible"); return; }
       customWrap.classList.remove("visible");
 
@@ -71,6 +123,7 @@ function initDateFilter() {
     });
   });
 
+  // Apply button for the custom date picker.
   if (btnApply) {
     btnApply.addEventListener("click", () => {
       const fromVal = document.getElementById("dateFrom").value;
@@ -86,9 +139,23 @@ function initDateFilter() {
   }
 }
 
-// ===============================
-// USER / AUTH
-// ===============================
+
+// ============================================================
+// SECTION 2 — AUTH & USER DATA
+// Checks authentication on page load. Non-admin users are shown
+// an access-denied message. Admin users proceed to full report
+// functionality. User data is cached in sessionStorage to avoid
+// repeat Firestore reads on subsequent visits.
+// ============================================================
+
+/**
+ * Fetches the current user's Firestore document (name, role, etc.).
+ * Caches the result per-UID in sessionStorage so repeat visits
+ * don't cost an extra read.
+ *
+ * @param {string} uid — Firebase Auth UID
+ * @returns {Object|null} — user data object, or null on failure
+ */
 async function getCachedUserData(uid) {
   const key    = `user_data_${uid}`;
   const cached = sessionStorage.getItem(key);
@@ -103,9 +170,14 @@ async function getCachedUserData(uid) {
   return null;
 }
 
-// ================================================
-// AUTH
-// ================================================
+/**
+ * Firebase Auth state listener — runs once on page load.
+ * Redirects unauthenticated users to the login page.
+ * For authenticated users, fetches user data and loads all charts
+ * in parallel (Promise.all). Admins get the full Reports UI;
+ * non-admins see an "Access Denied" placeholder instead.
+ * Also wires up the sidebar name badge and logout modal.
+ */
 onAuthStateChanged(auth, async (user) => {
   if (!user) { window.location.href = "index.html"; return; }
 
@@ -123,8 +195,9 @@ onAuthStateChanged(auth, async (user) => {
     const role = userData?.role || "user";
     const roleLabel = role.charAt(0).toUpperCase() + role.slice(1);
     nameEl.innerHTML = `${name} <span style="font-size:11px; color: #FFA500; font-weight:600; opacity:0.7;">(${roleLabel})</span>`;
-}
+  }
 
+  // Replace main content with an access-denied message for non-admins.
   if (!isAdmin) {
     main.innerHTML = `
       <div style="display:flex;flex-direction:column;align-items:center;
@@ -135,11 +208,13 @@ onAuthStateChanged(auth, async (user) => {
         <p style="margin:0;font-size:14px;">You do not have permission to view Reports.</p>
       </div>`;
   } else {
+    // Wire up export buttons and date filter only for admins.
     attachReportListeners();
   }
 
   main.style.visibility = 'visible';
 
+  // Sign-out handler clears all local/session storage before redirecting.
   const doSignOut = () => {
     localStorage.removeItem("user_session");
     localStorage.removeItem("user_uid");
@@ -151,17 +226,40 @@ onAuthStateChanged(auth, async (user) => {
   window.logout = function () { if (openLogoutModal) openLogoutModal(); };
 });
 
-// ===============================
-// CHART HELPERS
-// ===============================
+
+// ============================================================
+// SECTION 3 — CHART HELPERS
+// Lightweight utilities shared by all chart render functions:
+// theme detection, colour tokens, and canvas lifecycle management.
+// ============================================================
+
+/** Returns true if the page is currently in dark mode. */
 function isDark() { return document.documentElement.getAttribute('data-theme') === 'dark'; }
+
+/** Returns the appropriate axis/label text colour for the active theme. */
 function chartTextColor() { return isDark() ? '#cbd5e1' : '#475569'; }
+
+/** Returns the appropriate grid-line colour for the active theme. */
 function chartGridColor() { return isDark() ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.07)'; }
 
+/**
+ * Destroys an existing Chart.js instance by canvas ID and removes
+ * it from the registry. Must be called before re-rendering a chart
+ * on the same canvas to avoid "canvas already in use" errors.
+ *
+ * @param {string} id — canvas element ID
+ */
 function destroyChart(id) {
   if (chartInstances[id]) { chartInstances[id].destroy(); delete chartInstances[id]; }
 }
 
+/**
+ * Makes a canvas visible and hides its associated loading spinner.
+ * Called once a chart has finished rendering.
+ *
+ * @param {string} canvasId  — ID of the <canvas> element to show
+ * @param {string} loadingId — ID of the loading spinner element to hide
+ */
 function showChart(canvasId, loadingId) {
   const canvas  = document.getElementById(canvasId);
   const loading = document.getElementById(loadingId);
@@ -169,19 +267,36 @@ function showChart(canvasId, loadingId) {
   if (loading) loading.style.display = 'none';
 }
 
-// ===============================
-// LOAD ALL CHARTS
-// ===============================
+
+// ============================================================
+// SECTION 4 — MASTER CHART LOADER
+// loadAllCharts() is the single entry point for populating every
+// chart on the page. It batches all Firestore reads into as few
+// round-trips as possible (parallel Promise.all calls), then
+// fans out to individual render functions. Called on page load
+// and again whenever the date filter changes.
+// ============================================================
+
+/**
+ * Fetches all data needed for the Reports page and renders every chart.
+ *
+ * Strategy:
+ *   - Determines which transaction years to fetch based on the active
+ *     date range (or defaults to current + previous year for "all time").
+ *   - Fetches all transaction year sub-collections, products, categories,
+ *     and recent activities in parallel to minimise total load time.
+ *   - Passes the combined data down to each individual render function.
+ */
 async function loadAllCharts() {
   try {
     const currentYear = new Date().getFullYear();
     const targetYear  = activeDateRange.from ? activeDateRange.from.getFullYear() : currentYear;
     const prevYear    = targetYear - 1;
 
-    // Fetch years range for tx — cover all years if "all time"
+    // Build the list of transaction years to fetch.
+    // For "all time", always include the current and previous year at minimum.
     const yearsToFetch = [];
     if (!activeDateRange.from) {
-      // All time: fetch current and previous year minimum
       yearsToFetch.push(currentYear, prevYear);
     } else {
       for (let y = activeDateRange.from.getFullYear(); y <= (activeDateRange.to?.getFullYear() || currentYear); y++) {
@@ -190,6 +305,7 @@ async function loadAllCharts() {
       if (!yearsToFetch.includes(prevYear)) yearsToFetch.push(prevYear);
     }
 
+    // Fetch all transaction years in parallel, then flatten into a single array.
     const txSnaps = await Promise.all(
       yearsToFetch.map(y =>
         getDocs(query(collection(db, "stock_transactions", String(y), "transactions"), orderBy("createdAt", "asc")))
@@ -197,30 +313,47 @@ async function loadAllCharts() {
     );
     const allTxDocs = txSnaps.flatMap(snap => snap.docs);
 
+    // Fetch products, categories, and activity log in parallel.
     const [productsSnap, categoriesSnap, activitiesSnap] = await Promise.all([
       getDocs(collection(db, "products")),
       getDocs(collection(db, "categories")),
       getDocs(query(collection(db, "activities"), orderBy("timestamp", "desc"), limit(500)))
     ]);
 
+    // Fan out to each chart renderer.
     renderInventoryChart(productsSnap);
     renderCategoryChart(productsSnap, categoriesSnap);
     renderLowStockChart(productsSnap);
-    renderActivityTimelineChart(activitiesSnap);       // ✅ NEW: replaces old activity donut
-    renderInventorySummaryBanner(productsSnap, allTxDocs); // ✅ IMPROVED: with trend indicators
+    renderActivityTimelineChart(activitiesSnap);
+    renderInventorySummaryBanner(productsSnap, allTxDocs);
     renderStockMovementChart(allTxDocs, targetYear, prevYear);
-    renderTopMovedProductsChart(allTxDocs);            // ✅ NEW
-    renderSalesTrendChart(allTxDocs);                  // ✅ NEW
-    renderDeadStockChart(productsSnap, allTxDocs);     // ✅ NEW
+    renderTopMovedProductsChart(allTxDocs);
+    renderSalesTrendChart(allTxDocs);
+    renderDeadStockChart(productsSnap, allTxDocs);
 
   } catch (err) {
     console.error("Chart load error:", err);
   }
 }
 
-// ===============================
-// CHART HELPERS — TREND
-// ===============================
+
+// ============================================================
+// SECTION 5 — TREND INDICATOR HELPER
+// Used by the Inventory Summary Banner to show month-over-month
+// percentage change with directional arrows and colour coding.
+// ============================================================
+
+/**
+ * Calculates the percentage change between two values and returns
+ * a display-ready trend indicator object.
+ *
+ * @param {number} current  — value for the current period
+ * @param {number} previous — value for the comparison period
+ * @returns {{ text: string, cls: string, icon: string }}
+ *   text — formatted label e.g. "↑ 12.5%" or "New"
+ *   cls  — CSS class: "trend-up" | "trend-down" | "trend-neutral"
+ *   icon — directional arrow character
+ */
 function getTrendIndicator(current, previous) {
   if (previous === 0 && current === 0) return { text: "—", cls: "trend-neutral", icon: "" };
   if (previous === 0) return { text: "New", cls: "trend-up", icon: "↑" };
@@ -231,9 +364,27 @@ function getTrendIndicator(current, previous) {
   return { text: "→ 0%", cls: "trend-neutral", icon: "→" };
 }
 
-// ===============================
-// IMPROVED: INVENTORY SUMMARY BANNER with trend indicators
-// ===============================
+
+// ============================================================
+// SECTION 6 — INVENTORY SUMMARY BANNER
+// Renders the top summary strip showing aggregate inventory
+// stats and month-over-month trend comparisons for units sold
+// and stock received. Does not use a chart — pure HTML injection.
+// ============================================================
+
+/**
+ * Builds and injects the Inventory Summary Banner HTML.
+ *
+ * Computes from raw Firestore data:
+ *   - Total active products, stock units, and inventory value
+ *   - Units sold this month vs last month (with trend badge)
+ *   - Stock received this month vs last month (with trend badge)
+ *
+ * Cancelled transactions are excluded from all totals.
+ *
+ * @param {QuerySnapshot} productsSnap — snapshot of the products collection
+ * @param {DocumentSnapshot[]} allTxDocs — flattened array of transaction docs
+ */
 function renderInventorySummaryBanner(productsSnap, allTxDocs) {
   const now   = new Date();
   const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -249,7 +400,7 @@ function renderInventorySummaryBanner(productsSnap, allTxDocs) {
     totalValue += (Number(p.stock) || 0) * (Number(p.price) || 0);
   });
 
-  // Count units sold this month vs last month from tx docs
+  // Tally "Sold" transactions for this month and last month.
   let soldThisMonth = 0, soldLastMonth = 0;
   allTxDocs.forEach(docSnap => {
     const d = docSnap.data();
@@ -261,7 +412,7 @@ function renderInventorySummaryBanner(productsSnap, allTxDocs) {
     else if (ts >= lastMonthStart && ts <= lastMonthEnd) soldLastMonth += qty;
   });
 
-  // Stock ins this month vs last
+  // Tally "Stock In" transactions for this month and last month.
   let stockInThis = 0, stockInLast = 0;
   allTxDocs.forEach(docSnap => {
     const d = docSnap.data();
@@ -325,15 +476,30 @@ function renderInventorySummaryBanner(productsSnap, allTxDocs) {
   }
 }
 
-// ===============================
-// NEW CHART: ACTIVITY TIMELINE (replaces donut)
-// ===============================
+
+// ============================================================
+// SECTION 7 — CHART RENDERERS
+// Each function receives pre-fetched Firestore data, processes
+// it into chart-ready arrays, destroys any previous instance,
+// and creates a new Chart.js chart on its designated canvas.
+// No Firestore calls are made inside these functions.
+// ============================================================
+
+/**
+ * Renders the Activity Timeline line chart.
+ * Buckets the last 30 days of activity log entries into three
+ * daily series: Added, Updated/Status, and Other.
+ * The active date range filter does NOT apply here — the chart
+ * always shows the most recent 30 days of activity.
+ *
+ * @param {QuerySnapshot} activitiesSnap — most recent 500 activity logs
+ */
 function renderActivityTimelineChart(activitiesSnap) {
-  // Build daily counts for last 30 days
-  const now = new Date();
+  const now  = new Date();
   const days = 30;
   const buckets = {};
 
+  // Pre-populate buckets for each of the last 30 days.
   for (let i = days - 1; i >= 0; i--) {
     const d = new Date(now);
     d.setDate(d.getDate() - i);
@@ -425,14 +591,20 @@ function renderActivityTimelineChart(activitiesSnap) {
     }
   });
 
-  // Clear old legend
+  // Clear any legacy HTML legend element left from a previous render.
   const legend = document.getElementById('legendActivity');
   if (legend) legend.innerHTML = '';
 }
 
-// ===============================
-// NEW CHART: TOP 5 MOST MOVED PRODUCTS
-// ===============================
+/**
+ * Renders the Top 5 Most Moved Products horizontal bar chart.
+ * Aggregates total Stock In and Sold quantities per product across
+ * all transaction docs, sorted by combined movement volume.
+ * Shows an empty state if no qualifying transactions exist.
+ * Respects the active date range filter via isInRange().
+ *
+ * @param {DocumentSnapshot[]} allTxDocs — flattened array of transaction docs
+ */
 function renderTopMovedProductsChart(allTxDocs) {
   const productTotals = {};
 
@@ -448,6 +620,7 @@ function renderTopMovedProductsChart(allTxDocs) {
     productTotals[name].total += qty;
   });
 
+  // Sort by total movement descending and take the top 5.
   const sorted = Object.entries(productTotals)
     .sort((a, b) => b[1].total - a[1].total)
     .slice(0, 5);
@@ -498,6 +671,7 @@ function renderTopMovedProductsChart(allTxDocs) {
         y: {
           ticks: {
             color: chartTextColor(), font: { size: 11 },
+            // Truncate long product names to keep the chart readable.
             callback: (val, idx) => {
               const label = labels[idx];
               return label.length > 18 ? label.substring(0, 18) + '…' : label;
@@ -510,11 +684,16 @@ function renderTopMovedProductsChart(allTxDocs) {
   });
 }
 
-// ===============================
-// NEW CHART: SALES TREND (units sold over time)
-// ===============================
+/**
+ * Renders the Sales Trend line chart.
+ * Groups "Sold" transaction quantities by calendar month and plots
+ * them as a filled line chart with a gradient background.
+ * Shows an empty state if no sales data exists for the active range.
+ * Respects the active date range filter via isInRange().
+ *
+ * @param {DocumentSnapshot[]} allTxDocs — flattened array of transaction docs
+ */
 function renderSalesTrendChart(allTxDocs) {
-  // Group sold qty by month
   const monthlyData = {};
 
   allTxDocs.forEach(docSnap => {
@@ -523,6 +702,7 @@ function renderSalesTrendChart(allTxDocs) {
     if (!isInRange(d.createdAt)) return;
     const ts = d.createdAt?.seconds ? new Date(d.createdAt.seconds * 1000) : null;
     if (!ts) return;
+    // Key format: "YYYY-MM" for reliable chronological sorting.
     const key = `${ts.getFullYear()}-${String(ts.getMonth() + 1).padStart(2, '0')}`;
     monthlyData[key] = (monthlyData[key] || 0) + (Number(d.qty) || 0);
   });
@@ -549,7 +729,7 @@ function renderSalesTrendChart(allTxDocs) {
 
   const ctx = canvas.getContext('2d');
 
-  // Gradient fill
+  // Gradient fill fades from a semi-transparent blue at the top to transparent at the bottom.
   const gradient = ctx.createLinearGradient(0, 0, 0, 260);
   gradient.addColorStop(0, isDark() ? 'rgba(59,130,246,0.25)' : 'rgba(59,130,246,0.15)');
   gradient.addColorStop(1, 'rgba(59,130,246,0)');
@@ -594,15 +774,23 @@ function renderSalesTrendChart(allTxDocs) {
   });
 }
 
-// ===============================
-// NEW CHART: DEAD STOCK
-// ===============================
+/**
+ * Renders the Dead Stock bar chart.
+ * Identifies active products with non-zero stock that have had no
+ * transactions in the past 90 days, then plots the top 8 by
+ * tied-up inventory value. Uses a dual Y-axis: left for units,
+ * right for peso value. Shows a count badge and empty state when
+ * no dead stock is detected.
+ *
+ * @param {QuerySnapshot}      productsSnap — snapshot of the products collection
+ * @param {DocumentSnapshot[]} allTxDocs    — flattened array of transaction docs
+ */
 function renderDeadStockChart(productsSnap, allTxDocs) {
   const DEAD_DAYS = 90;
   const cutoff    = new Date();
   cutoff.setDate(cutoff.getDate() - DEAD_DAYS);
 
-  // Build set of productIds/names that had a transaction recently
+  // Build a set of product IDs and names that had any recent transaction.
   const recentlyMoved = new Set();
   allTxDocs.forEach(docSnap => {
     const d  = docSnap.data();
@@ -613,6 +801,7 @@ function renderDeadStockChart(productsSnap, allTxDocs) {
     }
   });
 
+  // Any active product not in recentlyMoved with stock > 0 is considered dead stock.
   const deadItems = [];
   productsSnap.forEach(docSnap => {
     const p     = docSnap.data();
@@ -624,13 +813,14 @@ function renderDeadStockChart(productsSnap, allTxDocs) {
     }
   });
 
+  // Sort by tied-up value descending; only chart the top 8.
   deadItems.sort((a, b) => b.value - a.value);
   const top = deadItems.slice(0, 8);
 
-  const canvas   = document.getElementById('chartDeadStock');
+  const canvas    = document.getElementById('chartDeadStock');
   const loadingEl = document.getElementById('chartLoadingDeadStock');
-  const emptyEl  = document.getElementById('chartDeadStockEmpty');
-  const countEl  = document.getElementById('deadStockCount');
+  const emptyEl   = document.getElementById('chartDeadStockEmpty');
+  const countEl   = document.getElementById('deadStockCount');
 
   if (loadingEl) loadingEl.style.display = 'none';
   if (countEl)   countEl.textContent = `${deadItems.length} product${deadItems.length !== 1 ? 's' : ''} with no movement in ${DEAD_DAYS}+ days`;
@@ -689,12 +879,14 @@ function renderDeadStockChart(productsSnap, allTxDocs) {
           ticks: { color: chartTextColor(), font: { size: 10 }, maxRotation: 30 },
           grid: { display: false }
         },
+        // Left Y-axis: stock units (amber ticks)
         y: {
           beginAtZero: true, position: 'left',
           ticks: { color: '#f59e0b', font: { size: 11 } },
           grid: { color: chartGridColor() },
           title: { display: true, text: 'Units', color: chartTextColor(), font: { size: 11 } }
         },
+        // Right Y-axis: peso value (red ticks) — grid lines suppressed to avoid clutter
         y2: {
           beginAtZero: true, position: 'right',
           ticks: {
@@ -709,9 +901,16 @@ function renderDeadStockChart(productsSnap, allTxDocs) {
   });
 }
 
-// ===============================
-// CHART: STOCK MOVEMENT (existing, improved)
-// ===============================
+/**
+ * Renders the Stock Movement grouped bar chart (current year)
+ * and a side-by-side Year-over-Year comparison chart (previous year).
+ * Groups Stock In and Sold quantities by calendar month.
+ * Cancelled transactions are excluded from both datasets.
+ *
+ * @param {DocumentSnapshot[]} txDocs     — flattened array of transaction docs
+ * @param {number}             targetYear — the primary year to display
+ * @param {number}             prevYear   — the comparison year (targetYear - 1)
+ */
 function renderStockMovementChart(txDocs, targetYear, prevYear) {
   const monthNames   = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
   const thisYearData = Array(12).fill(0).map(() => ({ stockIn: 0, sold: 0 }));
@@ -741,6 +940,7 @@ function renderStockMovementChart(txDocs, targetYear, prevYear) {
   const textColor = chartTextColor();
   const gridColor = chartGridColor();
 
+  // Shared options object reused by both the current and comparison charts.
   const baseOpts = {
     responsive: true, maintainAspectRatio: false,
     plugins: {
@@ -753,6 +953,7 @@ function renderStockMovementChart(txDocs, targetYear, prevYear) {
     }
   };
 
+  // Current year chart.
   const ctx = document.getElementById("chartStock").getContext("2d");
   chartInstances["chartStock"] = new Chart(ctx, {
     type: "bar",
@@ -766,6 +967,7 @@ function renderStockMovementChart(txDocs, targetYear, prevYear) {
     options: baseOpts
   });
 
+  // Previous year comparison chart (uses semi-transparent colours to visually differentiate).
   const ctxCmp = document.getElementById("chartStockCompare").getContext("2d");
   showChart("chartStockCompare", null);
   chartInstances["chartStockCompare"] = new Chart(ctxCmp, {
@@ -781,9 +983,15 @@ function renderStockMovementChart(txDocs, targetYear, prevYear) {
   });
 }
 
-// ===============================
-// CHART 1: INVENTORY DONUT
-// ===============================
+/**
+ * Renders the Inventory Status doughnut chart.
+ * Classifies each active product as In Stock, Low Stock, or Out of
+ * Stock based on its current stock level vs. its low-stock threshold.
+ * Also injects a custom HTML legend below the chart.
+ * Respects the active date range filter via isInRange().
+ *
+ * @param {QuerySnapshot} productsSnap — snapshot of the products collection
+ */
 function renderInventoryChart(productsSnap) {
   let inStock = 0, lowStock = 0, outOfStock = 0;
   productsSnap.forEach(docSnap => {
@@ -813,6 +1021,7 @@ function renderInventoryChart(productsSnap) {
     }
   });
 
+  // Inject a custom HTML legend since Chart.js's built-in legend is hidden.
   const legend = document.getElementById('legendInventory');
   if (legend) {
     const colors = ['#22c55e', '#f59e0b', '#ef4444'];
@@ -827,15 +1036,25 @@ function renderInventoryChart(productsSnap) {
   }
 }
 
-// ===============================
-// CHART 2: CATEGORY BAR
-// ===============================
+/**
+ * Renders the Products by Category horizontal bar chart.
+ * Merges the categories collection (to include empty categories)
+ * with the products collection, counts products per category,
+ * then plots the top 8 by count.
+ * Respects the active date range filter via isInRange().
+ *
+ * @param {QuerySnapshot} productsSnap   — snapshot of the products collection
+ * @param {QuerySnapshot} categoriesSnap — snapshot of the categories collection
+ */
 function renderCategoryChart(productsSnap, categoriesSnap) {
   const categoryCount = {};
+
+  // Seed the map with all non-archived categories so empty ones show as 0.
   categoriesSnap.forEach(docSnap => {
     const c = docSnap.data();
     if (c.archived !== true && c.name) categoryCount[c.name] = 0;
   });
+
   productsSnap.forEach(docSnap => {
     const p = docSnap.data();
     if (p.archived === true) return;
@@ -867,9 +1086,16 @@ function renderCategoryChart(productsSnap, categoriesSnap) {
   });
 }
 
-// ===============================
-// CHART 3: LOW STOCK BAR
-// ===============================
+/**
+ * Renders the Low Stock Alert bar chart.
+ * Plots the top 8 lowest-stock products alongside their thresholds
+ * so reorder urgency is immediately visible. Out-of-stock bars are
+ * rendered in red; low-stock bars in amber.
+ * Shows an empty state when all products are well stocked.
+ * Respects the active date range filter via isInRange().
+ *
+ * @param {QuerySnapshot} productsSnap — snapshot of the products collection
+ */
 function renderLowStockChart(productsSnap) {
   const lowItems = [];
   productsSnap.forEach(docSnap => {
@@ -880,6 +1106,8 @@ function renderLowStockChart(productsSnap) {
     const threshold = Number(p.lowStockThreshold) || 10;
     if (stock <= threshold) lowItems.push({ name: p.name || 'Unknown', stock, threshold });
   });
+
+  // Sort ascending by stock level so the most urgent items appear first.
   lowItems.sort((a, b) => a.stock - b.stock);
   const top = lowItems.slice(0, 8);
 
@@ -888,6 +1116,8 @@ function renderLowStockChart(productsSnap) {
   const canvas    = document.getElementById('chartLowStock');
 
   if (loadingEl) loadingEl.style.display = 'none';
+
+  // Show the empty state and hide the canvas if nothing is low stock.
   if (top.length === 0) {
     if (emptyEl) emptyEl.style.display = 'flex';
     if (canvas)  canvas.style.display  = 'none';
@@ -903,6 +1133,7 @@ function renderLowStockChart(productsSnap) {
     data: {
       labels: top.map(i => i.name),
       datasets: [
+        // Bar colour: red for out-of-stock, amber for low stock.
         { label: 'Current Stock', data: top.map(i => i.stock), backgroundColor: top.map(i => i.stock === 0 ? '#ef4444' : '#f59e0b'), borderRadius: 4, borderSkipped: false },
         { label: 'Threshold', data: top.map(i => i.threshold), backgroundColor: 'rgba(148,163,184,0.25)', borderColor: 'rgba(148,163,184,0.6)', borderWidth: 1, borderRadius: 4, borderSkipped: false }
       ]
@@ -921,11 +1152,29 @@ function renderLowStockChart(productsSnap) {
   });
 }
 
-// ===============================
-// EXPORT HELPERS
-// ===============================
+
+// ============================================================
+// SECTION 8 — EXPORT HELPERS
+// Utility functions for generating and downloading CSV and Excel
+// files. All report generators call exportData() which routes
+// to the correct format based on the user's dropdown selection.
+// ============================================================
+
+/**
+ * Reads the currently selected export format from the format dropdown.
+ *
+ * @returns {"csv"|"xlsx"}
+ */
 function getSelectedFormat() { return document.getElementById("exportFormat")?.value || "csv"; }
 
+/**
+ * Converts an array of plain objects to a CSV string.
+ * Values containing commas, double-quotes, or newlines are wrapped
+ * in double-quotes and internal quotes are escaped (RFC 4180).
+ *
+ * @param {Object[]} data — array of flat objects (all the same keys)
+ * @returns {string} — CSV text
+ */
 function convertToCSV(data) {
   if (!data.length) return "";
   const escape = (val) => {
@@ -937,6 +1186,14 @@ function convertToCSV(data) {
   return [headers, ...rows].join("\n");
 }
 
+/**
+ * Triggers a browser file download for the given CSV string.
+ * Creates a temporary <a> element, assigns a Blob URL, clicks it,
+ * then immediately revokes the URL to release memory.
+ *
+ * @param {string} filename — desired file name (including .csv extension)
+ * @param {string} data     — CSV content string
+ */
 function downloadCSV(filename, data) {
   const blob = new Blob([data], { type: "text/csv;charset=utf-8;" });
   const link = document.createElement("a");
@@ -946,6 +1203,13 @@ function downloadCSV(filename, data) {
   URL.revokeObjectURL(link.href);
 }
 
+/**
+ * Triggers a browser file download for the given data as an Excel
+ * workbook using the SheetJS (XLSX) library.
+ *
+ * @param {string}   filename — desired file name (including .xlsx extension)
+ * @param {Object[]} data     — array of flat objects to write as a worksheet
+ */
 function downloadExcel(filename, data) {
   const worksheet = XLSX.utils.json_to_sheet(data);
   const workbook  = XLSX.utils.book_new();
@@ -953,6 +1217,14 @@ function downloadExcel(filename, data) {
   XLSX.writeFile(workbook, filename);
 }
 
+/**
+ * Routes a report dataset to the correct download function based on
+ * the user's selected export format (CSV or Excel).
+ * Shows an alert if the dataset is empty.
+ *
+ * @param {string}   filename — base file name without extension
+ * @param {Object[]} data     — report rows to export
+ */
 function exportData(filename, data) {
   if (!data || data.length === 0) { alert("No data found to export for this report."); return; }
   const format = getSelectedFormat();
@@ -960,6 +1232,14 @@ function exportData(filename, data) {
   else downloadExcel(filename + ".xlsx", data);
 }
 
+/**
+ * Toggles the loading state of a report generation button.
+ * Saves the original button HTML so it can be restored after the
+ * async operation completes.
+ *
+ * @param {Element} btn     — the button element to update
+ * @param {boolean} loading — true to show spinner, false to restore
+ */
 function setButtonLoading(btn, loading) {
   if (!btn) return;
   if (loading) {
@@ -972,9 +1252,23 @@ function setButtonLoading(btn, loading) {
   }
 }
 
-// ===============================
-// REPORT GENERATORS
-// ===============================
+
+// ============================================================
+// SECTION 9 — REPORT GENERATORS
+// Each function fetches a focused slice of Firestore data,
+// shapes it into a flat array of row objects, appends summary
+// rows where applicable, and hands it to exportData().
+// All functions manage their own button loading state.
+// ============================================================
+
+/**
+ * Generates and exports the full Inventory Report.
+ * Includes all active products with their status, value, and a
+ * grand-total summary row at the bottom.
+ * Sorted in fetch order (unsorted); status is derived on the fly.
+ *
+ * @param {Element} btn — the triggering button element
+ */
 async function loadInventoryReport(btn) {
   setButtonLoading(btn, true);
   try {
@@ -997,6 +1291,7 @@ async function loadInventoryReport(btn) {
       });
     });
 
+    // Append a totals row for quick reference in the exported file.
     if (reportData.length > 0) {
       reportData.push({
         "Product ID": "—", "Product Name": "TOTAL", "Category": "—", "Price (₱)": "—",
@@ -1011,6 +1306,14 @@ async function loadInventoryReport(btn) {
   } finally { setButtonLoading(btn, false); }
 }
 
+/**
+ * Generates and exports the Category Summary Report.
+ * Merges the categories collection with products to produce one
+ * row per category, including total products, stock, value, and
+ * status breakdowns. Sorted by total products descending.
+ *
+ * @param {Element} btn — the triggering button element
+ */
 async function loadCategoryReport(btn) {
   setButtonLoading(btn, true);
   try {
@@ -1019,6 +1322,7 @@ async function loadCategoryReport(btn) {
       getDocs(collection(db, "categories"))
     ]);
 
+    // Seed the map with all active categories (including empty ones).
     const categoryMap = {};
     categoriesSnap.forEach(docSnap => {
       const c = docSnap.data();
@@ -1054,6 +1358,14 @@ async function loadCategoryReport(btn) {
   } finally { setButtonLoading(btn, false); }
 }
 
+/**
+ * Generates and exports the Low Stock Report.
+ * Includes only products at or below their threshold, sorted with
+ * out-of-stock items first, then by ascending stock level.
+ * Alerts the user if all products are well stocked (no rows to export).
+ *
+ * @param {Element} btn — the triggering button element
+ */
 async function loadLowStockReport(btn) {
   setButtonLoading(btn, true);
   try {
@@ -1072,6 +1384,8 @@ async function loadLowStockReport(btn) {
         });
       }
     });
+
+    // Sort: out-of-stock first, then by ascending stock level.
     reportData.sort((a, b) => {
       if (a["Current Stock"] === 0 && b["Current Stock"] !== 0) return -1;
       if (a["Current Stock"] !== 0 && b["Current Stock"] === 0) return  1;
@@ -1085,6 +1399,14 @@ async function loadLowStockReport(btn) {
   } finally { setButtonLoading(btn, false); }
 }
 
+/**
+ * Generates and exports the Activity Log Report.
+ * Fetches the most recent 500 activity log entries, filters them
+ * by the active date range, and classifies each action into a
+ * human-readable Action Type (Added, Updated, Deleted, etc.).
+ *
+ * @param {Element} btn — the triggering button element
+ */
 async function loadActivityReport(btn) {
   setButtonLoading(btn, true);
   try {
@@ -1114,6 +1436,14 @@ async function loadActivityReport(btn) {
   } finally { setButtonLoading(btn, false); }
 }
 
+/**
+ * Generates and exports the Stock Movement Report.
+ * Fetches all transaction sub-collections within the active date
+ * range's year span, filters by the active date range, excludes
+ * cancelled transactions, and exports one row per transaction.
+ *
+ * @param {Element} btn — the triggering button element
+ */
 async function loadStockMovementReport(btn) {
   setButtonLoading(btn, true);
   try {
@@ -1148,8 +1478,28 @@ async function loadStockMovementReport(btn) {
   } finally { setButtonLoading(btn, false); }
 }
 
+/**
+ * Returns the current date as a YYYY-MM-DD string.
+ * Used to append a datestamp to exported file names
+ * (e.g. "InventoryReport_2025-04-22.csv").
+ *
+ * @returns {string}
+ */
 function getDateStamp() { return new Date().toISOString().split('T')[0]; }
 
+
+// ============================================================
+// SECTION 10 — EVENT LISTENER SETUP
+// attachReportListeners() is called once the user is confirmed
+// as an admin. It wires up all export buttons and initialises
+// the date filter. Kept separate from the Auth listener so
+// non-admin users never attach these listeners at all.
+// ============================================================
+
+/**
+ * Attaches click listeners to all report export buttons and
+ * initialises the date filter UI. Called only for admin users.
+ */
 function attachReportListeners() {
   const btnInventory           = document.getElementById("btnInventory");
   const btnCategory            = document.getElementById("btnCategory");
@@ -1165,4 +1515,10 @@ function attachReportListeners() {
   initDateFilter();
 }
 
+
+// ============================================================
+// EXPORTS
+// Named exports allow other modules or unit tests to reuse
+// individual helpers without importing the entire module.
+// ============================================================
 export { getCachedUserData, setDateRange, isInRange, formatRangeLabel, getTrendIndicator, convertToCSV, getDateStamp };
