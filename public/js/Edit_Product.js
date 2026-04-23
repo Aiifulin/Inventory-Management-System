@@ -503,9 +503,6 @@ function initPage() {
                     if (name && value) attributes.push({ name, value });
                 });
 
-                if (variations.length === 0) {
-                    throw new Error("Please add at least one valid Product Variation.");
-                }
 
                 const updatedData = {
                     name:              sanitizeInput(rawName),
