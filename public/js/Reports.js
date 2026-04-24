@@ -682,6 +682,20 @@ function renderTopMovedProductsChart(allTxDocs) {
       }
     }
   });
+  // Add this after chartInstances['chartTopMoved'] = new Chart(...)
+  const rangeNote = document.getElementById('chartTopMovedNote');
+  if (!rangeNote) {
+    const note = document.createElement('div');
+    note.id = 'chartTopMovedNote';
+    note.style.cssText = 'text-align:center; font-size:11px; color:var(--text-secondary); margin-top:4px;';
+    canvas.insertAdjacentElement('afterend', note);
+  }
+  const noteEl = document.getElementById('chartTopMovedNote');
+  if (noteEl) {
+    noteEl.textContent = activeDateRange.from || activeDateRange.to
+      ? `Showing top 5 for: ${formatRangeLabel(activeDateRange.from, activeDateRange.to)}`
+      : 'Showing top 5 across all time — use the date filter above to narrow by period';
+  }
 }
 
 /**
@@ -710,7 +724,7 @@ function renderSalesTrendChart(allTxDocs) {
   const sorted = Object.entries(monthlyData).sort((a, b) => a[0].localeCompare(b[0]));
   const labels = sorted.map(([k]) => {
     const [yr, mo] = k.split('-');
-    return new Date(Number(yr), Number(mo) - 1).toLocaleDateString("en-US", { month: "short", year: "2-digit" });
+    return new Date(Number(yr), Number(mo) - 1).toLocaleDateString("en-US", { month: "short" });
   });
   const values = sorted.map(([, v]) => v);
 
@@ -770,8 +784,22 @@ function renderSalesTrendChart(allTxDocs) {
           grid: { color: chartGridColor() }
         }
       }
+      
     }
+
+  
   });
+  const years = [...new Set(sorted.map(([k]) => k.split('-')[0]))];
+  const yearLabel = years.join(' – ');
+  
+  let yearSubtitle = document.getElementById('chartSalesTrendYear');
+  if (!yearSubtitle) {
+    yearSubtitle = document.createElement('div');
+    yearSubtitle.id = 'chartSalesTrendYear';
+    yearSubtitle.style.cssText = 'text-align:center; font-size:11px; color:var(--text-secondary); margin-top:4px;';
+    canvas.insertAdjacentElement('afterend', yearSubtitle);
+  }
+  yearSubtitle.textContent = yearLabel;
 }
 
 /**
