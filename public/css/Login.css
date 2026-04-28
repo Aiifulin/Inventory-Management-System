@@ -269,9 +269,10 @@ input:focus {
 /* --- MOBILE --- */
 @media (max-width: 480px) {
     body {
-        padding: 16px;
+        padding: 16px;          /* same horizontal breathing room */
+        box-sizing: border-box; /* ← this is the key missing piece */
         align-items: flex-start;
-        padding-top: 40px;
+        padding-top: 36px;      /* match register */
     }
 
     .page-wrapper {
@@ -294,7 +295,7 @@ input:focus {
 
     .card {
         width: 100%;
-        padding: 24px 18px;
+        padding: 22px 18px;     /* match register */
         border-radius: 14px;
         box-shadow: 0 2px 12px rgba(0,0,0,0.08);
     }
