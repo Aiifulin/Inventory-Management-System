@@ -500,8 +500,8 @@ function renderPage() {
 
             // Status badge: admins get a clickable badge that opens the status modal.
             const statusKey   = (tx.status || "Completed").toLowerCase();
-            const statusIcons = { completed: "✅", pending: "⏳", cancelled: "❌" };
-            const statusIcon  = statusIcons[statusKey] || "✅";
+            const statusIcons = { completed: "", pending: "", cancelled: "" };
+            const statusIcon  = statusIcons[statusKey] || "";
             const clickable   = isAdmin ? " clickable" : "";
             const clickAttr   = isAdmin ? `data-txid="${tx.id}" data-year="${tx.year}" data-txname="${escHtml(tx.productName)} — ${escHtml(tx.type)}"` : "";
             const title       = isAdmin ? `title="Click to change status"` : "";
