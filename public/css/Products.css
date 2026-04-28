@@ -580,3 +580,39 @@ body {
     flex: 0 0 50px;
     max-width: 50px;  /* ADD */
 }
+
+/* =========================================
+   PAGINATION
+   ========================================= */
+.pagination-bar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding: 20px 0 8px;
+}
+
+.btn-page {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 18px;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-card);
+    color: var(--text-main);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.btn-page:hover:not(:disabled) { background: var(--hover-bg); }
+.btn-page:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.page-info {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    min-width: 100px;
+    text-align: center;
+}

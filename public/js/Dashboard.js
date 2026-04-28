@@ -466,13 +466,35 @@ function renderActivities(activities) {
 
         let iconClass  = "fa-info";
         let colorClass = "";
-
+        
         if (actionLower.includes("add")) {
-            iconClass = "fa-plus";  colorClass = "act-add";
+            iconClass = "fa-plus";                    colorClass = "act-add";
         } else if (actionLower.includes("edit") || actionLower.includes("update")) {
-            iconClass = "fa-pen";   colorClass = "act-edit";
+            iconClass = "fa-pen";                     colorClass = "act-edit";
         } else if (actionLower.includes("delete") || actionLower.includes("remove")) {
-            iconClass = "fa-trash"; colorClass = "act-delete";
+            iconClass = "fa-trash";                   colorClass = "act-delete";
+        } else if (actionLower.includes("stock in")) {
+            iconClass = "fa-arrow-down";              colorClass = "act-add";
+        } else if (actionLower.includes("sold")) {
+            iconClass = "fa-tag";                     colorClass = "act-delete";
+        } else if (actionLower.includes("adjustment") || actionLower.includes("damaged")) {
+            iconClass = "fa-screwdriver-wrench";      colorClass = "act-edit";
+        } else if (actionLower.includes("status") && actionLower.includes("completed")) {
+            iconClass = "fa-circle-check";            colorClass = "act-add";
+        } else if (actionLower.includes("status") && actionLower.includes("pending")) {
+            iconClass = "fa-clock";                   colorClass = "act-edit";
+        } else if (actionLower.includes("status") && actionLower.includes("cancelled")) {
+            iconClass = "fa-ban";                     colorClass = "act-delete";
+        } else if (actionLower.includes("status")) {
+            iconClass = "fa-arrows-rotate";           colorClass = "act-edit";
+        } else if (actionLower.includes("archive")) {
+            iconClass = "fa-box-archive";             colorClass = "act-edit";
+        } else if (actionLower.includes("restore")) {
+            iconClass = "fa-rotate-left";             colorClass = "act-add";
+        } else if (actionLower.includes("login") || actionLower.includes("sign in")) {
+            iconClass = "fa-right-to-bracket";        colorClass = "act-add";
+        } else if (actionLower.includes("logout") || actionLower.includes("sign out")) {
+            iconClass = "fa-right-from-bracket";      colorClass = "act-delete";
         }
 
         html += `

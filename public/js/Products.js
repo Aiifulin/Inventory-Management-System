@@ -12,6 +12,8 @@ import { db, auth, storage } from "./firebase.js";
 // currentUser      — the signed-in Firebase Auth user object
 // isAdmin          — true if the user's role is 'admin'; gates write actions
 // isProductsLoading — true while Firestore fetch is in progress; blocks renders
+// PAGE_SIZE         — how many products to show per page in pagination (if implemented)
+//
 // ============================================================
 let allProducts = [];
 let filteredProducts = []; 
@@ -19,6 +21,8 @@ let currentSortDir = 'asc';
 let currentUser = null;
 let isAdmin = false; 
 let isProductsLoading = true;
+const PAGE_SIZE = 20;
+let currentPage = 1;
 
 // ============================================================
 // SECTION 1 — PRODUCTS CACHE
@@ -230,6 +234,7 @@ function setProductsLoading(loading) {
     mobileSkeleton?.classList.toggle("visible", loading);
     tableContainer?.classList.toggle("hidden", loading);
     mobileList?.classList.toggle("hidden", loading);
+    document.getElementById("paginationBar")?.classList.toggle("hidden", loading);
 }
 
 // ============================================================
@@ -238,6 +243,7 @@ function setProductsLoading(loading) {
 // product list through search / category / status / price checks,
 // then sorts the result and hands it to renderTable().
 // It is called on every filter change event.
+// Pagination is implemented by slicing filteredProducts in renderTable()
 // ============================================================
 
 /**
@@ -304,6 +310,7 @@ function applyFilters() {
     });
 
     filteredProducts = result;
+    currentPage = 1;
     renderTable(filteredProducts);
 }
 
@@ -321,6 +328,13 @@ function renderTable(productsToRender) {
     const tableHead = document.querySelector(".products-table thead tr");
 
     if (isProductsLoading) return;
+
+    // ── Pagination slice ──────────────────────────────────
+    const totalPages   = Math.max(1, Math.ceil(productsToRender.length / PAGE_SIZE));
+    if (currentPage > totalPages) currentPage = totalPages;
+    const start        = (currentPage - 1) * PAGE_SIZE;
+    const pageProducts = productsToRender.slice(start, start + PAGE_SIZE);
+    // ─────────────────────────────────────────────────────
 
     if (tableHead) {
         tableHead.innerHTML = `
@@ -343,7 +357,7 @@ function renderTable(productsToRender) {
         return;
     }
 
-    productsToRender.forEach(p => {
+    pageProducts.forEach(p => {
         const docId    = p.id;
         const shortId = p.id;
 
@@ -449,6 +463,19 @@ function renderTable(productsToRender) {
     });
 
     if (isAdmin) attachDeleteListeners();
+    renderPagination();
+}
+
+// PAGINATION
+function renderPagination() {
+    const bar = document.getElementById("paginationBar");
+    if (!bar) return;
+
+    const totalPages = Math.max(1, Math.ceil(filteredProducts.length / PAGE_SIZE));
+
+    document.getElementById("pageInfo").textContent = `Page ${currentPage} of ${totalPages}`;
+    document.getElementById("prevPageBtn").disabled  = currentPage <= 1;
+    document.getElementById("nextPageBtn").disabled  = currentPage >= totalPages;
 }
 
 /**
@@ -540,6 +567,22 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("filterPrice").addEventListener("change", applyFilters); 
     document.getElementById("filterStatus").addEventListener("change", applyFilters);
     document.getElementById("filterSort").addEventListener("change", applyFilters);
+
+    document.getElementById("prevPageBtn")?.addEventListener("click", () => {
+        if (currentPage > 1) {
+            currentPage--;
+            renderTable(filteredProducts);
+            document.querySelector(".main-content").scrollTo({ top: 0, behavior: "smooth" });
+        }
+    });
+    document.getElementById("nextPageBtn")?.addEventListener("click", () => {
+        const total = Math.ceil(filteredProducts.length / PAGE_SIZE);
+        if (currentPage < total) {
+            currentPage++;
+            renderTable(filteredProducts);
+            document.querySelector(".main-content").scrollTo({ top: 0, behavior: "smooth" });
+        }
+    });
     
     const sortBtn = document.getElementById("sortDirBtn");
     if (sortBtn) {

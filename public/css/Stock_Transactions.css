@@ -411,6 +411,7 @@ tbody td {
     border-radius: 20px;
     font-size: 12px;
     font-weight: 600;
+    white-space: nowrap;
 }
 
 .tx-badge.stock-in   { background: #dcfce7; color: #15803d; }
@@ -435,6 +436,7 @@ tbody td {
     font-size: 12px;
     font-weight: 600;
     white-space: nowrap;
+    width: fit-content;
 }
 
 .status-badge.completed { background: #dcfce7; color: #15803d; }
@@ -451,6 +453,13 @@ tbody td {
     transition: opacity 0.15s, transform 0.1s;
 }
 .status-badge.clickable:hover { opacity: 0.78; transform: scale(1.04); }
+
+@media (max-width: 768px) {
+    .tx-badge,
+    .status-badge {
+        align-self: flex-start;
+    }
+}
 
 /* =========================================
    AUDIT CELL

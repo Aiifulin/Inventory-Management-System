@@ -192,7 +192,7 @@ input:checked + .slider:before { transform: translateX(24px); }
     .sidebar { position: fixed; left: 0; top: 0; bottom: 0; width: 260px; transform: translateX(-100%); z-index: 2000; transition: transform 0.3s ease-in-out; }
     .sidebar.open { transform: translateX(0); }
     .hamburger, .close-btn { display: block; }
-    .main-content { margin-left: 0; width: 100%; padding: 80px 15px 30px 15px; }
+    .main-content { margin-left: 0; width: 100%; padding: 80px 15px 100px 15px; }
     .page-header { flex-direction: column; gap: 15px; }
     .header-actions { width: 100%; }
     .btn-primary { width: 100%; justify-content: center; }
@@ -337,3 +337,40 @@ input:checked + .slider:before { transform: translateX(24px); }
 .skel-td-select { height: 32px; border-radius: 6px; width: 80%; background: var(--hover-bg); }
 .skel-td-btn { height: 32px; border-radius: 6px; width: 60px; background: var(--hover-bg); justify-self: end; }
 
+
+
+/* =========================================
+   FLOATING SAVE BUTTON
+   ========================================= */
+.floating-save-wrap {
+    position: fixed;
+    bottom: 28px;
+    right: 32px;
+    z-index: 1000;
+}
+
+.floating-save-btn {
+    padding: 12px 24px;
+    font-size: 14px;
+    border-radius: 50px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+    transition: opacity 0.2s, transform 0.2s, box-shadow 0.2s;
+}
+
+.floating-save-btn:hover {
+    opacity: 0.95;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+}
+
+@media (max-width: 768px) {
+    .floating-save-wrap {
+        bottom: 16px;
+        right: 16px;
+        left: 16px;
+    }
+    .floating-save-btn {
+        width: 100%;
+        justify-content: center;
+    }
+}

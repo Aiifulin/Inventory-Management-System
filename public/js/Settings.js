@@ -550,6 +550,7 @@ if (saveBtn) {
             await setDoc(doc(db, "settings", SETTINGS_DOC_ID), settingsData, { merge: true });
 
             // Commit all staged role changes in parallel.
+            
             if (pendingUserChanges.size > 0) {
                 const updates = [...pendingUserChanges.entries()].map(([userId, change]) =>
                     updateDoc(doc(db, "users", userId), { role: change.pendingRole })
@@ -561,8 +562,10 @@ if (saveBtn) {
                     if (window._allUsersCache[userId]) {
                         window._allUsersCache[userId].role = change.pendingRole;
                     }
+                    sessionStorage.removeItem(`user_data_${userId}`);
                 });
                 pendingUserChanges.clear();
+                
                 renderUserTable();
             }
 
@@ -573,8 +576,9 @@ if (saveBtn) {
             console.error("Error saving settings:", error);
             showSuccessModal("Error", "An error occurred while saving. Please try again.");
         } finally {
-            saveBtn.innerHTML = originalContent;
-            saveBtn.disabled  = false;
+            saveBtn.innerHTML = `<i class="fas fa-save"></i> <span class="btn-text">Save Changes</span>`;
+            saveBtn.disabled = false;
+            updateSaveBtnLabel();
         }
     });
 }
