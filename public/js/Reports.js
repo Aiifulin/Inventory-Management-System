@@ -267,6 +267,37 @@ function showChart(canvasId, loadingId) {
   if (loading) loading.style.display = 'none';
 }
 
+/**
+ * Injects a plain-language summary sentence beneath a report card's chart.
+ * Looks for an existing .chart-summary element inside the card and creates
+ * one if absent. The card is found by walking up from the canvas element.
+ *
+ * @param {string} canvasId — ID of the chart's canvas element
+ * @param {string} html     — summary HTML to inject (may include <strong>, <span>)
+ */
+function setChartSummary(canvasId, html) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  const card = canvas.closest('.report-card');
+  if (!card) return;
+  let el = card.querySelector('.chart-summary');
+  if (!el) {
+    el = document.createElement('p');
+    el.className = 'chart-summary';
+    const footer = card.querySelector('.report-card-footer');
+    footer ? card.insertBefore(el, footer) : card.appendChild(el);
+  }
+  el.innerHTML = html;
+}
+
+function safeRenderChart(label, renderFn) {
+  try {
+    renderFn();
+  } catch (err) {
+    console.error(`${label} render error:`, err);
+  }
+}
+
 
 // ============================================================
 // SECTION 4 — MASTER CHART LOADER
@@ -321,15 +352,16 @@ async function loadAllCharts() {
     ]);
 
     // Fan out to each chart renderer.
-    renderInventoryChart(productsSnap);
-    renderCategoryChart(productsSnap, categoriesSnap);
-    renderLowStockChart(productsSnap);
-    renderActivityTimelineChart(activitiesSnap);
-    renderInventorySummaryBanner(productsSnap, allTxDocs);
-    renderStockMovementChart(allTxDocs, targetYear, prevYear);
-    renderTopMovedProductsChart(allTxDocs);
-    renderSalesTrendChart(allTxDocs);
-    renderDeadStockChart(productsSnap, allTxDocs);
+    safeRenderChart("Inventory Summary", () => renderInventorySummaryBanner(productsSnap, allTxDocs));
+    safeRenderChart("Overall Summary", () => renderOverallSummary(productsSnap, allTxDocs));
+    safeRenderChart("Inventory", () => renderInventoryChart(productsSnap));
+    safeRenderChart("Category", () => renderCategoryChart(productsSnap, categoriesSnap));
+    safeRenderChart("Low Stock", () => renderLowStockChart(productsSnap));
+    safeRenderChart("Activity Timeline", () => renderActivityTimelineChart(activitiesSnap));
+    safeRenderChart("Stock Movement", () => renderStockMovementChart(allTxDocs, targetYear, prevYear));
+    safeRenderChart("Top Moved Products", () => renderTopMovedProductsChart(allTxDocs));
+    safeRenderChart("Sales Trend", () => renderSalesTrendChart(allTxDocs));
+    safeRenderChart("Dead Stock", () => renderDeadStockChart(productsSnap, allTxDocs));
 
   } catch (err) {
     console.error("Chart load error:", err);
@@ -476,6 +508,106 @@ function renderInventorySummaryBanner(productsSnap, allTxDocs) {
   }
 }
 
+function renderOverallSummary(productsSnap, allTxDocs) {
+  const leadEl = document.getElementById('overallSummaryLead');
+  const rangeEl = document.getElementById('overallSummaryRange');
+  const metricsEl = document.getElementById('overallSummaryMetrics');
+  if (!leadEl || !rangeEl || !metricsEl) return;
+
+  const rangeLabel = formatRangeLabel(activeDateRange.from, activeDateRange.to);
+  rangeEl.textContent = rangeLabel;
+
+  let totalProducts = 0;
+  let lowStockCount = 0;
+  let outOfStockCount = 0;
+  let deadStockCount = 0;
+  let unitsSold = 0;
+  let unitsReceived = 0;
+
+  const recentlyMoved = new Set();
+  const movedTotals = {};
+  const deadStockCutoff = new Date();
+  deadStockCutoff.setDate(deadStockCutoff.getDate() - 90);
+
+  allTxDocs.forEach(docSnap => {
+    const d = docSnap.data();
+    const ts = d.createdAt?.seconds ? new Date(d.createdAt.seconds * 1000) : null;
+    if (ts && ts >= deadStockCutoff) {
+      if (d.productId) recentlyMoved.add(d.productId);
+      if (d.productName) recentlyMoved.add(d.productName);
+    }
+
+    if (d.status === "Cancelled" || !isInRange(d.createdAt)) return;
+
+    const qty = Number(d.qty) || 0;
+    const name = d.productName || d.productId || "Unknown";
+    movedTotals[name] = (movedTotals[name] || 0) + qty;
+
+    if (d.type === "Sold") unitsSold += qty;
+    if (d.type === "Stock In") unitsReceived += qty;
+  });
+
+  productsSnap.forEach(docSnap => {
+    const p = docSnap.data();
+    if (p.archived === true) return;
+
+    totalProducts++;
+    const stock = Number(p.stock) || 0;
+    const threshold = Number(p.lowStockThreshold) || 10;
+    if (stock === 0) outOfStockCount++;
+    else if (stock <= threshold) lowStockCount++;
+
+    if (stock > 0 && !recentlyMoved.has(docSnap.id) && !recentlyMoved.has(p.name)) {
+      deadStockCount++;
+    }
+  });
+
+  const attentionCount = lowStockCount + outOfStockCount;
+  const topMovedEntry = Object.entries(movedTotals).sort((a, b) => b[1] - a[1])[0] || null;
+
+  leadEl.innerHTML =
+    `<strong>${totalProducts.toLocaleString()}</strong> active products are included for <strong>${rangeLabel}</strong>. ` +
+    `${attentionCount > 0
+      ? `<span class="insight-warn">${attentionCount.toLocaleString()} items need replenishment attention</span>`
+      : `<span class="insight-ok">No immediate replenishment issues detected</span>`}. ` +
+    `${topMovedEntry
+      ? `Top movement came from <strong>${topMovedEntry[0]}</strong>.`
+      : `No completed stock movement was recorded in the selected period.`}`;
+
+  metricsEl.innerHTML = [
+    {
+      label: "Units Sold",
+      value: unitsSold.toLocaleString(),
+      note: unitsReceived > 0
+        ? `${unitsReceived.toLocaleString()} units received in the same period`
+        : "No inbound stock recorded in this period"
+    },
+    {
+      label: "Stock Attention",
+      value: attentionCount.toLocaleString(),
+      note: `${outOfStockCount.toLocaleString()} out of stock, ${lowStockCount.toLocaleString()} low stock`
+    },
+    {
+      label: "Top Moved Product",
+      value: topMovedEntry ? topMovedEntry[0] : "None",
+      note: topMovedEntry
+        ? `${topMovedEntry[1].toLocaleString()} total units moved`
+        : "No completed transactions in range"
+    },
+    {
+      label: "Dead Stock",
+      value: deadStockCount.toLocaleString(),
+      note: "Products with stock but no movement in the last 90 days"
+    }
+  ].map(metric => `
+    <div class="overall-summary-metric">
+      <span class="overall-summary-metric-label">${metric.label}</span>
+      <span class="overall-summary-metric-value">${metric.value}</span>
+      <span class="overall-summary-metric-note">${metric.note}</span>
+    </div>
+  `).join('');
+}
+
 
 // ============================================================
 // SECTION 7 — CHART RENDERERS
@@ -594,6 +726,18 @@ function renderActivityTimelineChart(activitiesSnap) {
   // Clear any legacy HTML legend element left from a previous render.
   const legend = document.getElementById('legendActivity');
   if (legend) legend.innerHTML = '';
+
+  const totalActions = addedData.reduce((a,b) => a+b, 0) + updatedData.reduce((a,b) => a+b, 0) + otherData.reduce((a,b) => a+b, 0);
+  const peakIdx   = addedData.map((v,i) => v + updatedData[i] + otherData[i]).reduce((best, v, i, arr) => v > arr[best] ? i : best, 0);
+  const peakLabel = labels[peakIdx];
+  setChartSummary('chartActivity',
+    totalActions === 0
+      ? 'No activity recorded in the last 30 days.'
+      : `<strong>${totalActions}</strong> total actions logged over 30 days. ` +
+        `Busiest day was <strong>${peakLabel}</strong>. ` +
+        `Most activity was <span class="insight-ok">${addedData.reduce((a,b)=>a+b,0)} additions</span> and ` +
+        `<span class="insight-warn">${updatedData.reduce((a,b)=>a+b,0)} updates</span>.`
+  );
 }
 
 /**
@@ -696,6 +840,14 @@ function renderTopMovedProductsChart(allTxDocs) {
       ? `Showing top 5 for: ${formatRangeLabel(activeDateRange.from, activeDateRange.to)}`
       : 'Showing top 5 across all time — use the date filter above to narrow by period';
   }
+
+  const topProduct = sorted[0];
+  setChartSummary('chartTopMoved',
+    `<strong>${topProduct[0]}</strong> is your most active product with ` +
+    `<strong>${topProduct[1].total.toLocaleString()}</strong> total units moved ` +
+    `(${topProduct[1].stockIn.toLocaleString()} in, ${topProduct[1].sold.toLocaleString()} out). ` +
+    `These 5 products account for the bulk of your inventory movement.`
+  );
 }
 
 /**
@@ -800,6 +952,20 @@ function renderSalesTrendChart(allTxDocs) {
     canvas.insertAdjacentElement('afterend', yearSubtitle);
   }
   yearSubtitle.textContent = yearLabel;
+
+  const peakMonth = sorted.reduce((best, cur) => cur[1] > best[1] ? cur : best, sorted[0]);
+  const [peakYr, peakMo] = peakMonth[0].split('-');
+  const peakLabel = new Date(Number(peakYr), Number(peakMo) - 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  const totalSold = values.reduce((a, b) => a + b, 0);
+  setChartSummary('chartSalesTrend',
+    `<strong>${totalSold.toLocaleString()}</strong> total units sold across the selected period. ` +
+    `Peak sales month was <strong>${peakLabel}</strong> with <strong>${peakMonth[1].toLocaleString()}</strong> units. ` +
+    (values.length >= 2 && values[values.length - 1] > values[values.length - 2]
+      ? '<span class="insight-ok">Sales are trending upward.</span>'
+      : values.length >= 2
+      ? '<span class="insight-warn">Sales dipped in the most recent month.</span>'
+      : '')
+  );
 }
 
 /**
@@ -861,6 +1027,13 @@ function renderDeadStockChart(productsSnap, allTxDocs) {
 
   if (emptyEl) emptyEl.style.display = 'none';
   if (canvas)  canvas.style.display  = 'block';
+
+  const totalTiedValue = deadItems.reduce((sum, item) => sum + item.value, 0);
+  setChartSummary('chartDeadStock',
+    `<span class="insight-warn">${deadItems.length}</span> product${deadItems.length !== 1 ? 's' : ''} haven't moved in 90+ days, ` +
+    `tying up an estimated <strong>₱${totalTiedValue.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</strong> in idle inventory. ` +
+    `Consider promotions, bundling, or write-offs for these items.`
+  );
 
   destroyChart('chartDeadStock');
   const ctx = canvas.getContext('2d');
@@ -1062,6 +1235,15 @@ function renderInventoryChart(productsSnap) {
         <span class="legend-count">${values[i]}</span>
       </div>`).join('');
   }
+
+  const total = inStock + lowStock + outOfStock;
+  const pctOk = total ? Math.round((inStock / total) * 100) : 0;
+  const cls = outOfStock > 0 ? 'insight-danger' : lowStock > 0 ? 'insight-warn' : 'insight-ok';
+  setChartSummary('chartInventory',
+    `<span class="${cls}">${pctOk}% of products</span> are well-stocked. ` +
+    (outOfStock > 0 ? `<strong>${outOfStock}</strong> product${outOfStock !== 1 ? 's' : ''} are completely out of stock and need immediate restocking. ` : '') +
+    (lowStock > 0 ? `<strong>${lowStock}</strong> are running low and approaching their threshold.` : outOfStock === 0 ? 'No urgent stock issues detected.' : '')
+  );
 }
 
 /**
@@ -1112,6 +1294,16 @@ function renderCategoryChart(productsSnap, categoriesSnap) {
       }
     }
   });
+
+  const topCat = sorted[0];
+  const topName = topCat ? topCat[0] : null;
+  const topVal  = topCat ? topCat[1] : 0;
+  setChartSummary('chartCategory',
+    topName
+      ? `<strong>${topName}</strong> is your largest category with <strong>${topVal}</strong> product${topVal !== 1 ? 's' : ''}. ` +
+        `You have <strong>${sorted.length}</strong> active ${sorted.length === 1 ? 'category' : 'categories'} with at least one product.`
+      : 'No category data to display yet.'
+  );
 }
 
 /**
@@ -1149,6 +1341,7 @@ function renderLowStockChart(productsSnap) {
   if (top.length === 0) {
     if (emptyEl) emptyEl.style.display = 'flex';
     if (canvas)  canvas.style.display  = 'none';
+    setChartSummary('chartLowStock', 'All active products are above their low-stock thresholds.');
     return;
   }
   if (canvas)  canvas.style.display  = 'block';
@@ -1178,6 +1371,14 @@ function renderLowStockChart(productsSnap) {
       }
     }
   });
+
+  const outCount = top.filter(i => i.stock === 0).length;
+  const cls = outCount > 0 ? 'insight-danger' : 'insight-warn';
+  setChartSummary('chartLowStock',
+    `<span class="${cls}">${top.length}</span> product${top.length !== 1 ? 's' : ''} need attention. ` +
+    (outCount > 0 ? `<strong>${outCount}</strong> ${outCount === 1 ? 'is' : 'are'} completely out of stock. ` : '') +
+    `The most urgent is <strong>${top[0].name}</strong> with only <strong>${top[0].stock}</strong> unit${top[0].stock !== 1 ? 's' : ''} remaining.`
+  );
 }
 
 

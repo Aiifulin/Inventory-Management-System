@@ -513,16 +513,92 @@ body {
 
 /* ── Date Filter Bar ── */
 .date-filter-bar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
   background: var(--bg-card);
   border: 1px solid var(--border-color);
   border-radius: 10px;
   padding: 12px 18px;
   margin-bottom: 16px;
   flex-wrap: wrap;
+    box-shadow: 0 1px 3px var(--shadow-color);
+}
+
+.overall-summary-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 18px 20px;
+  margin-bottom: 16px;
   box-shadow: 0 1px 3px var(--shadow-color);
+}
+
+.overall-summary-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.overall-summary-header h2 {
+  font-size: 17px;
+  color: var(--text-main);
+  margin-bottom: 4px;
+}
+
+.overall-summary-header p {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.overall-summary-range {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: var(--hover-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  padding: 6px 10px;
+  white-space: nowrap;
+}
+
+.overall-summary-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.overall-summary-metric {
+  background: var(--bg-body);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+
+.overall-summary-metric-label {
+  display: block;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+.overall-summary-metric-value {
+  display: block;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-main);
+  margin-bottom: 4px;
+}
+
+.overall-summary-metric-note {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.5;
 }
 
 .date-filter-label {
@@ -624,7 +700,10 @@ body {
 @media (max-width: 768px) {
   .date-filter-bar { flex-direction: column; align-items: flex-start; }
   .active-range-badge { margin-left: 0; }
-}
+  .overall-summary-header { flex-direction: column; }
+  .overall-summary-range { white-space: normal; }
+  .overall-summary-metrics { grid-template-columns: 1fr 1fr; }
+  }
 
 /* =======================================
    APPEND THESE TO THE BOTTOM OF Reports.css
@@ -765,8 +844,9 @@ body {
   .summary-value { font-size: 17px; }
 
   /* Date filter pills wrap more gracefully */
-  .pill-group { gap: 6px; }
-  .date-pill  { font-size: 12px; padding: 5px 11px; }
+    .pill-group { gap: 6px; }
+    .date-pill  { font-size: 12px; padding: 5px 11px; }
+    .overall-summary-metrics { grid-template-columns: 1fr; }
 
   /* Export bar */
   .export-options {
@@ -783,3 +863,23 @@ body {
     justify-content: center;
   }
 }
+
+/* ── Chart summary captions ── */
+.chart-summary {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  padding: 6px 4px 0;
+  border-top: 1px solid var(--border-color);
+  margin-top: 4px;
+}
+.chart-summary strong {
+  color: var(--text-main);
+  font-weight: 600;
+}
+.insight-ok     { color: #16a34a; font-weight: 600; }
+.insight-warn   { color: #d97706; font-weight: 600; }
+.insight-danger { color: #dc2626; font-weight: 600; }
+[data-theme="dark"] .insight-ok     { color: #4ade80; }
+[data-theme="dark"] .insight-warn   { color: #fbbf24; }
+[data-theme="dark"] .insight-danger { color: #f87171; }
