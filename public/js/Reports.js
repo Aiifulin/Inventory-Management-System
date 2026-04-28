@@ -1199,9 +1199,8 @@ function renderStockMovementChart(txDocs, targetYear, prevYear) {
     `<span class="trend-badge ${stockInTrend.cls}">${stockInTrend.text} vs ${prevYear}</span> ` +
     `and <strong>${totalSold.toLocaleString()}</strong> units went out ` +
     `<span class="trend-badge ${soldTrend.cls}">${soldTrend.text} vs ${prevYear}</span>. ` +
-    `Peak receiving was in <strong>${monthNames[peakInMonth]}</strong>, ` +
-    `peak receiving was in <strong>${monthNames[peakInMonth]} ${targetYear}</strong>, ` +
-    `peak sales in <strong>${monthNames[peakOutMonth]} ${targetYear}</strong>.`
+    `Peak receiving was in <strong>${monthNames[peakInMonth]} ${targetYear}</strong>, ` +
+    `Peak sales in <strong>${monthNames[peakOutMonth]} ${targetYear}</strong>.`
   );
 }
 
