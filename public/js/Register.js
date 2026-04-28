@@ -102,6 +102,7 @@ window.register = async function () {
         // Stage the user's profile data for Firestore — written only
         // after email verification is confirmed (see proceedAfterVerify).
         pendingUserData = { uid: user.uid, name, email, role: "user", createdAt: new Date() };
+        userSavedToFirestore = false;
 
         registerBtn.disabled  = false;
         btnText.textContent   = "Create Account";
@@ -175,6 +176,7 @@ window.goToLogin = function() {
 let verifyInterval = null;
 let currentUser = null;
 let pendingUserData = null;
+let userSavedToFirestore = false;
 
 
 // ============================================================
@@ -232,10 +234,17 @@ function startPolling() {
             await currentUser.reload();
             if (currentUser.emailVerified) {
                 clearInterval(verifyInterval);
+                await savePendingUserData();
                 showVerifySuccess();
             }
         } catch (e) { /* user may have been deleted */ }
     }, 3000); // checks every 3 seconds
+}
+
+async function savePendingUserData() {
+    if (!pendingUserData || userSavedToFirestore) return;
+    await setDoc(doc(db, "users", pendingUserData.uid), pendingUserData);
+    userSavedToFirestore = true;
 }
 
 /**
@@ -286,6 +295,7 @@ window.cancelVerification = async function () {
     try {
         await deleteUser(currentUser);
         pendingUserData = null;
+        userSavedToFirestore = false;
     } catch (e) {
         console.error("Failed to delete unverified user:", e);
     }
@@ -302,7 +312,7 @@ window.cancelVerification = async function () {
  */
 window.proceedAfterVerify = async function () {
     try {
-        await setDoc(doc(db, "users", pendingUserData.uid), pendingUserData);
+        await savePendingUserData();
     } catch (e) {
         console.error("Failed to save user:", e);
     }
