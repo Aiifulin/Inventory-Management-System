@@ -1182,6 +1182,27 @@ function renderStockMovementChart(txDocs, targetYear, prevYear) {
     },
     options: baseOpts
   });
+
+  const totalStockIn  = thisYearData.reduce((sum, m) => sum + m.stockIn, 0);
+  const totalSold     = thisYearData.reduce((sum, m) => sum + m.sold,    0);
+  const lastStockIn   = lastYearData.reduce((sum, m) => sum + m.stockIn, 0);
+  const lastSold      = lastYearData.reduce((sum, m) => sum + m.sold,    0);
+  
+  const peakInMonth  = thisYearData.reduce((best, m, i) => m.stockIn > thisYearData[best].stockIn ? i : best, 0);
+  const peakOutMonth = thisYearData.reduce((best, m, i) => m.sold    > thisYearData[best].sold    ? i : best, 0);
+  
+  const stockInTrend = getTrendIndicator(totalStockIn, lastStockIn);
+  const soldTrend    = getTrendIndicator(totalSold,    lastSold);
+  
+  setChartSummary('chartStock',
+    `In <strong>${targetYear}</strong>, <strong>${totalStockIn.toLocaleString()}</strong> units were received ` +
+    `<span class="trend-badge ${stockInTrend.cls}">${stockInTrend.text} vs ${prevYear}</span> ` +
+    `and <strong>${totalSold.toLocaleString()}</strong> units went out ` +
+    `<span class="trend-badge ${soldTrend.cls}">${soldTrend.text} vs ${prevYear}</span>. ` +
+    `Peak receiving was in <strong>${monthNames[peakInMonth]}</strong>, ` +
+    `peak receiving was in <strong>${monthNames[peakInMonth]} ${targetYear}</strong>, ` +
+    `peak sales in <strong>${monthNames[peakOutMonth]} ${targetYear}</strong>.`
+  );
 }
 
 /**
