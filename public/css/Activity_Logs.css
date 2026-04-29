@@ -352,7 +352,7 @@ tbody td {
     background: var(--bg-card);
     border: 1px solid var(--border-color);
     border-radius: 12px;
-    overflow: hidden;
+    overflow-x: auto;
     margin-bottom: 16px;
 }
 .table-wrapper.hidden,
@@ -432,6 +432,7 @@ tbody td {
     font-size: 14px;
     color: var(--text-main);
     vertical-align: middle;
+    overflow-wrap: anywhere;
 }
 
 /* Badges */
@@ -497,8 +498,8 @@ tbody td {
 @media (max-width: 768px) {
     .logs-toolbar { flex-direction: column; align-items: stretch; }
     .search-bar   { max-width: 100%; }
-    thead th:nth-child(4),
-    tbody td:nth-child(4) { display: none; } /* hide Admin col on mobile */
-    .logs-skeleton-row { grid-template-columns: 1.1fr 0.9fr 1.2fr; }
-    .logs-skeleton-user { display: none; }
+    table { min-width: 620px; }
+    thead th,
+    tbody td { padding: 12px 14px; }
+    .logs-skeleton-row { grid-template-columns: 1.1fr 0.9fr 1.2fr 1fr; }
 }

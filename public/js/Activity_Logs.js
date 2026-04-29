@@ -25,6 +25,7 @@ const LOGS_CACHE_KEY = 'activity_logs_cache';
 const CACHE_TTL_MS   = 5 * 60 * 1000;
 const FETCH_LIMIT    = 200;
 const PAGE_SIZE      = 10;
+const USER_NAME_LOOKUP_KEY = 'activity_user_name_lookup';
 
 let allLogs       = [];
 let filteredLogs  = [];
@@ -65,6 +66,21 @@ function loadLogsCache() {
     }
 }
 
+/**
+ * Escapes text before inserting it into table HTML.
+ * @param {string} value
+ * @returns {string}
+ */
+function escHtml(value = '') {
+    return String(value).replace(/[&<>"']/g, (char) => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+    }[char]));
+}
+
 // ============================================================
 // SECTION 2 — USER DATA CACHE
 // Fetches the current user's Firestore document (name, role).
@@ -92,6 +108,47 @@ async function getCachedUserData(uid) {
         console.error("Error fetching user data:", err);
     }
     return null;
+}
+
+/**
+ * Builds a lookup of user emails to display names. Activity entries store
+ * the email in `user`, so this lets the logs show names without changing
+ * older activity documents.
+ * @returns {Promise<Object>}
+ */
+async function getUserNameLookup() {
+    try {
+        const cached = sessionStorage.getItem(USER_NAME_LOOKUP_KEY);
+        if (cached) return JSON.parse(cached);
+
+        const lookup = {};
+        const snapshot = await getDocs(collection(db, "users"));
+        snapshot.forEach((docSnap) => {
+            const data = docSnap.data();
+            if (data.email && data.name) {
+                lookup[data.email.toLowerCase()] = data.name;
+            }
+        });
+
+        sessionStorage.setItem(USER_NAME_LOOKUP_KEY, JSON.stringify(lookup));
+        return lookup;
+    } catch (err) {
+        console.error("Error fetching user name lookup:", err);
+        return {};
+    }
+}
+
+/**
+ * Adds displayUser to each log. Falls back to the original stored user value
+ * when no matching account name exists.
+ * @param {Array} logs
+ */
+async function hydrateLogUsers(logs) {
+    const lookup = await getUserNameLookup();
+    logs.forEach((log) => {
+        const storedUser = log.user || 'Admin';
+        log.displayUser = lookup[String(storedUser).toLowerCase()] || storedUser;
+    });
 }
 
 // ============================================================
@@ -159,6 +216,7 @@ async function initLogs(forceRefresh = false) {
         const cached = loadLogsCache();
         if (cached) {
             allLogs = cached;
+            await hydrateLogUsers(allLogs);
             setLogsLoading(false);
             applyFilterAndRender();
             return;
@@ -194,9 +252,12 @@ async function fetchAndCacheLogs() {
                 action:    data.action    || '',
                 target:    data.target    || '',
                 user:      data.user      || 'Admin',
+                displayUser: data.displayUser || data.user || 'Admin',
                 timestamp: data.timestamp ? data.timestamp.toDate().toISOString() : null
             });
         });
+
+        await hydrateLogUsers(allLogs);
 
         saveLogsCache(allLogs);
     } catch (err) {
@@ -256,6 +317,7 @@ function applyFilterAndRender() {
         return log.action.toLowerCase().includes(search) ||
                log.target.toLowerCase().includes(search) ||
                log.user.toLowerCase().includes(search)   ||
+               (log.displayUser || '').toLowerCase().includes(search) ||
                logDate.includes(search);
     });
 
@@ -313,9 +375,9 @@ function renderPage() {
             return `
                 <tr>
                     <td>${dateStr}</td>
-                    <td><span class="badge ${badgeClass}">${log.action}</span></td>
-                    <td>${log.target}</td>
-                    <td>${log.user}</td>
+                    <td><span class="badge ${badgeClass}">${escHtml(log.action)}</span></td>
+                    <td>${escHtml(log.target)}</td>
+                    <td>${escHtml(log.displayUser || log.user)}</td>
                 </tr>`;
         }).join('');
     }
@@ -377,6 +439,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     document.getElementById('refreshLogsBtn')?.addEventListener('click', () => {
         localStorage.removeItem(LOGS_CACHE_KEY);
+        sessionStorage.removeItem(USER_NAME_LOOKUP_KEY);
         initLogs(true);
     });
 
