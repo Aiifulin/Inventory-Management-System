@@ -358,7 +358,7 @@ async function loadAllCharts() {
     safeRenderChart("Category", () => renderCategoryChart(productsSnap, categoriesSnap));
     safeRenderChart("Low Stock", () => renderLowStockChart(productsSnap));
     safeRenderChart("Activity Timeline", () => renderActivityTimelineChart(activitiesSnap));
-    safeRenderChart("Stock Movement", () => renderStockMovementChart(allTxDocs, targetYear, prevYear));
+    safeRenderChart("Stock Movement", () => renderStockMovementChart(allTxDocs, yearsToFetch));
     safeRenderChart("Top Moved Products", () => renderTopMovedProductsChart(allTxDocs));
     safeRenderChart("Sales Trend", () => renderSalesTrendChart(allTxDocs));
     safeRenderChart("Dead Stock", () => renderDeadStockChart(productsSnap, allTxDocs));
@@ -1112,10 +1112,32 @@ function renderDeadStockChart(productsSnap, allTxDocs) {
  * @param {number}             targetYear — the primary year to display
  * @param {number}             prevYear   — the comparison year (targetYear - 1)
  */
-function renderStockMovementChart(txDocs, targetYear, prevYear) {
-  const monthNames   = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-  const thisYearData = Array(12).fill(0).map(() => ({ stockIn: 0, sold: 0 }));
-  const lastYearData = Array(12).fill(0).map(() => ({ stockIn: 0, sold: 0 }));
+function renderStockMovementChart(txDocs, yearsToFetch) {
+  // Determine the display range from the active filter or fall back to current + prev year.
+  const currentYear = new Date().getFullYear();
+  let displayYears;
+
+  if (activeDateRange.from || activeDateRange.to) {
+    const fromYear = activeDateRange.from ? activeDateRange.from.getFullYear() : currentYear - 1;
+    const toYear   = activeDateRange.to   ? activeDateRange.to.getFullYear()   : currentYear;
+    displayYears = [];
+    for (let y = fromYear; y <= toYear; y++) displayYears.push(y);
+  } else {
+    displayYears = [currentYear];
+  }
+
+  // The "previous year" for comparison is one before the earliest display year.
+  const prevYear    = Math.min(...displayYears) - 1;
+  const targetYear  = displayYears[displayYears.length - 1]; // used only for summary label
+
+  const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+  // Build per-year buckets for the primary range.
+  const yearData = {};
+  displayYears.forEach(y => {
+    yearData[y] = Array(12).fill(null).map(() => ({ stockIn: 0, sold: 0 }));
+  });
+  const lastYearData = Array(12).fill(null).map(() => ({ stockIn: 0, sold: 0 }));
 
   txDocs.forEach(docSnap => {
     const d  = docSnap.data();
@@ -1125,9 +1147,9 @@ function renderStockMovementChart(txDocs, targetYear, prevYear) {
     const yr  = ts.getFullYear();
     const mo  = ts.getMonth();
     const qty = Number(d.qty) || 0;
-    if (yr === targetYear) {
-      if (d.type === "Stock In") thisYearData[mo].stockIn += qty;
-      else                       thisYearData[mo].sold    += qty;
+    if (yearData[yr]) {
+      if (d.type === "Stock In") yearData[yr][mo].stockIn += qty;
+      else                       yearData[yr][mo].sold    += qty;
     } else if (yr === prevYear) {
       if (d.type === "Stock In") lastYearData[mo].stockIn += qty;
       else                       lastYearData[mo].sold    += qty;
@@ -1141,11 +1163,33 @@ function renderStockMovementChart(txDocs, targetYear, prevYear) {
   const textColor = chartTextColor();
   const gridColor = chartGridColor();
 
-  // Shared options object reused by both the current and comparison charts.
+  // Colour palette — cycles if more years than colours.
+  const stockInColors  = ["#22c55e","#3b82f6","#8b5cf6","#f59e0b","#06b6d4","#ec4899"];
+  const stockOutColors = ["#16a34a","#1d4ed8","#6d28d9","#b45309","#0e7490","#be185d"];
+
+  // Build one dataset pair per year in the primary range.
+  const primaryDatasets = displayYears.flatMap((yr, i) => [
+    {
+      label: `Stock In (${yr})`,
+      data: yearData[yr].map(m => m.stockIn),
+      backgroundColor: stockInColors[i % stockInColors.length],
+      borderRadius: 4, borderSkipped: false
+    },
+    {
+      label: `Stock Out (${yr})`,
+      data: yearData[yr].map(m => m.sold),
+      backgroundColor: stockOutColors[i % stockOutColors.length],
+      borderRadius: 4, borderSkipped: false
+    }
+  ]);
+
   const baseOpts = {
     responsive: true, maintainAspectRatio: false,
     plugins: {
-      legend: { display: true, position: "top", labels: { color: textColor, font: { size: 11 }, boxWidth: 12, padding: 10 } },
+      legend: {
+        display: true, position: "top",
+        labels: { color: textColor, font: { size: 11 }, boxWidth: 12, padding: 10 }
+      },
       tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: ${ctx.raw.toLocaleString()} units` } }
     },
     scales: {
@@ -1154,53 +1198,64 @@ function renderStockMovementChart(txDocs, targetYear, prevYear) {
     }
   };
 
-  // Current year chart.
+  // Primary chart — all selected years side by side.
   const ctx = document.getElementById("chartStock").getContext("2d");
   chartInstances["chartStock"] = new Chart(ctx, {
     type: "bar",
-    data: {
-      labels: monthNames,
-      datasets: [
-        { label: `Stock In (${targetYear})`,  data: thisYearData.map(m => m.stockIn), backgroundColor: "#22c55e", borderRadius: 4, borderSkipped: false },
-        { label: `Stock Out (${targetYear})`, data: thisYearData.map(m => m.sold),    backgroundColor: "#3b82f6", borderRadius: 4, borderSkipped: false }
-      ]
-    },
+    data: { labels: monthNames, datasets: primaryDatasets },
     options: baseOpts
   });
 
-  // Previous year comparison chart (uses semi-transparent colours to visually differentiate).
-  const ctxCmp = document.getElementById("chartStockCompare").getContext("2d");
+  // Comparison chart — always the year before the earliest selected year.
   showChart("chartStockCompare", null);
+  const ctxCmp = document.getElementById("chartStockCompare").getContext("2d");
   chartInstances["chartStockCompare"] = new Chart(ctxCmp, {
     type: "bar",
     data: {
       labels: monthNames,
       datasets: [
-        { label: `Stock In (${prevYear})`,  data: lastYearData.map(m => m.stockIn), backgroundColor: "rgba(34,197,94,0.4)",  borderColor: "#22c55e", borderWidth: 1, borderRadius: 4, borderSkipped: false },
-        { label: `Stock Out (${prevYear})`, data: lastYearData.map(m => m.sold),    backgroundColor: "rgba(59,130,246,0.4)", borderColor: "#3b82f6", borderWidth: 1, borderRadius: 4, borderSkipped: false }
+        {
+          label: `Stock In (${prevYear})`,
+          data: lastYearData.map(m => m.stockIn),
+          backgroundColor: "rgba(34,197,94,0.4)", borderColor: "#22c55e",
+          borderWidth: 1, borderRadius: 4, borderSkipped: false
+        },
+        {
+          label: `Stock Out (${prevYear})`,
+          data: lastYearData.map(m => m.sold),
+          backgroundColor: "rgba(59,130,246,0.4)", borderColor: "#3b82f6",
+          borderWidth: 1, borderRadius: 4, borderSkipped: false
+        }
       ]
     },
     options: baseOpts
   });
 
-  const totalStockIn  = thisYearData.reduce((sum, m) => sum + m.stockIn, 0);
-  const totalSold     = thisYearData.reduce((sum, m) => sum + m.sold,    0);
-  const lastStockIn   = lastYearData.reduce((sum, m) => sum + m.stockIn, 0);
-  const lastSold      = lastYearData.reduce((sum, m) => sum + m.sold,    0);
-  
-  const peakInMonth  = thisYearData.reduce((best, m, i) => m.stockIn > thisYearData[best].stockIn ? i : best, 0);
-  const peakOutMonth = thisYearData.reduce((best, m, i) => m.sold    > thisYearData[best].sold    ? i : best, 0);
-  
+  // Summary — totals for the latest year in range vs prev year.
+  const latestData   = yearData[targetYear];
+  const totalStockIn = latestData.reduce((s, m) => s + m.stockIn, 0);
+  const totalSold    = latestData.reduce((s, m) => s + m.sold,    0);
+  const lastStockIn  = lastYearData.reduce((s, m) => s + m.stockIn, 0);
+  const lastSold     = lastYearData.reduce((s, m) => s + m.sold,    0);
+
+  const peakInMonth  = latestData.reduce((best, m, i) => m.stockIn > latestData[best].stockIn ? i : best, 0);
+  const peakOutMonth = latestData.reduce((best, m, i) => m.sold    > latestData[best].sold    ? i : best, 0);
+
   const stockInTrend = getTrendIndicator(totalStockIn, lastStockIn);
   const soldTrend    = getTrendIndicator(totalSold,    lastSold);
-  
+
+  const rangeStr = displayYears.length > 1
+    ? `${displayYears[0]}–${targetYear}`
+    : String(targetYear);
+
   setChartSummary('chartStock',
-    `In <strong>${targetYear}</strong>, <strong>${totalStockIn.toLocaleString()}</strong> units were received ` +
+    `Showing <strong>${rangeStr}</strong>. In <strong>${targetYear}</strong>, ` +
+    `<strong>${totalStockIn.toLocaleString()}</strong> units were received ` +
     `<span class="trend-badge ${stockInTrend.cls}">${stockInTrend.text} vs ${prevYear}</span> ` +
     `and <strong>${totalSold.toLocaleString()}</strong> units went out ` +
     `<span class="trend-badge ${soldTrend.cls}">${soldTrend.text} vs ${prevYear}</span>. ` +
-    `Peak receiving was in <strong>${monthNames[peakInMonth]} ${targetYear}</strong>, ` +
-    `Peak sales in <strong>${monthNames[peakOutMonth]} ${targetYear}</strong>.`
+    `Peak receiving was <strong>${monthNames[peakInMonth]} ${targetYear}</strong>, ` +
+    `peak sales <strong>${monthNames[peakOutMonth]} ${targetYear}</strong>.`
   );
 }
 
