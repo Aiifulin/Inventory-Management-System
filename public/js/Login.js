@@ -101,18 +101,27 @@ const login = function () {
             localStorage.setItem("user_session", "true");
             localStorage.setItem("user_uid", uid);
 
-            // Fetch the user's display name for the welcome overlay.
+            // Fetch the user's display name and role for the welcome overlay
+            // and post-login route.
             let userName = "User";
+            let userRole = "user";
             try {
                 const snap = await getDoc(doc(db, "users", uid));
                 if (snap.exists()) {
-                    userName = snap.data().name || "User";
+                    const userData = snap.data();
+                    userName = userData.name || "User";
+                    userRole = userData.role || "user";
+                    sessionStorage.setItem(`user_data_${uid}`, JSON.stringify(userData));
                 }
             } catch (err) {
-                console.error("Error fetching user name:", err);
+                console.error("Error fetching user data:", err);
             }
 
-            showLoginSuccess(userName);
+            const normalizedRole = userRole.toLowerCase();
+            const redirectUrl = normalizedRole === "admin" ? "Dashboard.html" : "Products.html";
+            localStorage.setItem("user_role", normalizedRole === "admin" ? "admin" : "user");
+
+            showLoginSuccess(userName, redirectUrl);
         })
         .catch((err) => {
             console.error(err.code, err.message);
@@ -162,7 +171,7 @@ const login = function () {
  *
  * @param {string} userName — the user's display name to show in the title
  */
-function showLoginSuccess(userName) {
+function showLoginSuccess(userName, redirectUrl) {
     const overlay = document.getElementById('loginSuccessOverlay');
     const bar     = document.getElementById('loginProgressBar');
     const title   = document.querySelector('.login-success-title');
@@ -176,7 +185,7 @@ function showLoginSuccess(userName) {
         bar.style.width = width + '%';
         if (width >= 100) {
             clearInterval(interval);
-            window.location.href = "Dashboard.html";
+            window.location.href = redirectUrl;
         }
     }, 35);
 }

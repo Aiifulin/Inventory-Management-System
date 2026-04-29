@@ -54,7 +54,7 @@ onAuthStateChanged(auth, async (user) => {
         const isAdmin = await checkAdminRole(user.uid);
         if (!isAdmin) {
             alert("Access Denied: Only Admins can add categories.");
-            window.location.href = "Categories.html";
+            window.location.href = "Products.html";
         }
         // =======================================================
         // Logout Confirmation Modal (shared pattern with Dashboard)

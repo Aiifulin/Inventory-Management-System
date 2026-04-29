@@ -1,6 +1,7 @@
 import { collection, getDocs, doc, addDoc, serverTimestamp, getDoc, where, updateDoc, query } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 import { initLogoutModal } from "./logout-modal.js";
+import { applyRoleBasedNavigation } from "./access-control.js";
 import { db, auth, storage } from "./firebase.js";
 
 
@@ -148,6 +149,7 @@ onAuthStateChanged(auth, async (user) => {
 
     localStorage.setItem("user_uid",  user.uid);
     localStorage.setItem("user_role", isAdmin ? "admin" : "user");
+    applyRoleBasedNavigation(isAdmin);
 
     if (isAdmin) {
         const bulkBtn   = document.getElementById('bulkUploadBtn');

@@ -7,6 +7,7 @@
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 import { collection, query, orderBy, limit, where, doc, getDoc, getDocs, Timestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { initLogoutModal } from "./logout-modal.js";
+import { applyRoleBasedNavigation, isAdminUser, renderAccessDenied } from "./access-control.js";
 import { db, auth, storage } from "./firebase.js";
 
 
@@ -89,15 +90,11 @@ async function getCachedUserData(uid) {
 onAuthStateChanged(auth, async (user) => {
     if (!user) { window.location.href = "index.html"; return; }
 
-    // Fire both requests simultaneously instead of sequentially.
-    // loadDashboard() starts rendering from cache right away if available.
-    const [userData] = await Promise.all([
-        getCachedUserData(user.uid),
-        loadDashboard()
-    ]);
+    const main = document.querySelector('.main-content');
+    const userData = await getCachedUserData(user.uid);
 
     // Update the sidebar name badge once user data arrives.
-    const isAdmin = userData?.role?.toLowerCase() === 'admin';
+    const isAdmin = isAdminUser(userData);
     const nameEl  = document.getElementById('userNameDisplay');
     if (nameEl) {
         const name = userData?.name || "User";
@@ -105,6 +102,7 @@ onAuthStateChanged(auth, async (user) => {
         const roleLabel = role.charAt(0).toUpperCase() + role.slice(1);
         nameEl.innerHTML = `${name} <span style="font-size:11px; color: #FFA500; font-weight:600; opacity:0.7;">(${roleLabel})</span>`;
     }
+    applyRoleBasedNavigation(isAdmin);
 
     // Only admins can see the "Add Product" button.
     const addBtn = document.getElementById('addProductBtn');
@@ -123,6 +121,15 @@ onAuthStateChanged(auth, async (user) => {
     };
     const openLogoutModal = initLogoutModal(doSignOut);
     window.logout = function () { if (openLogoutModal) openLogoutModal(); };
+
+    if (!isAdmin) {
+        renderAccessDenied(main, "Dashboard");
+        if (main) main.style.visibility = 'visible';
+        return;
+    }
+
+    await loadDashboard();
+    if (main) main.style.visibility = 'visible';
 });
 
 

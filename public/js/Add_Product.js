@@ -5,6 +5,7 @@ import {
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-storage.js";
 import { initLogoutModal } from "./logout-modal.js";
+import { applyRoleBasedNavigation, isAdminUser, renderAccessDenied } from "./access-control.js";
 import { db, auth, storage } from "./firebase.js";
 
 
@@ -81,28 +82,17 @@ onAuthStateChanged(auth, async (user) => {
     }
 
     const userData = await getCachedUserData(user.uid);
-    const isAdmin  = userData?.role?.toLowerCase() === 'admin';
+    const isAdmin  = isAdminUser(userData);
     const main     = document.getElementById('mainContent');
+    applyRoleBasedNavigation(isAdmin);
 
-    if (!isAdmin) {
-        // Swap content while still hidden — non-admins never see the form
-        main.innerHTML = `
-            <div style="display:flex; flex-direction:column; align-items:center;
-                        justify-content:center; height:60vh; text-align:center;
-                        color:var(--text-secondary);">
-                <i class="fas fa-lock" style="font-size:48px; margin-bottom:16px;"></i>
-                <h2 style="margin:0 0 8px; color:var(--text-main); font-size:20px;">Access Denied</h2>
-                <p style="margin:0; font-size:14px;">Only admins can add products.</p>
-                
-            </div>`;
-        main.style.visibility = 'visible';
-        return;
+    const nameEl = document.getElementById('userNameDisplay');
+    if (nameEl) {
+        const name = userData?.name || "User";
+        const role = userData?.role || "user";
+        const roleLabel = role.charAt(0).toUpperCase() + role.slice(1);
+        nameEl.innerHTML = `${name} <span style="font-size:11px; color: #FFA500; font-weight:600; opacity:0.7;">(${roleLabel})</span>`;
     }
-
-    // Admin path — reveal form and load page
-    displayUserName(user.uid);
-    loadDefaultThreshold();
-    main.style.visibility = 'visible';
 
     // =======================================================
     // Logout Confirmation Modal (shared pattern with Dashboard)
@@ -113,7 +103,18 @@ onAuthStateChanged(auth, async (user) => {
         signOut(auth).then(() => window.location.replace("index.html")).catch(() => window.location.replace("index.html"));
     };
     const openLogoutModal = initLogoutModal(doSignOut);
-    window.logout = function () { if (openLogoutModal) openLogoutModal(); }; 
+    window.logout = function () { if (openLogoutModal) openLogoutModal(); };
+
+    if (!isAdmin) {
+        // Swap content while still hidden — non-admins never see the form
+        renderAccessDenied(main, "Add Products");
+        main.style.visibility = 'visible';
+        return;
+    }
+
+    // Admin path — reveal form and load page
+    loadDefaultThreshold();
+    main.style.visibility = 'visible';
 });
 
 // ============================================================

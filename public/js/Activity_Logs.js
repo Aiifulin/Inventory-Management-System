@@ -3,6 +3,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 import { initLogoutModal } from "./logout-modal.js";
+import { applyRoleBasedNavigation, isAdminUser, renderAccessDenied } from "./access-control.js";
 import { db, auth, storage } from "./firebase.js";
 
 
@@ -106,10 +107,8 @@ onAuthStateChanged(auth, async (user) => {
     if (!user) { window.location.href = "index.html"; return; }
 
     // 🔥 Fire user data AND logs fetch simultaneously
-    const [userData] = await Promise.all([
-        getCachedUserData(user.uid),
-        initLogs()
-    ]);
+    const userData = await getCachedUserData(user.uid);
+    const isAdmin = isAdminUser(userData);
 
     const nameEl = document.getElementById('userNameDisplay');
     if (nameEl) {
@@ -118,8 +117,7 @@ onAuthStateChanged(auth, async (user) => {
         const roleLabel = role.charAt(0).toUpperCase() + role.slice(1);
         nameEl.innerHTML = `${name} <span style="font-size:11px; color: #FFA500; font-weight:600; opacity:0.7;">(${roleLabel})</span>`;
     }
-
-    document.querySelector('.main-content').style.visibility = 'visible';
+    applyRoleBasedNavigation(isAdmin);
 
     // Logout modal
     const doSignOut = () => {
@@ -131,6 +129,16 @@ onAuthStateChanged(auth, async (user) => {
     };
     const openLogoutModal = initLogoutModal(doSignOut);
     window.logout = function () { if (openLogoutModal) openLogoutModal(); };
+
+    const main = document.querySelector('.main-content');
+    if (!isAdmin) {
+        renderAccessDenied(main, "Activity Logs");
+        if (main) main.style.visibility = 'visible';
+        return;
+    }
+
+    await initLogs();
+    if (main) main.style.visibility = 'visible';
 });
 
 // ============================================================

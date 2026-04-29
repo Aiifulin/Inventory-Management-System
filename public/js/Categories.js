@@ -2,6 +2,7 @@ import { collection, getDocs, doc, addDoc, serverTimestamp, getDoc, where, updat
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 import { initLogoutModal } from "./logout-modal.js";
 import { getCountFromServer } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { applyRoleBasedNavigation, isAdminUser, renderAccessDenied } from "./access-control.js";
 import { db, auth, storage } from "./firebase.js";
 
 
@@ -139,12 +140,9 @@ onAuthStateChanged(auth, async (user) => {
     currentUser = user;
 
     // 🔥 Fire user data AND category fetch simultaneously
-    const [userData] = await Promise.all([
-        getCachedUserData(user.uid),
-        fetchCategories()
-    ]);
+    const userData = await getCachedUserData(user.uid);
 
-    isAdmin = userData?.role?.toLowerCase() === 'admin';
+    isAdmin = isAdminUser(userData);
 
     const nameEl = document.getElementById('userNameDisplay');
     if (nameEl) {
@@ -153,13 +151,11 @@ onAuthStateChanged(auth, async (user) => {
         const roleLabel = role.charAt(0).toUpperCase() + role.slice(1);
         nameEl.innerHTML = `${name} <span style="font-size:11px; color: #FFA500; font-weight:600; opacity:0.7;">(${roleLabel})</span>`;
     }
+    applyRoleBasedNavigation(isAdmin);
 
     // Show/hide add button now that role is known
     const addBtn = document.getElementById('addCategoryBtn');
     if (addBtn) addBtn.style.display = isAdmin ? 'flex' : 'none';
-
-    // Re-render so admin action icons appear now that isAdmin is set
-    renderTable(filteredCategories);
 
     // Logout modal
     const doSignOut = () => {
@@ -171,6 +167,19 @@ onAuthStateChanged(auth, async (user) => {
     };
     const openLogoutModal = initLogoutModal(doSignOut);
     window.logout = function () { if (openLogoutModal) openLogoutModal(); };
+
+    const main = document.querySelector('.main-content');
+    if (!isAdmin) {
+        renderAccessDenied(main, "Categories");
+        if (main) main.style.visibility = 'visible';
+        return;
+    }
+
+    await fetchCategories();
+
+    // Re-render so admin action icons appear now that isAdmin is set
+    renderTable(filteredCategories);
+    if (main) main.style.visibility = 'visible';
 });
 
 // ============================================================

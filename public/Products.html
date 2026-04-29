@@ -7,7 +7,15 @@
         if (!localStorage.getItem("user_session")) {
             window.location.replace("index.html");
         }
+        if (localStorage.getItem("user_role") === "user") {
+            document.documentElement.classList.add("role-user-nav");
+        }
     </script>
+    <style>
+        .role-user-nav .sidebar-nav .nav-link:not([href*="Products.html"]) {
+            display: none;
+        }
+    </style>
     
     <script>
         const savedTheme = localStorage.getItem('theme');

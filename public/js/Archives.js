@@ -5,6 +5,7 @@ import {
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 import { initLogoutModal } from "./logout-modal.js";
 import { ref, deleteObject } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-storage.js";
+import { applyRoleBasedNavigation, isAdminUser, renderAccessDenied } from "./access-control.js";
 import { db, auth, storage } from "./firebase.js";
 
 // ============================================================
@@ -87,11 +88,7 @@ onAuthStateChanged(auth, async (user) => {
     window.logout = function () { if (openLogoutModal) openLogoutModal(); };
 
     // 🔥 Fire user data fetch simultaneously with both archive loads
-    const [userData] = await Promise.all([
-        getCachedUserData(user.uid),
-        loadArchivedProducts(true),
-        loadArchivedCategories(true)
-    ]);
+    const userData = await getCachedUserData(user.uid);
 
     const nameEl  = document.getElementById('userNameDisplay');
     if (nameEl) {
@@ -101,17 +98,16 @@ onAuthStateChanged(auth, async (user) => {
         nameEl.innerHTML = `${name} <span style="font-size:11px; color: #FFA500; font-weight:600; opacity:0.7;">(${roleLabel})</span>`;
     }
 
-    const isAdmin = userData?.role?.toLowerCase() === "admin";
+    const isAdmin = isAdminUser(userData);
+    applyRoleBasedNavigation(isAdmin);
 
     if (!isAdmin) {
-        main.innerHTML = `
-            <div style="display:flex; flex-direction:column; align-items:center; 
-                        justify-content:center; height:60vh; text-align:center; 
-                        color:var(--text-secondary);">
-                <i class="fas fa-lock" style="font-size:48px; margin-bottom:16px;"></i>
-                <h2 style="margin:0 0 8px; color:var(--text-main); font-size:20px;">Access Denied</h2>
-                <p style="margin:0; font-size:14px;">You do not have permission to view Archives.</p>
-            </div>`;
+        renderAccessDenied(main, "Archives");
+    } else {
+        await Promise.all([
+            loadArchivedProducts(true),
+            loadArchivedCategories(true)
+        ]);
     }
 
     main.style.visibility = 'visible';

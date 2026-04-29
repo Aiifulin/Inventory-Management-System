@@ -11,6 +11,7 @@
 import { doc, getDoc, setDoc, updateDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 import { initLogoutModal } from "./logout-modal.js";
+import { applyRoleBasedNavigation, isAdminUser, renderAccessDenied } from "./access-control.js";
 import { db, auth, storage } from "./firebase.js";
 
 
@@ -93,7 +94,6 @@ onAuthStateChanged(auth, async (user) => {
     if (!user) { window.location.href = "index.html"; return; }
 
     const main = document.getElementById('mainContent');
-    main.style.visibility = 'visible';
 
     // Wire up the logout modal early so it works regardless of role.
     const doSignOut = () => {
@@ -106,12 +106,7 @@ onAuthStateChanged(auth, async (user) => {
     const openLogoutModal = initLogoutModal(doSignOut);
     window.logout = function () { if (openLogoutModal) openLogoutModal(); };
 
-    // Fire all three async operations in parallel.
-    const [userData] = await Promise.all([
-        getCachedUserData(user.uid),
-        loadSettings(),
-        loadUserTable()
-    ]);
+    const userData = await getCachedUserData(user.uid);
 
     // Update the sidebar name badge.
     const nameEl = document.getElementById('userNameDisplay');
@@ -122,20 +117,20 @@ onAuthStateChanged(auth, async (user) => {
         nameEl.innerHTML = `${name} <span style="font-size:11px; color: #FFA500; font-weight:600; opacity:0.7;">(${roleLabel})</span>`;
     }
 
-    const isAdmin = userData?.role?.toLowerCase() === 'admin';
+    const isAdmin = isAdminUser(userData);
+    applyRoleBasedNavigation(isAdmin);
 
     // Replace main content with an access-denied message for non-admins.
     if (!isAdmin) {
-        main.innerHTML = `
-            <div style="display:flex;flex-direction:column;align-items:center;
-                        justify-content:center;height:60vh;text-align:center;
-                        color:var(--text-secondary);">
-                <i class="fas fa-lock" style="font-size:48px;margin-bottom:16px;"></i>
-                <h2 style="margin:0 0 8px;color:var(--text-main);font-size:20px;">Access Denied</h2>
-                <p style="margin:0;font-size:14px;">You do not have permission to view Settings.</p>
-            </div>`;
+        renderAccessDenied(main, "Settings");
+        if (main) main.style.visibility = 'visible';
         return;
     }
+
+    await Promise.all([
+        loadSettings(),
+        loadUserTable()
+    ]);
 
     // Merge Firestore user data with the Firebase Auth user object
     // so populateAdminInfo() has a consistent shape to read from.
@@ -151,6 +146,7 @@ onAuthStateChanged(auth, async (user) => {
     initAutoBackup();
     await loadAutoBackupSettings();
     initUserDrawer();
+    if (main) main.style.visibility = 'visible';
 });
 
 

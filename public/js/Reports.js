@@ -12,6 +12,7 @@ import {
   orderBy, limit, doc, getDoc, where
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { initLogoutModal } from "./logout-modal.js";
+import { applyRoleBasedNavigation, isAdminUser, renderAccessDenied } from "./access-control.js";
 import { db, auth, storage } from "./firebase.js";
 
 
@@ -183,12 +184,9 @@ onAuthStateChanged(auth, async (user) => {
 
   const main = document.getElementById('mainContent');
 
-  const [userData] = await Promise.all([
-    getCachedUserData(user.uid),
-    loadAllCharts()
-  ]);
+  const userData = await getCachedUserData(user.uid);
 
-  const isAdmin = userData?.role?.toLowerCase() === 'admin';
+  const isAdmin = isAdminUser(userData);
   const nameEl  = document.getElementById('userNameDisplay');
   if (nameEl) {
     const name = userData?.name || "User";
@@ -196,18 +194,13 @@ onAuthStateChanged(auth, async (user) => {
     const roleLabel = role.charAt(0).toUpperCase() + role.slice(1);
     nameEl.innerHTML = `${name} <span style="font-size:11px; color: #FFA500; font-weight:600; opacity:0.7;">(${roleLabel})</span>`;
   }
+  applyRoleBasedNavigation(isAdmin);
 
   // Replace main content with an access-denied message for non-admins.
   if (!isAdmin) {
-    main.innerHTML = `
-      <div style="display:flex;flex-direction:column;align-items:center;
-                  justify-content:center;height:60vh;text-align:center;
-                  color:var(--text-secondary);">
-        <i class="fas fa-lock" style="font-size:48px;margin-bottom:16px;"></i>
-        <h2 style="margin:0 0 8px;color:var(--text-main);font-size:20px;">Access Denied</h2>
-        <p style="margin:0;font-size:14px;">You do not have permission to view Reports.</p>
-      </div>`;
+    renderAccessDenied(main, "Reports");
   } else {
+    await loadAllCharts();
     // Wire up export buttons and date filter only for admins.
     attachReportListeners();
   }

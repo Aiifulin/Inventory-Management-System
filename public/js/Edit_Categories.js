@@ -82,7 +82,7 @@ onAuthStateChanged(auth, async (user) => {
         if (!isAdmin) {
             // Block non-admins from accessing the edit page at all.
             alert("Access Denied: Only Admins can edit categories.");
-            window.location.href = "Categories.html";
+            window.location.href = "Products.html";
         } else {
             await displayUserName(user.uid);
             initPage();

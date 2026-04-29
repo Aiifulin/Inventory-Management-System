@@ -13,6 +13,7 @@ import {
     updateDoc, query, orderBy, where, serverTimestamp, Timestamp, limit
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { initLogoutModal } from "./logout-modal.js";
+import { applyRoleBasedNavigation, isAdminUser, renderAccessDenied } from "./access-control.js";
 import { db, auth, storage } from "./firebase.js";
 
 
@@ -124,7 +125,7 @@ onAuthStateChanged(auth, async (user) => {
 
     // Resolve role first — isAdmin gates button visibility and row rendering.
     const userData = await getCachedUserData(user.uid);
-    isAdmin = userData?.role?.toLowerCase() === "admin";
+    isAdmin = isAdminUser(userData);
 
     const nameEl = document.getElementById("userNameDisplay");
     if (nameEl) {
@@ -133,18 +134,11 @@ onAuthStateChanged(auth, async (user) => {
         const roleLabel = role.charAt(0).toUpperCase() + role.slice(1);
         nameEl.innerHTML = `${name} <span style="font-size:11px; color: #FFA500; font-weight:600; opacity:0.7;">(${roleLabel})</span>`;
     }
+    applyRoleBasedNavigation(isAdmin);
 
     // Show the "Add Transaction" button only for admins.
     const openBtn = document.getElementById("openModalBtn");
     if (openBtn && isAdmin) openBtn.style.display = "inline-flex";
-
-    // Safe to run in parallel now that isAdmin is set.
-    await Promise.all([
-        loadProducts(),
-        initYearTabs()
-    ]);
-
-    document.querySelector('.main-content').style.visibility = 'visible';
 
     const doSignOut = () => {
         ["user_session", "user_uid", "user_role"].forEach(k => localStorage.removeItem(k));
@@ -153,6 +147,21 @@ onAuthStateChanged(auth, async (user) => {
     };
     const openLogout = initLogoutModal(doSignOut);
     window.logout = () => { if (openLogout) openLogout(); };
+
+    const main = document.querySelector('.main-content');
+    if (!isAdmin) {
+        renderAccessDenied(main, "Stock Transactions");
+        if (main) main.style.visibility = 'visible';
+        return;
+    }
+
+    // Safe to run in parallel now that isAdmin is set.
+    await Promise.all([
+        loadProducts(),
+        initYearTabs()
+    ]);
+
+    if (main) main.style.visibility = 'visible';
 });
 
 
