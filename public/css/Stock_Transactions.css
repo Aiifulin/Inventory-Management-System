@@ -1043,3 +1043,27 @@ tbody td {
 }
 [data-theme="dark"] .stock-warning-title { color: #f87171; }
 [data-theme="dark"] .stock-warning-desc  { color: #fca5a5; }
+
+/* =========================================
+   MODAL FOOTER — RESPONSIVE
+   ========================================= */
+@media (max-width: 500px) {
+    .modal-footer {
+        gap: 8px;
+    }
+
+    .btn-cancel-modal {
+        margin-right: auto;
+    }
+
+    .btn-save-another,
+    .btn-confirm-tx {
+        padding: 10px 12px;
+        font-size: 13px;
+    }
+
+    .btn-save-another i,
+    .btn-confirm-tx i {
+        display: none; /* hide icons to reclaim space */
+    }
+}
